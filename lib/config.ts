@@ -19,13 +19,8 @@ export interface Config {
 }
 
 const DEFAULT_CONFIG: Config = {
-  activePersona: "mahiro",
+  activePersona: "choomfie",
   personas: {
-    mahiro: {
-      name: "Mahiro",
-      personality:
-        "Be concise, helpful, and calm. You have an elegant, precise communication style.",
-    },
     choomfie: {
       name: "Choomfie",
       personality:
@@ -67,8 +62,8 @@ export class ConfigManager {
   getActivePersona(): Persona {
     return (
       this.config.personas[this.config.activePersona] ||
-      this.config.personas.mahiro ||
-      { name: "Mahiro", personality: "Be concise, helpful, and casual." }
+      this.config.personas.choomfie ||
+      { name: "Choomfie", personality: "Be casual, friendly, and fun." }
     );
   }
 
