@@ -131,6 +131,12 @@ const mcp = new Server(
       "Use react to add emoji reactions. Use edit_message for interim progress updates — edits don't trigger push notifications.",
       "Use pin_message to pin important messages in a channel.",
       "",
+      "## Conversation Mode",
+      'When a message has conversation_mode="true", you are in an active channel conversation.',
+      "You do NOT need to reply to every message — respond naturally like a human would.",
+      "Sometimes just read and move on. Only reply when you have something to add, are asked directly, or it feels natural.",
+      "The conversation stays active as long as people keep chatting (2 min idle timeout).",
+      "",
       "## Personas",
       "You have switchable personas. Use switch_persona to change who you are.",
       "Use save_persona to create new personas, list_personas to see all available.",
@@ -305,7 +311,7 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: "object" as const,
         properties: {
-          key: { type: "string", description: "Persona key (e.g. 'mahiro', 'choomfie')" },
+          key: { type: "string", description: "Persona key (e.g. 'takagi', 'choomfie')" },
         },
         required: ["key"],
       },
@@ -713,7 +719,7 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
         `  Active: ${persona.name} (\`${personaKey}\`)`,
         `  Personality: ${persona.personality}`,
         `  Available: ${allPersonas.map((p) => `${p.key}${p.active ? " (active)" : ""}`).join(", ")}`,
-        `  How to change: "switch to choomfie" or "switch to mahiro"`,
+        `  How to change: "switch to choomfie" or "switch to takagi"`,
         `  Create new: "create a pirate persona" or "save persona called yoda"`,
         `  Takes effect: next session restart`,
         "",
@@ -960,6 +966,32 @@ discord.once(Events.ClientReady, (c) => {
   checkReminders(); // Run immediately on startup
 });
 
+// Conversation mode: after @mention in a server, the bot joins the channel conversation.
+// Channel-wide — responds to all users, not just the one who tagged.
+// Idle timeout — deactivates after 2 min of no messages (no hard cap).
+const CONVO_IDLE_TIMEOUT = 2 * 60 * 1000; // 2 min idle timeout
+const activeChannels = new Map<string, number>(); // channelId → lastActivity timestamp
+
+function isChannelActive(channelId: string): boolean {
+  const lastActivity = activeChannels.get(channelId);
+  if (!lastActivity) return false;
+  if (Date.now() - lastActivity > CONVO_IDLE_TIMEOUT) {
+    activeChannels.delete(channelId);
+    return false;
+  }
+  return true;
+}
+
+function activateChannel(channelId: string) {
+  activeChannels.set(channelId, Date.now());
+}
+
+function refreshChannel(channelId: string) {
+  if (activeChannels.has(channelId)) {
+    activeChannels.set(channelId, Date.now());
+  }
+}
+
 // Rate limiting: per-user cooldown
 const lastMessageTime = new Map<string, number>();
 
@@ -1018,8 +1050,16 @@ discord.on(Events.MessageCreate, async (message: Message) => {
         .fetch(message.reference.messageId)
         .then((m) => m.author.id === discord.user!.id)
         .catch(() => false));
+    const channelActive = isChannelActive(message.channelId);
 
-    if (!isMentioned && !isReplyToBot) return;
+    if (!isMentioned && !isReplyToBot && !channelActive) return;
+
+    // Activate channel on @mention or reply; refresh on ongoing conversation
+    if (isMentioned || isReplyToBot) {
+      activateChannel(message.channelId);
+    } else if (channelActive) {
+      refreshChannel(message.channelId);
+    }
   }
 
   // Only forward messages from allowlisted users
@@ -1032,6 +1072,7 @@ discord.on(Events.MessageCreate, async (message: Message) => {
   if (isRateLimited(userId)) return;
 
   // Build metadata
+  const isMentionedHere = !isDM && message.mentions.has(discord.user!.id);
   const meta: Record<string, string> = {
     chat_id: message.channelId,
     message_id: message.id,
@@ -1040,6 +1081,11 @@ discord.on(Events.MessageCreate, async (message: Message) => {
     ts: message.createdAt.toISOString(),
     is_dm: message.guild ? "false" : "true",
   };
+
+  // Mark conversation mode messages — Claude can choose not to reply
+  if (!isDM && !isMentionedHere && isChannelActive(message.channelId)) {
+    meta.conversation_mode = "true";
+  }
 
   // Handle image/file attachments
   if (message.attachments.size > 0) {

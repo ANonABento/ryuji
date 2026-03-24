@@ -32,7 +32,7 @@ Choomfie is a [Claude Code Channels](https://code.claude.com/docs/en/channels) p
 - Config stored in `config.json` — personas, rate limits, settings
 
 **Security**
-- Mention/reply trigger — only responds when `@mentioned` or replied to in servers
+- Mention/reply trigger — only responds when `@mentioned` or replied to in servers (then stays in conversation for 2 min idle timeout)
 - DMs always respond (private conversation)
 - Rate limiting (5 second cooldown per user)
 - Pairing codes + allowlist for access control
@@ -46,48 +46,41 @@ Choomfie is a [Claude Code Channels](https://code.claude.com/docs/en/channels) p
 - [Bun](https://bun.sh) (`brew install oven-sh/bun/bun`)
 - A Discord bot token ([setup guide](docs/discord-setup.md))
 
-### Install
+### Install & Run
 
 ```bash
 git clone https://github.com/ANonABento/choomfie.git
 cd choomfie
-bun install
+./install.sh    # installs deps, prompts for Discord token, adds 'choomfie' command
+choomfie        # start!
 ```
 
-### Configure
+For always-on (survives terminal close):
 
 ```bash
+choomfie --tmux
+```
+
+### Manual Setup
+
+If you prefer to set things up yourself:
+
+```bash
+bun install
+
 # Save your Discord bot token
 mkdir -p ~/.claude/channels/choomfie
 echo "DISCORD_TOKEN=your_token_here" > ~/.claude/channels/choomfie/.env
-```
 
-### Register MCP Server
+# Register MCP server — add to ~/.claude.json under mcpServers:
+# "choomfie": {
+#   "type": "stdio",
+#   "command": "bun",
+#   "args": ["run", "--cwd", "/path/to/choomfie", "server.ts"]
+# }
 
-Add to your `~/.claude.json` under `mcpServers`:
-
-```json
-{
-  "choomfie": {
-    "type": "stdio",
-    "command": "bun",
-    "args": ["run", "--cwd", "/path/to/choomfie", "server.ts"]
-  }
-}
-```
-
-### Run
-
-```bash
+# Run directly
 claude --dangerously-load-development-channels server:choomfie
-```
-
-For always-on, use tmux:
-
-```bash
-tmux new -s choomfie
-claude --dangerously-load-development-channels server:choomfie
-# Ctrl+B, D to detach
 ```
 
 ### Pair Your Discord Account
@@ -104,10 +97,10 @@ claude --dangerously-load-development-channels server:choomfie
 In servers, `@mention` the bot or reply to its messages:
 
 ```
-@Mahiro what files are in my project?
-@Mahiro remember my name is Ben
-@Mahiro remind me in 2 hours to check the deploy
-@Mahiro what PRs need review?
+@Choomfie what files are in my project?
+@Choomfie remember my name is Ben
+@Choomfie remind me in 2 hours to check the deploy
+@Choomfie what PRs need review?
 ```
 
 In DMs, just talk naturally — no mention needed:
@@ -164,6 +157,8 @@ Choomfie runs as an MCP subprocess inside Claude Code. Discord messages arrive a
 ```
 choomfie/
 ├── server.ts                  # MCP channel server
+├── install.sh                 # Interactive installer
+├── bin/choomfie               # Launcher script
 ├── lib/memory.ts              # SQLite memory store
 ├── lib/config.ts              # Config manager (personas, settings)
 ├── .claude-plugin/plugin.json # Plugin metadata

@@ -34,7 +34,7 @@ Choomfie is a Claude Code Channels plugin — an MCP server that Claude Code spa
 
 1. User sends message on Discord (channel or DM)
 2. discord.js client receives it
-3. **Trigger check:** DMs always pass; servers require `@mention` or reply to bot
+3. **Trigger check:** DMs always pass; servers require `@mention`, reply to bot, or active conversation mode
 4. **Allowlist check:** sender must be on allowlist (or bootstrap mode if empty)
 5. **Rate limit check:** 5 second cooldown per user
 6. `@mention` stripped from message text for clean forwarding
@@ -81,6 +81,15 @@ Choomfie is a Claude Code Channels plugin — an MCP server that Claude Code spa
 | Downloaded attachments | `~/.claude/channels/choomfie/inbox/` |
 | Plugin code | `~/choomfie/` (or wherever you cloned it) |
 | MCP server config | `~/.claude.json` → `mcpServers.choomfie` |
+
+## Conversation Mode
+
+When a user `@mentions` the bot in a server channel, the bot enters **conversation mode** for that channel:
+
+- **Channel-wide** — responds to all users in the channel, not just the one who tagged
+- **2 minute idle timeout** — stays active as long as messages keep flowing; deactivates after 2 min of silence
+- **Natural responses** — messages in conversation mode include `conversation_mode="true"` metadata; Claude can choose not to reply to every message, just like a human in a group chat
+- **Re-engagement** — after timeout, goes back to `@mention` or reply-only mode
 
 ## Design Decisions
 

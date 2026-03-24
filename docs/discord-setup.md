@@ -61,9 +61,9 @@ Choomfie Discord: logged in as Choomfie#1234
 
 In your Discord server (`@mention` required in servers):
 ```
-@Mahiro hey, what's up?
-@Mahiro remember my name is Ben
-@Mahiro what do you know about me?
+@Choomfie hey, what's up?
+@Choomfie remember my name is Ben
+@Choomfie what do you know about me?
 ```
 
 In DMs (no mention needed):

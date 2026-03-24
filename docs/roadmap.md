@@ -35,8 +35,10 @@
 - [ ] `browse_url` — fetch and summarize web pages
 - [x] `search_messages` — search by user, keyword, with pagination
 - [x] Mention/reply trigger — only responds when @mentioned or replied to
+- [x] Conversation mode — channel-wide engagement with 2 min idle timeout after @mention
 - [x] Rate limiting — configurable per-user cooldown
 - [x] @mention stripping from forwarded messages
+- [x] Installer script (`install.sh`) + `choomfie` launcher command
 
 ## Phase 4: Personality & Character (Done)
 
