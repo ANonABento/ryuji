@@ -87,7 +87,7 @@ claude --dangerously-load-development-channels server:choomfie
 
 ### Access & Pairing
 
-The bot **auto-detects the owner** from your Discord application — whoever created the bot is automatically set as the owner with full access. No manual pairing needed.
+The bot **auto-detects the owner** from your Discord application — whoever created the bot is automatically set as the owner with full access. No manual pairing needed. If auto-detection fails, set manually with `/choomfie:access owner <USER_ID>`.
 
 To add other users:
 1. They DM the bot `!pair` on Discord
