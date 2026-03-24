@@ -33,13 +33,17 @@
 - [x] DM mode — private conversations, is_dm flag in meta
 - [x] `/choomfie:status` — config overview skill
 - [ ] `browse_url` — fetch and summarize web pages
-- [ ] `search_discord` — search channel history
+- [x] `search_messages` — search by user, keyword, with pagination
+- [x] Mention/reply trigger — only responds when @mentioned or replied to
+- [x] Rate limiting — configurable per-user cooldown
+- [x] @mention stripping from forwarded messages
 
-## Phase 4: Personality & Character
+## Phase 4: Personality & Character (Done)
 
-- [x] Configurable personality via core memory
+- [x] Switchable personas with presets (config.json)
+- [x] Create/save/delete/switch personas from Discord
+- [x] Config manager (lib/config.ts)
 - [ ] Mood/tone adaptation based on conversation
-- [ ] Custom system prompt templates
 - [ ] Avatar/presence management
 
 ## Phase 5: More Channels

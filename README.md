@@ -19,15 +19,17 @@ Choomfie is a [Claude Code Channels](https://code.claude.com/docs/en/channels) p
 - Pin/unpin messages
 - Permission relay (approve tool use from Discord DMs)
 
-**Memory**
+**Memory & Personas**
 - Two-tier memory: core (always in context) + archival (searchable)
 - Conversation summaries auto-archived
-- Configurable personality ("be more sarcastic", "talk like a pirate")
+- Switchable personas — create and swap between different personalities
+- Message search — find messages by user, keyword, or both
 
 **Productivity**
 - Reminders with natural language ("remind me in 30 minutes...")
 - GitHub integration (PRs, issues, notifications)
 - Full status/config dashboard from Discord
+- Config stored in `config.json` — personas, rate limits, settings
 
 **Security**
 - Mention/reply trigger — only responds when `@mentioned` or replied to in servers
@@ -112,8 +114,11 @@ In DMs, just talk naturally — no mention needed:
 
 ```
 what's your status?
-be more sarcastic
 what do you know about me?
+show me @Dave's last 10 messages
+list personas
+switch to choomfie
+create a persona called pirate
 ```
 
 ### In Claude Code Terminal
@@ -125,12 +130,13 @@ what do you know about me?
 | `/choomfie:memory` | View/manage memories |
 | `/choomfie:status` | Full config overview |
 
-## Tools (20)
+## Tools (26)
 
 | Category | Tools |
 |----------|-------|
-| **Discord** | reply, react, edit_message, fetch_messages, create_thread, pin_message, unpin_message |
+| **Discord** | reply, react, edit_message, fetch_messages, search_messages, create_thread, pin_message, unpin_message |
 | **Memory** | save_memory, search_memory, list_memories, delete_memory, save_conversation_summary, memory_stats |
+| **Personas** | switch_persona, save_persona, list_personas, delete_persona |
 | **Reminders** | set_reminder, list_reminders, cancel_reminder |
 | **GitHub** | check_github |
 | **Status** | choomfie_status |
@@ -157,8 +163,9 @@ Choomfie runs as an MCP subprocess inside Claude Code. Discord messages arrive a
 
 ```
 choomfie/
-├── server.ts                  # MCP channel server (924 lines)
-├── lib/memory.ts              # SQLite memory store (220 lines)
+├── server.ts                  # MCP channel server
+├── lib/memory.ts              # SQLite memory store
+├── lib/config.ts              # Config manager (personas, settings)
 ├── .claude-plugin/plugin.json # Plugin metadata
 ├── .mcp.json                  # MCP server config
 ├── skills/
@@ -188,7 +195,7 @@ choomfie/
 
 ## Roadmap
 
-- [x] **v0.3.0** — Discord bridge, memory, reminders, threads, GitHub, images, DMs, personality
+- [x] **v0.4.0** — Discord bridge, memory, personas, reminders, threads, GitHub, images, DMs, message search
 - [ ] Voice (Discord voice channels, STT/TTS)
 - [ ] More channels (Telegram, Slack)
 - [ ] Autonomous agent (background tasks, cron, proactive messages)

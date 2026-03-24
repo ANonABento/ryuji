@@ -1,7 +1,7 @@
 {
   "name": "choomfie",
   "description": "Personal AI agent channel for Claude Code — Discord bridge with persistent memory, skills, and personality.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "keywords": ["discord", "channel", "memory", "agent", "personal-assistant"],
   "license": "MIT",
   "repository": "https://github.com/ANonABento/choomfie"

@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Choomfie is a Claude Code Channels plugin (v0.3.0) — an MCP server that bridges Discord to Claude Code with persistent memory, reminders, GitHub integration, and more. It runs as a subprocess inside Claude Code.
+Choomfie is a Claude Code Channels plugin (v0.4.0) — an MCP server that bridges Discord to Claude Code with persistent memory, switchable personas, reminders, GitHub integration, and more. It runs as a subprocess inside Claude Code.
 
 ## Tech Stack
 
@@ -18,6 +18,7 @@ Choomfie is a Claude Code Channels plugin (v0.3.0) — an MCP server that bridge
 ```
 server.ts                      # MCP channel server — all tools, Discord client, handlers
 lib/memory.ts                  # SQLite memory store (core + archival + reminders)
+lib/config.ts                  # Config manager (personas, rate limits, settings)
 .claude-plugin/plugin.json     # Plugin metadata
 .mcp.json                      # How Claude Code spawns the server
 skills/
@@ -37,8 +38,9 @@ skills/
 
 ## Tools (20)
 
-Discord: reply, react, edit_message, fetch_messages, create_thread, pin_message, unpin_message
+Discord: reply, react, edit_message, fetch_messages, search_messages, create_thread, pin_message, unpin_message
 Memory: save_memory, search_memory, list_memories, delete_memory, save_conversation_summary, memory_stats
+Personas: switch_persona, save_persona, list_personas, delete_persona
 Reminders: set_reminder, list_reminders, cancel_reminder
 GitHub: check_github
 Status: choomfie_status
@@ -53,5 +55,7 @@ Status: choomfie_status
 - GitHub integration shells out to `gh` CLI
 - Servers: only responds when @mentioned or replied to (not every message)
 - DMs: always responds
-- Rate limit: 5 second cooldown per user
+- Rate limit: configurable via config.json (default 5s)
 - @mentions stripped from message before forwarding to Claude
+- Personas stored in config.json, switchable from Discord
+- search_messages paginates up to 1000 messages for user/keyword filtering
