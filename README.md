@@ -35,8 +35,10 @@ Choomfie is a [Claude Code Channels](https://code.claude.com/docs/en/channels) p
 - Mention/reply trigger — only responds when `@mentioned` or replied to in servers (then stays in conversation for 2 min idle timeout)
 - DMs always respond (private conversation)
 - Rate limiting (5 second cooldown per user)
-- Pairing codes + allowlist for access control
-- Permission relay for tool approvals
+- Owner auto-detected from Discord app (zero config)
+- Role-based access: owner (full) vs user (chat only)
+- Pairing codes + allowlist for multi-user access
+- Permission relay — approve tool use from Discord DMs
 
 ## Quick Start
 
@@ -83,12 +85,17 @@ echo "DISCORD_TOKEN=your_token_here" > ~/.claude/channels/choomfie/.env
 claude --dangerously-load-development-channels server:choomfie
 ```
 
-### Pair Your Discord Account
+### Access & Pairing
 
-1. DM the bot `!pair` on Discord
+The bot **auto-detects the owner** from your Discord application — whoever created the bot is automatically set as the owner with full access. No manual pairing needed.
+
+To add other users:
+1. They DM the bot `!pair` on Discord
 2. Copy the 5-letter code
 3. Run `/choomfie:access pair <code>` in Claude Code
 4. Run `/choomfie:access policy allowlist` to lock down
+
+Other users get chat, memory, and reminder access only (no system tools).
 
 ## Usage
 
