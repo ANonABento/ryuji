@@ -7,9 +7,6 @@
  */
 
 import Database from "better-sqlite3";
-import { resolve } from "path";
-
-const DB_PATH = resolve(import.meta.dirname, "../../ryuji.db");
 
 export interface CoreMemory {
   key: string;
@@ -27,7 +24,7 @@ export interface ArchivalMemory {
 export class MemoryStore {
   private db: Database.Database;
 
-  constructor(dbPath: string = DB_PATH) {
+  constructor(dbPath: string) {
     this.db = new Database(dbPath);
     this.init();
   }
@@ -49,8 +46,6 @@ export class MemoryStore {
     `);
   }
 
-  // --- Core memory (always loaded into context) ---
-
   getCoreMemory(): CoreMemory[] {
     return this.db
       .prepare("SELECT key, value, updated_at as updatedAt FROM core_memory")
@@ -71,8 +66,6 @@ export class MemoryStore {
     this.db.prepare("DELETE FROM core_memory WHERE key = ?").run(key);
   }
 
-  // --- Archival memory (searchable long-term) ---
-
   addArchival(content: string, tags: string = "") {
     this.db
       .prepare("INSERT INTO archival_memory (content, tags) VALUES (?, ?)")
@@ -91,14 +84,12 @@ export class MemoryStore {
       .all(`%${query}%`, limit) as ArchivalMemory[];
   }
 
-  // --- Build context string for agent ---
-
   buildMemoryContext(): string {
     const core = this.getCoreMemory();
     if (core.length === 0) return "";
 
     const lines = core.map((m) => `- ${m.key}: ${m.value}`);
-    return `## Memory\n${lines.join("\n")}`;
+    return `## Current Memories\n${lines.join("\n")}`;
   }
 
   close() {

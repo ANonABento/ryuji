@@ -1,103 +1,139 @@
-# Ryuji 🐉
+# Ryuji
 
-Personal AI agent powered by Claude Code CLI. Uses your Max plan — no API key needed.
+Personal AI agent plugin for Claude Code Channels. Discord bridge with persistent memory, skills, and personality.
 
-> *"Ryuji" (龍二) — Dragon child. Named for the spirit of Japanese craftsmanship and anime energy.*
+Uses your Max plan — no API key needed. Fully TOS-compliant.
 
 ## What is this?
 
-Ryuji is a self-hosted personal AI assistant that runs on top of **Claude Code CLI** using the official **Agent SDK**. Unlike tools that need API keys, Ryuji uses your existing Claude Max subscription — the same auth your CLI already has.
+Ryuji is a **Claude Code Channels plugin** that turns Claude Code into your personal Discord bot with persistent memory. It runs as an MCP server inside Claude Code, bridging Discord messages to your session while adding memory tools that survive across restarts.
 
-Think of it as your own [Hermes Agent](https://github.com/NousResearch/hermes-agent) or [OpenClaw](https://github.com/openclaw/openclaw), but built specifically for Claude Code.
+Built on top of Anthropic's official [Channels](https://code.claude.com/docs/en/channels) system — no proxies, no hacks.
 
 ## Features
 
-- **Discord bot** — chat with Ryuji in your server via `!ryuji`
-- **Terminal REPL** — interactive chat with `/memory` and `/remember` commands
-- **Persistent memory** — Letta-inspired two-tier memory system (core + archival)
-- **Skills system** — extensible tool/skill registry
-- **Claude Code CLI** — full agentic capabilities (file editing, code execution, MCP servers)
-- **No API key needed** — uses your Max plan auth via Agent SDK
+- **Discord bridge** — chat with Claude Code from Discord
+- **Persistent memory** — Letta-inspired two-tier memory (core + archival) in SQLite
+- **Self-editing memory** — Claude proactively saves user preferences and context
+- **Permission relay** — approve/deny tool use from Discord DMs
+- **Access control** — pairing codes + allowlist for security
+- **Plugin skills** — `/ryuji:configure`, `/ryuji:access`, `/ryuji:memory`
+
+## Prerequisites
+
+- [Claude Code CLI](https://code.claude.com) with Max plan
+- [Bun](https://bun.sh) runtime
+- A Discord bot token ([setup guide](docs/discord-setup.md))
 
 ## Quick Start
 
 ```bash
-git clone https://github.com/ANonABento/ryuji.git
-cd ryuji
-npm install
-cp .env.example .env
+# 1. Install the plugin
+/plugin install ryuji   # or for development:
+claude --plugin-dir ./ryuji
 
-# Terminal mode (works immediately)
-npm run terminal
+# 2. Configure your Discord bot token
+/ryuji:configure <your-discord-bot-token>
 
-# Discord bot (add token to .env first)
-npm run discord
+# 3. Start Claude Code with Ryuji channel
+claude --channels plugin:ryuji
+
+# 4. Pair your Discord account
+#    DM the bot "!pair" on Discord, then:
+/ryuji:access pair <code>
+
+# 5. Lock down access
+/ryuji:access policy allowlist
 ```
 
 ## Usage
 
-### Terminal REPL
+### From Discord
 
-```bash
-npm run terminal
-```
+Just message in any channel the bot is in (or DM it):
 
 ```
-ryuji> what's in my current directory?
-ryuji> /remember name=Ben
-ryuji> /memory
+hey ryuji, what's in my project directory?
+remember that I prefer TypeScript
+what do you know about me?
 ```
 
-| Command | Description |
-|---------|-------------|
-| `/memory` | Show all core memories |
-| `/remember key=value` | Save a core memory |
-| `Ctrl+C` | Exit |
+### Skills (in Claude Code terminal)
 
-### Discord Bot
+| Skill | Description |
+|-------|-------------|
+| `/ryuji:configure <token>` | Set Discord bot token |
+| `/ryuji:access pair <code>` | Approve a Discord user pairing |
+| `/ryuji:access list` | Show allowed users |
+| `/ryuji:access add <user_id>` | Add user to allowlist |
+| `/ryuji:access policy allowlist` | Restrict to allowlisted users |
+| `/ryuji:memory list` | Show core memories |
+| `/ryuji:memory search <query>` | Search archival memory |
 
-```bash
-npm run discord
+### Memory Tools (used by Claude automatically)
+
+Claude can call these during any session:
+
+| Tool | Description |
+|------|-------------|
+| `save_memory` | Save facts to core or archival memory |
+| `search_memory` | Search archival memory |
+| `list_memories` | List all core memories |
+| `delete_memory` | Remove a core memory |
+
+### Permission Relay
+
+When Claude needs to run a tool (file edit, bash command, etc.), you'll get a DM:
+
 ```
+Permission request `abcde`
+Bash: Run npm install
+`npm install --save discord.js`
 
-Prefix messages with `!ryuji`:
-
-```
-!ryuji what's the weather like?
-!ryuji help me write a python script
+Reply "yes abcde" to allow or "no abcde" to deny.
 ```
 
 ## Architecture
 
 ```
-src/
-├── core/agent.ts        # Claude Code CLI wrapper (claude --print)
-├── discord/bot.ts       # Discord adapter
-├── terminal/repl.ts     # Terminal REPL
-├── memory/store.ts      # SQLite memory (core + archival)
-├── skills/registry.ts   # Skill/tool system
-└── index.ts             # Entry point
+Discord ──► Discord.js client ──► MCP channel server (server.ts)
+                                       │
+                              ┌────────┼────────┐
+                              │        │        │
+                          Channel   Memory   Permission
+                          events    tools    relay
+                              │        │        │
+                              └────────┼────────┘
+                                       │
+                                  Claude Code
+                                  (your session)
 ```
 
 See [docs/](docs/) for detailed documentation:
 
 - [Architecture](docs/architecture.md) — system design and data flow
 - [Memory System](docs/memory.md) — how persistent memory works
-- [Skills](docs/skills.md) — creating and registering skills
+- [Skills](docs/skills.md) — plugin skills reference
 - [Discord Setup](docs/discord-setup.md) — creating a Discord bot
-- [Roadmap](docs/roadmap.md) — planned features and milestones
+- [Roadmap](docs/roadmap.md) — planned features
 - [Research](docs/research.md) — prior art and design decisions
 
-## Why Ryuji?
+## Project Structure
 
-| Approach | Cost | Effort | Power |
-|----------|------|--------|-------|
-| Hermes Agent + API key | $$/month | Low | High |
-| OpenClaw fork + API key | $$/month | Medium | Very high |
-| Max plan proxy (TOS risk) | Free | Low | High |
-| **Ryuji (Claude Code CLI)** | **Free (Max plan)** | **Medium** | **High** |
-
-Ryuji is the sweet spot: full Claude agent capabilities, no extra cost, no TOS risk.
+```
+ryuji/
+├── .claude-plugin/
+│   └── plugin.json          # Plugin metadata
+├── .mcp.json                # MCP server config
+├── server.ts                # MCP channel server (Discord + memory + tools)
+├── lib/
+│   └── memory.ts            # SQLite memory store
+├── skills/
+│   ├── configure/SKILL.md   # /ryuji:configure
+│   ├── access/SKILL.md      # /ryuji:access
+│   └── memory/SKILL.md      # /ryuji:memory
+└── docs/
+```
 
 ## License
 

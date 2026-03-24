@@ -2,83 +2,58 @@
 
 ## Phase 1: Foundation (Current)
 
-Get the basics working end-to-end.
-
-- [x] Project scaffold and repo
-- [x] Core agent wrapper (`claude --print`)
-- [x] Terminal REPL with `/memory` and `/remember`
-- [x] SQLite memory store (core + archival)
-- [x] Skills registry
-- [x] Discord bot adapter
+- [x] MCP channel server (server.ts)
+- [x] Discord bridge via discord.js
+- [x] Persistent memory (SQLite — core + archival)
+- [x] Memory MCP tools (save, search, list, delete)
+- [x] Permission relay (approve/deny from Discord DMs)
+- [x] Access control (pairing codes + allowlist)
+- [x] Plugin skills (/ryuji:configure, /ryuji:access, /ryuji:memory)
+- [x] Plugin packaging (.claude-plugin, .mcp.json)
 - [x] Documentation
-- [ ] `npm install` and verify everything runs
-- [ ] Discord bot tested in a real server
-- [ ] Terminal REPL tested with real Claude Code CLI
+- [ ] Install dependencies and test locally
+- [ ] Test with real Discord bot + Claude Code Channels
 
-## Phase 2: Agent SDK Migration
+## Phase 2: Smart Memory
 
-Replace `claude --print` with the official Agent SDK for streaming, tool control, and session management.
-
-- [ ] Migrate to `@anthropic-ai/claude-agent-sdk` subprocess API
-- [ ] Streaming responses (show typing indicator, stream chunks)
-- [ ] Session persistence (resume conversations)
-- [ ] Tool use hooks (intercept/approve tool calls)
-- [ ] MCP server integration
-
-## Phase 3: Smart Memory
-
-Make memory more intelligent and agent-driven.
-
-- [ ] Agent self-editing memory (agent calls `setCoreMemory` during conversations)
-- [ ] Conversation summarization → archival memory
-- [ ] Cross-session recall (auto-search archival when context seems relevant)
+- [ ] Conversation summarization → auto-archive to archival memory
+- [ ] Cross-session recall — auto-search archival when context seems relevant
 - [ ] Vector embeddings for semantic archival search
-- [ ] Memory decay / auto-archiving stale core memories
-- [ ] claude-mem integration for session-level learning
+- [ ] Memory decay — auto-archive stale core memories
+- [ ] Memory stats tool (count, size, oldest/newest)
 
-## Phase 4: Skills Expansion
+## Phase 3: More Tools
 
-Build out the skills ecosystem.
+- [ ] `browse_url` — fetch and summarize web pages
+- [ ] `set_reminder` — schedule a message for later
+- [ ] `create_thread` — create Discord threads for long conversations
+- [ ] `pin_message` — pin important messages
+- [ ] `search_discord` — search channel history
 
-- [ ] Built-in skills: web search, file ops, shell commands
-- [ ] `manage_memory` skill — agent manages its own memory
-- [ ] `schedule_task` skill — cron-based recurring tasks
-- [ ] `browse_url` skill — fetch and summarize web pages
-- [ ] Skill hot-reloading (add skills without restart)
-- [ ] Skill marketplace / community skills format
+## Phase 4: Personality & Character
+
+- [ ] Configurable personality via core memory
+- [ ] Mood/tone adaptation based on conversation
+- [ ] Custom system prompt templates
+- [ ] Avatar/presence management
 
 ## Phase 5: More Channels
 
-Expand beyond Discord and terminal.
+- [ ] Telegram channel (separate plugin or unified server)
+- [ ] Slack channel
+- [ ] Webhook channel (generic HTTP inbound)
+- [ ] Web UI channel
 
-- [ ] Slack adapter
-- [ ] Telegram adapter
-- [ ] Web UI (simple chat interface)
-- [ ] iMessage integration (macOS)
+## Phase 6: Autonomy
 
-## Phase 6: Autonomous Agent
-
-Hermes-level autonomy.
-
-- [ ] Background tasks — agent works on things while you're away
-- [ ] Cron scheduling — natural language scheduled tasks ("check my PRs every morning")
-- [ ] Multi-agent — spawn sub-agents for parallel work
-- [ ] Learning loop — agent creates skills from repeated complex tasks
-- [ ] Proactive suggestions — agent notices patterns and offers help
-
-## Phase 7: Polish
-
-- [ ] Admin dashboard (web UI for config, memory browser, skill management)
-- [ ] Rate limiting and safety guardrails
-- [ ] Logging and observability
-- [ ] Docker deployment option
-- [ ] Documentation site
+- [ ] Background tasks — agent works while you're away
+- [ ] Cron scheduling via Claude Code's `/schedule` feature
+- [ ] Proactive messages — agent notices patterns and reaches out
+- [ ] Learning loop — agent creates memories from repeated patterns
 
 ## Non-Goals (For Now)
 
-Things we're intentionally not building:
-
-- **Voice support** — adds significant complexity, not needed for v1
-- **Multi-user** — Ryuji is a personal assistant, not a platform
-- **Custom model training** — we use Claude as-is
-- **Mobile app** — Discord/Telegram mobile apps cover this
+- **Voice** — adds complexity, Discord voice API is different
+- **Multi-user isolation** — Ryuji is a personal assistant
+- **Custom model training** — use Claude as-is
+- **Standalone mode** — Channels plugin is the path, not a separate bot

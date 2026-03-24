@@ -12,78 +12,81 @@ How to create a Discord bot and connect it to Ryuji.
 ## 2. Configure the Bot
 
 1. Click **Reset Token** to generate a bot token
-2. Copy the token — you'll need it for `.env`
+2. Copy the token — you'll need it next
 3. Under **Privileged Gateway Intents**, enable:
-   - **Message Content Intent** (required to read message text)
-   - **Server Members Intent** (optional)
+   - **Message Content Intent** (required)
 
 ## 3. Generate an Invite Link
 
 1. Go to **OAuth2 > URL Generator** in the sidebar
 2. Select scopes: `bot`
 3. Select permissions:
+   - View Channels
    - Send Messages
+   - Send Messages in Threads
    - Read Message History
-   - Read Messages/View Channels
-   - Embed Links
    - Attach Files
+   - Add Reactions
 4. Copy the generated URL and open it in your browser
 5. Select your server and authorize
 
 ## 4. Configure Ryuji
 
+In Claude Code:
 ```bash
-cp .env.example .env
+/ryuji:configure <your_bot_token>
 ```
 
-Edit `.env`:
-```
-DISCORD_TOKEN=your_bot_token_here
-DISCORD_CLIENT_ID=your_client_id_here
-```
+This saves the token to `~/.claude/channels/ryuji/.env`.
 
-## 5. Run
+## 5. Start with Ryuji Channel
 
 ```bash
-npm run discord
+claude --channels plugin:ryuji
 ```
 
-You should see:
+You should see in stderr:
 ```
-Starting Discord bot...
-Discord: logged in as Ryuji#1234
+Ryuji Discord: logged in as Ryuji#1234
 ```
 
-## 6. Test
+## 6. Pair Your Discord Account
+
+1. DM the bot `!pair` on Discord
+2. You'll get a 5-letter pairing code
+3. In Claude Code: `/ryuji:access pair <code>`
+4. Lock down: `/ryuji:access policy allowlist`
+
+## 7. Test
 
 In your Discord server:
 ```
-!ryuji hello
-!ryuji what can you do?
+hey ryuji, what's up?
+remember my name is Ben
+what do you know about me?
 ```
 
-## Customizing
+## Always-On Setup (tmux)
 
-### Change the prefix
+Since Channels requires Claude Code to be running:
 
-Edit `src/discord/bot.ts`:
-```typescript
-const BOT_PREFIX = "!ryuji";  // change this
+```bash
+# Start a tmux session
+tmux new -s ryuji
+
+# Run Claude Code with Ryuji
+claude --channels plugin:ryuji
+
+# Detach: Ctrl+B, then D
+# Reattach later: tmux attach -t ryuji
 ```
-
-### DM support
-
-The bot already listens for DMs. Just message it directly — no prefix needed (planned).
-
-### Per-channel behavior
-
-Each Discord user gets their own session ID (`discord-{userId}`), so memory is per-user. Channel-specific behavior is planned.
 
 ## Troubleshooting
 
 | Issue | Fix |
 |-------|-----|
 | Bot doesn't respond | Check Message Content Intent is enabled |
-| "Missing permissions" | Re-invite with correct permissions |
-| Bot is slow | Normal — `claude --print` takes a few seconds |
-| 2000 char limit | Messages are auto-split at newlines |
+| "No DISCORD_TOKEN" | Run `/ryuji:configure <token>` |
+| Not receiving messages | Check allowlist with `/ryuji:access list` |
+| Permission prompts block | Reply to the DM with `yes <code>` or `no <code>` |
+| Bot is slow | Normal — Claude Code processes sequentially |

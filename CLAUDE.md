@@ -2,49 +2,49 @@
 
 ## Project Overview
 
-Ryuji is a personal AI agent that runs on top of Claude Code CLI. It provides Discord and terminal interfaces with persistent memory and extensible skills.
+Ryuji is a Claude Code Channels plugin — an MCP server that bridges Discord to Claude Code with persistent memory. It runs as a subprocess inside Claude Code, not as a standalone bot.
 
 ## Tech Stack
 
-- **Runtime:** Node.js (ES modules)
-- **Language:** TypeScript (strict mode)
-- **Agent Backend:** Claude Code CLI via `claude --print` (migrating to Agent SDK)
+- **Runtime:** Bun
+- **Language:** TypeScript
+- **Protocol:** MCP (Model Context Protocol) over stdio
 - **Database:** SQLite via `better-sqlite3`
 - **Discord:** discord.js v14
-- **Build:** tsc + tsx for dev
+- **Framework:** `@modelcontextprotocol/sdk`
 
 ## Project Structure
 
 ```
-src/
-├── core/agent.ts        # Claude Code CLI wrapper
-├── discord/bot.ts       # Discord bot adapter
-├── terminal/repl.ts     # Terminal REPL
-├── memory/store.ts      # SQLite memory (core + archival)
-├── skills/registry.ts   # Skill/tool registration
-└── index.ts             # Entry point
+.claude-plugin/plugin.json   # Plugin metadata
+.mcp.json                    # How Claude Code spawns the server
+server.ts                    # MCP channel server (single entry point)
+lib/memory.ts                # SQLite memory store (core + archival)
+skills/
+├── configure/SKILL.md       # /ryuji:configure — set Discord token
+├── access/SKILL.md          # /ryuji:access — manage allowlist
+└── memory/SKILL.md          # /ryuji:memory — view/manage memories
 ```
+
+## How It Works
+
+1. Claude Code spawns `bun server.ts` as an MCP subprocess
+2. server.ts connects to Discord via discord.js
+3. Incoming Discord messages → `notifications/claude/channel` → Claude Code
+4. Claude processes and calls the `reply` tool → server.ts → Discord
+5. Memory tools (save_memory, search_memory, etc.) persist to SQLite
+
+## Key Concepts
+
+- This is a **Channels plugin**, not a standalone bot
+- It uses the MCP protocol, not the Anthropic API
+- State lives in `~/.claude/channels/ryuji/` (token, access list, database)
+- The `instructions` string in Server constructor is the system prompt injection
+- Skills are slash commands defined in `skills/*/SKILL.md`
 
 ## Conventions
 
-- Use ES module imports (`.js` extensions in import paths)
-- Keep files small and focused — one concept per file
-- No classes unless they manage state (like MemoryStore)
-- Prefer `async/await` over callbacks
-- Error messages should be user-friendly, not stack traces
-
-## Key Commands
-
-```bash
-npm run dev        # Watch mode (both Discord + terminal)
-npm run terminal   # Terminal REPL only
-npm run discord    # Discord bot only
-npm run build      # TypeScript compile
-```
-
-## Important Notes
-
-- This project does NOT use the Anthropic API directly — it uses Claude Code CLI
-- No API keys are needed — it uses the developer's Max plan auth
-- Memory is stored in `ryuji.db` (SQLite, gitignored)
-- The `.env` file contains Discord tokens and is gitignored
+- Single server.ts entry point — keep it as one file unless it gets too large
+- Memory store is the only module in lib/ — add more as needed
+- Use Bun APIs where possible (Bun.file, etc.)
+- Console output goes to stderr (stdout is MCP stdio transport)
