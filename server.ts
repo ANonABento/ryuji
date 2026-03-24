@@ -24,6 +24,7 @@ import {
   type ThreadChannel,
 } from "discord.js";
 import { MemoryStore } from "./lib/memory.ts";
+import { ConfigManager } from "./lib/config.ts";
 import { mkdir } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -76,6 +77,7 @@ const pendingPairings = new Map<
 // ---------------------------------------------------------------------------
 
 const memory = new MemoryStore(`${DATA_DIR}/choomfie.db`);
+const config = new ConfigManager(DATA_DIR);
 
 // ---------------------------------------------------------------------------
 // Reminder checker (runs every 30 seconds)
@@ -103,12 +105,11 @@ async function checkReminders() {
 // MCP Server
 // ---------------------------------------------------------------------------
 
-// Build personality from core memory or use default
-const personalityMemory = memory.getCoreMemory().find((m) => m.key === "personality");
-const personality = personalityMemory?.value || "Be concise, helpful, and casual.";
+// Build personality from config personas
+const activePersona = config.getActivePersona();
 
 const mcp = new Server(
-  { name: "choomfie", version: "0.3.0" },
+  { name: "choomfie", version: "0.4.0" },
   {
     capabilities: {
       tools: {},
@@ -118,7 +119,7 @@ const mcp = new Server(
       },
     },
     instructions: [
-      `You are Choomfie, a personal AI assistant with persistent memory. ${personality}`,
+      `You are ${activePersona.name}, a personal AI assistant with persistent memory. ${activePersona.personality}`,
       "",
       "The sender reads Discord, not this session. Anything you want them to see must go through the reply tool — your transcript output never reaches their chat.",
       "",
@@ -130,10 +131,12 @@ const mcp = new Server(
       "Use react to add emoji reactions. Use edit_message for interim progress updates — edits don't trigger push notifications.",
       "Use pin_message to pin important messages in a channel.",
       "",
-      "## Personality",
-      "Your personality can be changed by the user. If they say something like 'be more sarcastic' or 'talk like a pirate',",
-      "save it with save_memory using key='personality'. It takes effect on next session restart.",
-      `Current personality: ${personality}`,
+      "## Personas",
+      "You have switchable personas. Use switch_persona to change who you are.",
+      "Use save_persona to create new personas, list_personas to see all available.",
+      `Current persona: ${activePersona.name} (${config.getActivePersonaKey()})`,
+      `Personality: ${activePersona.personality}`,
+      "Persona changes take effect on next session restart.",
       "",
       "## Memory",
       "You have persistent memory tools. Use save_memory to remember important facts about the user.",
@@ -292,6 +295,51 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
           message_id: { type: "string" },
         },
         required: ["chat_id", "message_id"],
+      },
+    },
+
+    // --- Persona tools ---
+    {
+      name: "switch_persona",
+      description: "Switch to a different persona. Changes name and personality.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          key: { type: "string", description: "Persona key (e.g. 'mahiro', 'choomfie')" },
+        },
+        required: ["key"],
+      },
+    },
+    {
+      name: "save_persona",
+      description: "Create or update a persona preset.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          key: { type: "string", description: "Unique key for the persona (lowercase, e.g. 'pirate')" },
+          name: { type: "string", description: "Display name (e.g. 'Captain Jack')" },
+          personality: { type: "string", description: "Personality description (e.g. 'Talk like a pirate, arrr.')" },
+        },
+        required: ["key", "name", "personality"],
+      },
+    },
+    {
+      name: "list_personas",
+      description: "List all available personas.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {},
+      },
+    },
+    {
+      name: "delete_persona",
+      description: "Delete a persona preset (cannot delete the active one).",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          key: { type: "string" },
+        },
+        required: ["key"],
       },
     },
 
@@ -602,12 +650,47 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
       return text("unpinned");
     }
 
-    // --- GitHub tools ---
+    // --- Persona tools ---
+    case "switch_persona": {
+      const persona = config.switchPersona(args.key as string);
+      if (!persona) {
+        const available = config.listPersonas().map((p) => p.key).join(", ");
+        return err(`Persona "${args.key}" not found. Available: ${available}`);
+      }
+      return text(`Switched to **${persona.name}**. Restart the session for full effect.\nPersonality: ${persona.personality}`);
+    }
+
+    case "save_persona": {
+      config.savePersona(
+        args.key as string,
+        args.name as string,
+        args.personality as string
+      );
+      return text(`Persona "${args.key}" saved: ${args.name} — ${args.personality}`);
+    }
+
+    case "list_personas": {
+      const personas = config.listPersonas();
+      const formatted = personas
+        .map((p) => `${p.active ? "**→** " : "  "}**${p.persona.name}** (\`${p.key}\`): ${p.persona.personality}`)
+        .join("\n");
+      return text(formatted);
+    }
+
+    case "delete_persona": {
+      const success = config.deletePersona(args.key as string);
+      if (!success) return err(`Cannot delete "${args.key}" — either it's the active persona or it doesn't exist.`);
+      return text(`Persona "${args.key}" deleted.`);
+    }
+
+    // --- Status & GitHub tools ---
     case "choomfie_status": {
       const stats = memory.getStats();
       const core = memory.getCoreMemory();
       const reminders = memory.getActiveReminders();
-      const personalityVal = core.find((m) => m.key === "personality")?.value || "(default) concise, helpful, casual";
+      const persona = config.getActivePersona();
+      const personaKey = config.getActivePersonaKey();
+      const allPersonas = config.listPersonas();
       const botUser = discord.user;
 
       const lines = [
@@ -615,7 +698,7 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
         "",
         "## Bot",
         `  Name: ${botUser?.username || "unknown"}#${botUser?.discriminator || "0"}`,
-        `  Version: 0.3.0`,
+        `  Version: 0.4.0`,
         `  Runtime: Bun ${Bun.version}`,
         `  Server: Claude Code Channels (MCP)`,
         `  Data dir: ${DATA_DIR}`,
@@ -626,10 +709,12 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
         `  Auth: Max plan (no API key)`,
         `  Change model: set model in Claude Code (/model command)`,
         "",
-        "## Personality",
-        `  Current: ${personalityVal}`,
-        `  How to change: just ask! "be more sarcastic", "talk like yoda", "be professional"`,
-        `  Stored in: core memory (key: personality)`,
+        "## Persona",
+        `  Active: ${persona.name} (\`${personaKey}\`)`,
+        `  Personality: ${persona.personality}`,
+        `  Available: ${allPersonas.map((p) => `${p.key}${p.active ? " (active)" : ""}`).join(", ")}`,
+        `  How to change: "switch to choomfie" or "switch to mahiro"`,
+        `  Create new: "create a pirate persona" or "save persona called yoda"`,
         `  Takes effect: next session restart`,
         "",
         "## System Prompt",
@@ -641,7 +726,7 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
         `  Allowed users: ${allowedUsers.size > 0 ? [...allowedUsers].join(", ") : "none (accepting all)"}`,
         `  Trigger (DMs): always respond`,
         `  Trigger (servers): @mention or reply to bot only`,
-        `  Rate limit: 1 message per 5 seconds per user`,
+        `  Rate limit: ${config.getRateLimitMs() / 1000}s cooldown per user`,
         `  Permission relay: enabled (tool approvals via DM)`,
         `  How to change: /choomfie:access in Claude Code terminal`,
         "",
@@ -875,14 +960,13 @@ discord.once(Events.ClientReady, (c) => {
   checkReminders(); // Run immediately on startup
 });
 
-// Rate limiting: per-user cooldown (5 seconds)
-const RATE_LIMIT_MS = 5_000;
+// Rate limiting: per-user cooldown
 const lastMessageTime = new Map<string, number>();
 
 function isRateLimited(userId: string): boolean {
   const now = Date.now();
   const last = lastMessageTime.get(userId) || 0;
-  if (now - last < RATE_LIMIT_MS) return true;
+  if (now - last < config.getRateLimitMs()) return true;
   lastMessageTime.set(userId, now);
   return false;
 }
