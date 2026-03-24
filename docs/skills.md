@@ -1,6 +1,6 @@
 # Skills
 
-Ryuji ships with plugin skills — slash commands you run in the Claude Code terminal.
+Skills are slash commands you run in the Claude Code terminal.
 
 ## Built-in Skills
 
@@ -8,49 +8,40 @@ Ryuji ships with plugin skills — slash commands you run in the Claude Code ter
 
 Set your Discord bot token. Saves to `~/.claude/channels/ryuji/.env`.
 
-```bash
-/ryuji:configure MTk2NjY3...your_token_here
-```
-
 ### `/ryuji:access <command>`
 
 Manage who can message Ryuji on Discord.
 
-```bash
-/ryuji:access pair abcde          # Approve a pairing code
-/ryuji:access list                # Show allowed users
-/ryuji:access add 123456789       # Add user by Discord ID
-/ryuji:access remove 123456789    # Remove user
-/ryuji:access policy allowlist    # Only allow paired users (recommended)
+```
+/ryuji:access pair <code>          # Approve a pairing code
+/ryuji:access list                 # Show allowed users
+/ryuji:access add <user_id>       # Add user by Discord ID
+/ryuji:access remove <user_id>    # Remove user
+/ryuji:access policy allowlist    # Only allow paired users
 /ryuji:access policy open         # Allow anyone (not recommended)
 ```
 
-### `/ryuji:memory <command>`
+### `/ryuji:memory [command]`
 
 View and manage persistent memories.
 
-```bash
-/ryuji:memory                     # List core memories (default)
-/ryuji:memory list                # Same as above
-/ryuji:memory search typescript   # Search archival memory
-/ryuji:memory set name=Ben        # Set a core memory
-/ryuji:memory delete name         # Delete a core memory
-/ryuji:memory export              # Export all memories as JSON
-/ryuji:memory clear               # Clear all (asks for confirmation)
+```
+/ryuji:memory                      # List core memories (default)
+/ryuji:memory list                 # Same
+/ryuji:memory search <query>       # Search archival memory
+/ryuji:memory set <key>=<value>    # Set a core memory
+/ryuji:memory delete <key>         # Delete a core memory
+/ryuji:memory export               # Export all memories as JSON
+/ryuji:memory clear                # Clear all (asks for confirmation)
 ```
 
-## How Skills Work
+### `/ryuji:status`
 
-Skills are defined in `skills/<name>/SKILL.md` files. Each SKILL.md contains:
-
-- **Frontmatter** — name, description, allowed tools, argument hints
-- **Body** — instructions for Claude on how to execute the skill
-
-When you run `/ryuji:skillname`, Claude reads the SKILL.md and follows its instructions. Skills can use Claude Code's built-in tools (Read, Write, Bash, etc.).
+Full config overview — memory stats, personality, access policy, all features, how to change everything. This reads the actual database and config files.
 
 ## Creating Custom Skills
 
-Add a new folder under `skills/`:
+Add a folder under `skills/` with a `SKILL.md`:
 
 ```
 skills/
@@ -58,29 +49,23 @@ skills/
     └── SKILL.md
 ```
 
-Example `SKILL.md`:
-
 ```markdown
 ---
 name: my-skill
 description: Does something cool.
 user-invocable: true
-argument-hint: <required-arg> [optional-arg]
+argument-hint: <arg>
 allowed-tools:
   - Read
   - Bash(echo *)
 ---
 
-Instructions for Claude on what to do when this skill is invoked.
-
-$ARGUMENTS contains what the user typed after the skill name.
+Instructions for Claude. $ARGUMENTS contains user input.
 ```
 
-## MCP Tools vs Skills
+## Skills vs MCP Tools
 
-**Skills** = slash commands run in the Claude Code terminal by the user.
-**MCP Tools** = functions Claude calls automatically during conversations (reply, save_memory, etc.).
+- **Skills** = terminal slash commands (run by user in Claude Code)
+- **MCP Tools** = functions Claude calls during conversations (reply, save_memory, etc.)
 
-Both are part of Ryuji, but they serve different purposes:
-- Use skills for user-initiated config/management
-- Use MCP tools for agent-initiated actions during chat
+Most things are available as both — ask on Discord or use the skill in terminal.

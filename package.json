@@ -1,6 +1,6 @@
 {
   "name": "ryuji",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Personal AI agent channel plugin for Claude Code — Discord bridge with persistent memory and skills.",
   "type": "module",
   "bin": "./server.ts",

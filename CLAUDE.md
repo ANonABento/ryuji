@@ -2,49 +2,52 @@
 
 ## Project Overview
 
-Ryuji is a Claude Code Channels plugin — an MCP server that bridges Discord to Claude Code with persistent memory. It runs as a subprocess inside Claude Code, not as a standalone bot.
+Ryuji is a Claude Code Channels plugin (v0.3.0) — an MCP server that bridges Discord to Claude Code with persistent memory, reminders, GitHub integration, and more. It runs as a subprocess inside Claude Code.
 
 ## Tech Stack
 
 - **Runtime:** Bun
 - **Language:** TypeScript
 - **Protocol:** MCP (Model Context Protocol) over stdio
-- **Database:** SQLite via `better-sqlite3`
+- **Database:** SQLite via bun:sqlite
 - **Discord:** discord.js v14
-- **Framework:** `@modelcontextprotocol/sdk`
+- **Framework:** @modelcontextprotocol/sdk
 
 ## Project Structure
 
 ```
-.claude-plugin/plugin.json   # Plugin metadata
-.mcp.json                    # How Claude Code spawns the server
-server.ts                    # MCP channel server (single entry point)
-lib/memory.ts                # SQLite memory store (core + archival)
+server.ts                      # MCP channel server — all tools, Discord client, handlers
+lib/memory.ts                  # SQLite memory store (core + archival + reminders)
+.claude-plugin/plugin.json     # Plugin metadata
+.mcp.json                      # How Claude Code spawns the server
 skills/
-├── configure/SKILL.md       # /ryuji:configure — set Discord token
-├── access/SKILL.md          # /ryuji:access — manage allowlist
-└── memory/SKILL.md          # /ryuji:memory — view/manage memories
+├── configure/SKILL.md         # /ryuji:configure — set Discord token
+├── access/SKILL.md            # /ryuji:access — manage allowlist
+├── memory/SKILL.md            # /ryuji:memory — view/manage memories
+└── status/SKILL.md            # /ryuji:status — config overview
 ```
 
 ## How It Works
 
 1. Claude Code spawns `bun server.ts` as an MCP subprocess
 2. server.ts connects to Discord via discord.js
-3. Incoming Discord messages → `notifications/claude/channel` → Claude Code
-4. Claude processes and calls the `reply` tool → server.ts → Discord
-5. Memory tools (save_memory, search_memory, etc.) persist to SQLite
+3. Incoming messages → `notifications/claude/channel` → Claude Code
+4. Claude calls MCP tools (reply, save_memory, etc.) → server.ts → Discord/SQLite
+5. Reminders checked every 30 seconds via background timer
 
-## Key Concepts
+## Tools (20)
 
-- This is a **Channels plugin**, not a standalone bot
-- It uses the MCP protocol, not the Anthropic API
-- State lives in `~/.claude/channels/ryuji/` (token, access list, database)
-- The `instructions` string in Server constructor is the system prompt injection
-- Skills are slash commands defined in `skills/*/SKILL.md`
+Discord: reply, react, edit_message, fetch_messages, create_thread, pin_message, unpin_message
+Memory: save_memory, search_memory, list_memories, delete_memory, save_conversation_summary, memory_stats
+Reminders: set_reminder, list_reminders, cancel_reminder
+GitHub: check_github
+Status: ryuji_status
 
-## Conventions
+## Key Details
 
-- Single server.ts entry point — keep it as one file unless it gets too large
-- Memory store is the only module in lib/ — add more as needed
-- Use Bun APIs where possible (Bun.file, etc.)
+- State lives in `~/.claude/channels/ryuji/` (token, access list, database, inbox)
+- Personality loaded from core memory (key: "personality") at startup
 - Console output goes to stderr (stdout is MCP stdio transport)
+- DMs require Partials.Channel + Partials.Message in discord.js
+- Images downloaded to `~/.claude/channels/ryuji/inbox/`
+- GitHub integration shells out to `gh` CLI
