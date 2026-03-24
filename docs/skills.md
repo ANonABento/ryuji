@@ -4,38 +4,38 @@ Skills are slash commands you run in the Claude Code terminal.
 
 ## Built-in Skills
 
-### `/ryuji:configure <token>`
+### `/choomfie:configure <token>`
 
-Set your Discord bot token. Saves to `~/.claude/channels/ryuji/.env`.
+Set your Discord bot token. Saves to `~/.claude/channels/choomfie/.env`.
 
-### `/ryuji:access <command>`
+### `/choomfie:access <command>`
 
-Manage who can message Ryuji on Discord.
+Manage who can message Choomfie on Discord.
 
 ```
-/ryuji:access pair <code>          # Approve a pairing code
-/ryuji:access list                 # Show allowed users
-/ryuji:access add <user_id>       # Add user by Discord ID
-/ryuji:access remove <user_id>    # Remove user
-/ryuji:access policy allowlist    # Only allow paired users
-/ryuji:access policy open         # Allow anyone (not recommended)
+/choomfie:access pair <code>          # Approve a pairing code
+/choomfie:access list                 # Show allowed users
+/choomfie:access add <user_id>       # Add user by Discord ID
+/choomfie:access remove <user_id>    # Remove user
+/choomfie:access policy allowlist    # Only allow paired users
+/choomfie:access policy open         # Allow anyone (not recommended)
 ```
 
-### `/ryuji:memory [command]`
+### `/choomfie:memory [command]`
 
 View and manage persistent memories.
 
 ```
-/ryuji:memory                      # List core memories (default)
-/ryuji:memory list                 # Same
-/ryuji:memory search <query>       # Search archival memory
-/ryuji:memory set <key>=<value>    # Set a core memory
-/ryuji:memory delete <key>         # Delete a core memory
-/ryuji:memory export               # Export all memories as JSON
-/ryuji:memory clear                # Clear all (asks for confirmation)
+/choomfie:memory                      # List core memories (default)
+/choomfie:memory list                 # Same
+/choomfie:memory search <query>       # Search archival memory
+/choomfie:memory set <key>=<value>    # Set a core memory
+/choomfie:memory delete <key>         # Delete a core memory
+/choomfie:memory export               # Export all memories as JSON
+/choomfie:memory clear                # Clear all (asks for confirmation)
 ```
 
-### `/ryuji:status`
+### `/choomfie:status`
 
 Full config overview — memory stats, personality, access policy, all features, how to change everything. This reads the actual database and config files.
 

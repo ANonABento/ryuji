@@ -1,8 +1,8 @@
-# Ryuji — Claude Code Instructions
+# Choomfie — Claude Code Instructions
 
 ## Project Overview
 
-Ryuji is a Claude Code Channels plugin (v0.3.0) — an MCP server that bridges Discord to Claude Code with persistent memory, reminders, GitHub integration, and more. It runs as a subprocess inside Claude Code.
+Choomfie is a Claude Code Channels plugin (v0.3.0) — an MCP server that bridges Discord to Claude Code with persistent memory, reminders, GitHub integration, and more. It runs as a subprocess inside Claude Code.
 
 ## Tech Stack
 
@@ -21,10 +21,10 @@ lib/memory.ts                  # SQLite memory store (core + archival + reminder
 .claude-plugin/plugin.json     # Plugin metadata
 .mcp.json                      # How Claude Code spawns the server
 skills/
-├── configure/SKILL.md         # /ryuji:configure — set Discord token
-├── access/SKILL.md            # /ryuji:access — manage allowlist
-├── memory/SKILL.md            # /ryuji:memory — view/manage memories
-└── status/SKILL.md            # /ryuji:status — config overview
+├── configure/SKILL.md         # /choomfie:configure — set Discord token
+├── access/SKILL.md            # /choomfie:access — manage allowlist
+├── memory/SKILL.md            # /choomfie:memory — view/manage memories
+└── status/SKILL.md            # /choomfie:status — config overview
 ```
 
 ## How It Works
@@ -41,13 +41,13 @@ Discord: reply, react, edit_message, fetch_messages, create_thread, pin_message,
 Memory: save_memory, search_memory, list_memories, delete_memory, save_conversation_summary, memory_stats
 Reminders: set_reminder, list_reminders, cancel_reminder
 GitHub: check_github
-Status: ryuji_status
+Status: choomfie_status
 
 ## Key Details
 
-- State lives in `~/.claude/channels/ryuji/` (token, access list, database, inbox)
+- State lives in `~/.claude/channels/choomfie/` (token, access list, database, inbox)
 - Personality loaded from core memory (key: "personality") at startup
 - Console output goes to stderr (stdout is MCP stdio transport)
 - DMs require Partials.Channel + Partials.Message in discord.js
-- Images downloaded to `~/.claude/channels/ryuji/inbox/`
+- Images downloaded to `~/.claude/channels/choomfie/inbox/`
 - GitHub integration shells out to `gh` CLI

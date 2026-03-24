@@ -1,6 +1,6 @@
 ---
 name: access
-description: Manage Ryuji Discord access — approve pairings, view/edit the allowlist.
+description: Manage Choomfie Discord access — approve pairings, view/edit the allowlist.
 user-invocable: true
 argument-hint: <pair CODE | list | add USER_ID | remove USER_ID | policy allowlist|open>
 allowed-tools:
@@ -10,9 +10,9 @@ allowed-tools:
   - Bash(mkdir *)
 ---
 
-Manage who can message Ryuji on Discord.
+Manage who can message Choomfie on Discord.
 
-The access file is at `~/.claude/channels/ryuji/access.json` with format:
+The access file is at `~/.claude/channels/choomfie/access.json` with format:
 ```json
 {
   "policy": "allowlist",

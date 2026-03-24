@@ -2,7 +2,7 @@
 
 ## Overview
 
-Ryuji is a Claude Code Channels plugin — an MCP server that Claude Code spawns as a subprocess. It bridges Discord messages to Claude Code and provides persistent memory, reminders, and GitHub integration.
+Choomfie is a Claude Code Channels plugin — an MCP server that Claude Code spawns as a subprocess. It bridges Discord messages to Claude Code and provides persistent memory, reminders, and GitHub integration.
 
 ```
 ┌──────────────────────────────────────────────────┐
@@ -20,7 +20,7 @@ Ryuji is a Claude Code Channels plugin — an MCP server that Claude Code spawns
 │  │      server.ts (MCP channel server)        │  │
 │  └────────────────────────────────────────────┘  │
 │                                                  │
-│  Claude sees: <channel source="ryuji" ...>       │
+│  Claude sees: <channel source="choomfie" ...>       │
 │  Claude calls: reply, save_memory, set_reminder  │
 └──────────────────────────────────────────────────┘
          │                          ▲
@@ -35,7 +35,7 @@ Ryuji is a Claude Code Channels plugin — an MCP server that Claude Code spawns
 1. User sends message on Discord (channel or DM)
 2. discord.js client receives it
 3. Server checks sender against allowlist
-4. Attachments downloaded to `~/.claude/channels/ryuji/inbox/`
+4. Attachments downloaded to `~/.claude/channels/choomfie/inbox/`
 5. Server emits `notifications/claude/channel` with content + metadata
 6. Claude Code receives it as a `<channel>` tag in context
 
@@ -49,7 +49,7 @@ Ryuji is a Claude Code Channels plugin — an MCP server that Claude Code spawns
 ### Memory Flow
 
 1. Claude calls `save_memory` during conversations
-2. Written to SQLite at `~/.claude/channels/ryuji/ryuji.db`
+2. Written to SQLite at `~/.claude/channels/choomfie/choomfie.db`
 3. On startup, core memories loaded into `instructions` string
 4. Personality loaded from `personality` key in core memory
 
@@ -72,12 +72,12 @@ Ryuji is a Claude Code Channels plugin — an MCP server that Claude Code spawns
 
 | What | Where |
 |------|-------|
-| Discord token | `~/.claude/channels/ryuji/.env` |
-| Access list | `~/.claude/channels/ryuji/access.json` |
-| Memory database | `~/.claude/channels/ryuji/ryuji.db` |
-| Downloaded attachments | `~/.claude/channels/ryuji/inbox/` |
-| Plugin code | `~/ryuji/` (or wherever you cloned it) |
-| MCP server config | `~/.claude.json` → `mcpServers.ryuji` |
+| Discord token | `~/.claude/channels/choomfie/.env` |
+| Access list | `~/.claude/channels/choomfie/access.json` |
+| Memory database | `~/.claude/channels/choomfie/choomfie.db` |
+| Downloaded attachments | `~/.claude/channels/choomfie/inbox/` |
+| Plugin code | `~/choomfie/` (or wherever you cloned it) |
+| MCP server config | `~/.claude.json` → `mcpServers.choomfie` |
 
 ## Design Decisions
 

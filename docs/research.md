@@ -2,7 +2,7 @@
 
 ## TL;DR
 
-We evaluated Hermes Agent, OpenClaw, Max plan proxies, standalone bots, and Claude Code Channels. **Channels won** — it's Anthropic's official solution, TOS-compliant, and gives us full Claude Code power. Ryuji is built as a Channels plugin that adds persistent memory and skills.
+We evaluated Hermes Agent, OpenClaw, Max plan proxies, standalone bots, and Claude Code Channels. **Channels won** — it's Anthropic's official solution, TOS-compliant, and gives us full Claude Code power. Choomfie is built as a Channels plugin that adds persistent memory and skills.
 
 ## Options Evaluated
 

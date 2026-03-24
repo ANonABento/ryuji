@@ -1,12 +1,12 @@
 # Discord Setup
 
-How to create a Discord bot and connect it to Ryuji.
+How to create a Discord bot and connect it to Choomfie.
 
 ## 1. Create a Discord Application
 
 1. Go to [discord.com/developers/applications](https://discord.com/developers/applications)
 2. Click **New Application**
-3. Name it "Ryuji" (or whatever you want)
+3. Name it "Choomfie" (or whatever you want)
 4. Go to **Bot** tab in the sidebar
 
 ## 2. Configure the Bot
@@ -30,38 +30,38 @@ How to create a Discord bot and connect it to Ryuji.
 4. Copy the generated URL and open it in your browser
 5. Select your server and authorize
 
-## 4. Configure Ryuji
+## 4. Configure Choomfie
 
 In Claude Code:
 ```bash
-/ryuji:configure <your_bot_token>
+/choomfie:configure <your_bot_token>
 ```
 
-This saves the token to `~/.claude/channels/ryuji/.env`.
+This saves the token to `~/.claude/channels/choomfie/.env`.
 
-## 5. Start with Ryuji Channel
+## 5. Start with Choomfie Channel
 
 ```bash
-claude --channels plugin:ryuji
+claude --channels plugin:choomfie
 ```
 
 You should see in stderr:
 ```
-Ryuji Discord: logged in as Ryuji#1234
+Choomfie Discord: logged in as Choomfie#1234
 ```
 
 ## 6. Pair Your Discord Account
 
 1. DM the bot `!pair` on Discord
 2. You'll get a 5-letter pairing code
-3. In Claude Code: `/ryuji:access pair <code>`
-4. Lock down: `/ryuji:access policy allowlist`
+3. In Claude Code: `/choomfie:access pair <code>`
+4. Lock down: `/choomfie:access policy allowlist`
 
 ## 7. Test
 
 In your Discord server:
 ```
-hey ryuji, what's up?
+hey choomfie, what's up?
 remember my name is Ben
 what do you know about me?
 ```
@@ -72,13 +72,13 @@ Since Channels requires Claude Code to be running:
 
 ```bash
 # Start a tmux session
-tmux new -s ryuji
+tmux new -s choomfie
 
-# Run Claude Code with Ryuji
-claude --channels plugin:ryuji
+# Run Claude Code with Choomfie
+claude --channels plugin:choomfie
 
 # Detach: Ctrl+B, then D
-# Reattach later: tmux attach -t ryuji
+# Reattach later: tmux attach -t choomfie
 ```
 
 ## Troubleshooting
@@ -86,7 +86,7 @@ claude --channels plugin:ryuji
 | Issue | Fix |
 |-------|-----|
 | Bot doesn't respond | Check Message Content Intent is enabled |
-| "No DISCORD_TOKEN" | Run `/ryuji:configure <token>` |
-| Not receiving messages | Check allowlist with `/ryuji:access list` |
+| "No DISCORD_TOKEN" | Run `/choomfie:configure <token>` |
+| Not receiving messages | Check allowlist with `/choomfie:access list` |
 | Permission prompts block | Reply to the DM with `yes <code>` or `no <code>` |
 | Bot is slow | Normal — Claude Code processes sequentially |

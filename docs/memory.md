@@ -1,6 +1,6 @@
 # Memory System
 
-Ryuji uses a two-tier memory system inspired by [Letta (MemGPT)](https://github.com/letta-ai/letta). Memory persists in SQLite across Claude Code sessions.
+Choomfie uses a two-tier memory system inspired by [Letta (MemGPT)](https://github.com/letta-ai/letta). Memory persists in SQLite across Claude Code sessions.
 
 ## Tiers
 
@@ -28,7 +28,7 @@ Examples:
 Core memories are loaded into the MCP server's `instructions` string at startup:
 
 ```
-You are Ryuji, a personal AI assistant with persistent memory.
+You are Choomfie, a personal AI assistant with persistent memory.
 ...
 ## Current Memories
 - name: Ben
@@ -54,15 +54,15 @@ Claude is instructed to proactively save useful information — it will remember
 ## Slash Command
 
 ```bash
-/ryuji:memory list              # Show core memories
-/ryuji:memory search ramen      # Search archival
-/ryuji:memory set name=Ben      # Set core memory
-/ryuji:memory delete name       # Delete core memory
+/choomfie:memory list              # Show core memories
+/choomfie:memory search ramen      # Search archival
+/choomfie:memory set name=Ben      # Set core memory
+/choomfie:memory delete name       # Delete core memory
 ```
 
 ## Storage
 
-Database: `~/.claude/channels/ryuji/ryuji.db` (SQLite)
+Database: `~/.claude/channels/choomfie/choomfie.db` (SQLite)
 
 Tables:
 - `core_memory` — key TEXT PRIMARY KEY, value TEXT, updated_at TEXT

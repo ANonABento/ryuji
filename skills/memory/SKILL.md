@@ -1,6 +1,6 @@
 ---
 name: memory
-description: View and manage Ryuji's persistent memories.
+description: View and manage Choomfie's persistent memories.
 user-invocable: true
 argument-hint: [list | search QUERY | set KEY=VALUE | delete KEY | export | clear]
 allowed-tools:
@@ -8,7 +8,7 @@ allowed-tools:
   - Bash(ls *)
 ---
 
-View and manage Ryuji's persistent memory stored in `~/.claude/channels/ryuji/ryuji.db`.
+View and manage Choomfie's persistent memory stored in `~/.claude/channels/choomfie/choomfie.db`.
 
 Handle $ARGUMENTS:
 

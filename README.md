@@ -1,10 +1,10 @@
-# Ryuji
+# Choomfie
 
 Your personal AI assistant on Discord, powered by Claude Code.
 
-Ryuji is a [Claude Code Channels](https://code.claude.com/docs/en/channels) plugin that gives you a Discord bot with persistent memory, reminders, GitHub integration, and the full power of Claude Code — using your Max plan, no API key needed.
+Choomfie is a [Claude Code Channels](https://code.claude.com/docs/en/channels) plugin that gives you a Discord bot with persistent memory, reminders, GitHub integration, and the full power of Claude Code — using your Max plan, no API key needed.
 
-## Why Ryuji?
+## Why Choomfie?
 
 - **No API key** — runs on your Claude Max subscription via the official Channels system
 - **TOS compliant** — built on Anthropic's official plugin architecture, not a proxy hack
@@ -44,8 +44,8 @@ Ryuji is a [Claude Code Channels](https://code.claude.com/docs/en/channels) plug
 ### Install
 
 ```bash
-git clone https://github.com/ANonABento/ryuji.git
-cd ryuji
+git clone https://github.com/ANonABento/choomfie.git
+cd choomfie
 bun install
 ```
 
@@ -53,8 +53,8 @@ bun install
 
 ```bash
 # Save your Discord bot token
-mkdir -p ~/.claude/channels/ryuji
-echo "DISCORD_TOKEN=your_token_here" > ~/.claude/channels/ryuji/.env
+mkdir -p ~/.claude/channels/choomfie
+echo "DISCORD_TOKEN=your_token_here" > ~/.claude/channels/choomfie/.env
 ```
 
 ### Register MCP Server
@@ -63,10 +63,10 @@ Add to your `~/.claude.json` under `mcpServers`:
 
 ```json
 {
-  "ryuji": {
+  "choomfie": {
     "type": "stdio",
     "command": "bun",
-    "args": ["run", "--cwd", "/path/to/ryuji", "server.ts"]
+    "args": ["run", "--cwd", "/path/to/choomfie", "server.ts"]
   }
 }
 ```
@@ -74,14 +74,14 @@ Add to your `~/.claude.json` under `mcpServers`:
 ### Run
 
 ```bash
-claude --dangerously-load-development-channels server:ryuji
+claude --dangerously-load-development-channels server:choomfie
 ```
 
 For always-on, use tmux:
 
 ```bash
-tmux new -s ryuji
-claude --dangerously-load-development-channels server:ryuji
+tmux new -s choomfie
+claude --dangerously-load-development-channels server:choomfie
 # Ctrl+B, D to detach
 ```
 
@@ -89,8 +89,8 @@ claude --dangerously-load-development-channels server:ryuji
 
 1. DM the bot `!pair` on Discord
 2. Copy the 5-letter code
-3. Run `/ryuji:access pair <code>` in Claude Code
-4. Run `/ryuji:access policy allowlist` to lock down
+3. Run `/choomfie:access pair <code>` in Claude Code
+4. Run `/choomfie:access policy allowlist` to lock down
 
 ## Usage
 
@@ -111,10 +111,10 @@ what's your status?
 
 | Skill | Description |
 |-------|-------------|
-| `/ryuji:configure <token>` | Set Discord bot token |
-| `/ryuji:access` | Manage access (pair, list, add, remove, policy) |
-| `/ryuji:memory` | View/manage memories |
-| `/ryuji:status` | Full config overview |
+| `/choomfie:configure <token>` | Set Discord bot token |
+| `/choomfie:access` | Manage access (pair, list, add, remove, policy) |
+| `/choomfie:memory` | View/manage memories |
+| `/choomfie:status` | Full config overview |
 
 ## Tools (20)
 
@@ -124,7 +124,7 @@ what's your status?
 | **Memory** | save_memory, search_memory, list_memories, delete_memory, save_conversation_summary, memory_stats |
 | **Reminders** | set_reminder, list_reminders, cancel_reminder |
 | **GitHub** | check_github |
-| **Status** | ryuji_status |
+| **Status** | choomfie_status |
 
 ## Architecture
 
@@ -142,21 +142,21 @@ Discord ──> discord.js ──> MCP channel server (server.ts)
                             (your session)
 ```
 
-Ryuji runs as an MCP subprocess inside Claude Code. Discord messages arrive as channel notifications, Claude processes them, and replies via MCP tools. Memory persists in SQLite at `~/.claude/channels/ryuji/ryuji.db`.
+Choomfie runs as an MCP subprocess inside Claude Code. Discord messages arrive as channel notifications, Claude processes them, and replies via MCP tools. Memory persists in SQLite at `~/.claude/channels/choomfie/choomfie.db`.
 
 ## Project Structure
 
 ```
-ryuji/
+choomfie/
 ├── server.ts                  # MCP channel server (924 lines)
 ├── lib/memory.ts              # SQLite memory store (220 lines)
 ├── .claude-plugin/plugin.json # Plugin metadata
 ├── .mcp.json                  # MCP server config
 ├── skills/
-│   ├── configure/SKILL.md     # /ryuji:configure
-│   ├── access/SKILL.md        # /ryuji:access
-│   ├── memory/SKILL.md        # /ryuji:memory
-│   └── status/SKILL.md        # /ryuji:status
+│   ├── configure/SKILL.md     # /choomfie:configure
+│   ├── access/SKILL.md        # /choomfie:access
+│   ├── memory/SKILL.md        # /choomfie:memory
+│   └── status/SKILL.md        # /choomfie:status
 ├── docs/
 │   ├── architecture.md
 │   ├── memory.md

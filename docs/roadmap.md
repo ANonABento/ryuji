@@ -8,7 +8,7 @@
 - [x] Memory MCP tools (save, search, list, delete)
 - [x] Permission relay (approve/deny from Discord DMs)
 - [x] Access control (pairing codes + allowlist)
-- [x] Plugin skills (/ryuji:configure, /ryuji:access, /ryuji:memory)
+- [x] Plugin skills (/choomfie:configure, /choomfie:access, /choomfie:memory)
 - [x] Plugin packaging (.claude-plugin, .mcp.json)
 - [x] Documentation
 - [x] Install dependencies and test locally
@@ -31,7 +31,7 @@
 - [x] `check_github` — PRs, issues, notifications via gh CLI
 - [x] Image support — download and read inbound attachments
 - [x] DM mode — private conversations, is_dm flag in meta
-- [x] `/ryuji:status` — config overview skill
+- [x] `/choomfie:status` — config overview skill
 - [ ] `browse_url` — fetch and summarize web pages
 - [ ] `search_discord` — search channel history
 
@@ -66,6 +66,6 @@
 
 ## Non-Goals (For Now)
 
-- **Multi-user isolation** — Ryuji is a personal assistant
+- **Multi-user isolation** — Choomfie is a personal assistant
 - **Custom model training** — use Claude as-is
 - **Standalone mode** — Channels plugin is the path, not a separate bot
