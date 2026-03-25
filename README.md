@@ -74,16 +74,12 @@ bun install
 mkdir -p ~/.claude/channels/choomfie
 echo "DISCORD_TOKEN=your_token_here" > ~/.claude/channels/choomfie/.env
 
-# Register MCP server — add to ~/.claude.json under mcpServers:
-# "choomfie": {
-#   "type": "stdio",
-#   "command": "bun",
-#   "args": ["run", "--cwd", "/path/to/choomfie", "server.ts"]
-# }
-
-# Run directly
-claude --dangerously-load-development-channels server:choomfie
+# Run from the choomfie directory — the project .mcp.json handles MCP registration
+cd /path/to/choomfie
+claude
 ```
+
+> **Note:** Do NOT add choomfie to global `~/.claude.json` mcpServers — that would start the Discord bot on every Claude session. The project-scoped `.mcp.json` ensures it only activates when Claude runs from the choomfie directory.
 
 ### Access & Pairing
 

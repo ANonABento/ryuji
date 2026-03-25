@@ -32,10 +32,10 @@ if [ ${#missing[@]} -gt 0 ]; then
   exit 1
 fi
 
-echo "[1/6] Prerequisites OK (claude, bun)"
+echo "[1/5] Prerequisites OK (claude, bun)"
 
 # --- Install dependencies ---
-echo "[2/6] Installing dependencies..."
+echo "[2/5] Installing dependencies..."
 (cd "$CHOOMFIE_DIR" && bun install --no-summary)
 
 # --- Discord token ---
@@ -43,7 +43,7 @@ mkdir -p "$DATA_DIR"
 ENV_FILE="$DATA_DIR/.env"
 
 if [ -f "$ENV_FILE" ] && grep -q "DISCORD_TOKEN=" "$ENV_FILE"; then
-  echo "[3/6] Discord token already configured"
+  echo "[3/5] Discord token already configured"
 else
   echo ""
   echo "You need a Discord bot token. If you don't have one yet:"
@@ -55,14 +55,14 @@ else
   read -rp "Paste your Discord bot token (or press Enter to skip): " token
   if [ -n "$token" ]; then
     echo "DISCORD_TOKEN=$token" > "$ENV_FILE"
-    echo "[3/6] Token saved to $ENV_FILE"
+    echo "[3/5] Token saved to $ENV_FILE"
   else
-    echo "[3/6] Skipped — run '/choomfie:configure <token>' later in Claude Code"
+    echo "[3/5] Skipped — run '/choomfie:configure <token>' later in Claude Code"
   fi
 fi
 
 # --- Detect owner ---
-echo "[4/6] Detecting bot owner..."
+echo "[4/5] Detecting bot owner..."
 
 if [ -f "$DATA_DIR/access.json" ] && grep -q '"owner"' "$DATA_DIR/access.json"; then
   EXISTING_OWNER=$(grep -o '"owner"[[:space:]]*:[[:space:]]*"[^"]*"' "$DATA_DIR/access.json" | cut -d'"' -f4)
@@ -88,32 +88,8 @@ else
   echo "  No token configured — skipping owner detection"
 fi
 
-# --- Register MCP server ---
-CLAUDE_CONFIG="$HOME/.claude.json"
-echo "[5/6] Registering MCP server..."
-
-if [ -f "$CLAUDE_CONFIG" ]; then
-  if grep -q '"choomfie"' "$CLAUDE_CONFIG"; then
-    echo "  Already registered in $CLAUDE_CONFIG"
-  else
-    # Use a temp file approach to add the MCP server entry
-    echo "  Add this to mcpServers in $CLAUDE_CONFIG:"
-    echo ""
-    echo "  \"choomfie\": {"
-    echo "    \"type\": \"stdio\","
-    echo "    \"command\": \"bun\","
-    echo "    \"args\": [\"run\", \"--cwd\", \"$CHOOMFIE_DIR\", \"server.ts\"]"
-    echo "  }"
-    echo ""
-    echo "  (Manual step — editing claude.json programmatically is risky)"
-  fi
-else
-  echo "  $CLAUDE_CONFIG not found — it will be created when you first run Claude Code"
-  echo "  Then add choomfie to mcpServers (see README for config)"
-fi
-
 # --- Install choomfie command ---
-echo "[6/6] Installing 'choomfie' command..."
+echo "[5/5] Installing 'choomfie' command..."
 mkdir -p "$BIN_DIR"
 chmod +x "$CHOOMFIE_DIR/bin/choomfie"
 ln -sf "$CHOOMFIE_DIR/bin/choomfie" "$BIN_DIR/choomfie"
