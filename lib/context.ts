@@ -15,15 +15,21 @@ export async function createContext(): Promise<{
     `${process.env.HOME}/.claude/channels/choomfie`;
   const DATA_DIR = process.env.CLAUDE_PLUGIN_DATA || CHANNELS_DIR;
 
-  // Load Discord token from channel config
+  // Load env vars from channel config (.env file)
   const envPath = `${DATA_DIR}/.env`;
   let discordToken = process.env.DISCORD_TOKEN || "";
 
   try {
     const envFile = await Bun.file(envPath).text();
     for (const line of envFile.split("\n")) {
-      const match = line.match(/^DISCORD_TOKEN=(.+)$/);
-      if (match) discordToken = match[1].trim();
+      const match = line.match(/^([A-Z_]+)=(.+)$/);
+      if (match) {
+        const [, key, value] = match;
+        const trimmed = value.trim();
+        // Set on process.env so plugins can read them
+        if (!process.env[key]) process.env[key] = trimmed;
+        if (key === "DISCORD_TOKEN") discordToken = trimmed;
+      }
     }
   } catch {
     // .env doesn't exist yet — user needs to run /choomfie:configure
