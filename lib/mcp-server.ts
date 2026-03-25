@@ -112,6 +112,9 @@ export function createMcpServer(ctx: AppContext): Server {
     return handler(req.params.arguments ?? {}, ctx);
   });
 
+  // Assign to ctx before registering permission relay (needs ctx.mcp)
+  ctx.mcp = mcp;
+
   // Register permission relay
   registerPermissionRelay(ctx);
 

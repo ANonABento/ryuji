@@ -39,6 +39,8 @@ lib/
 plugins/                       # Plugin directory (each plugin = subdirectory)
 .claude-plugin/plugin.json     # Plugin metadata
 .mcp.json                      # How Claude Code spawns the server
+test/
+  boot.test.ts                 # Smoke test — verifies server boots without crashing
 skills/
 ├── configure/SKILL.md         # /choomfie:configure — set Discord token
 ├── access/SKILL.md            # /choomfie:access — manage allowlist
