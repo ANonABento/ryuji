@@ -16,9 +16,25 @@ Choomfie is a Claude Code Channels plugin (v0.4.0) — an MCP server that bridge
 ## Project Structure
 
 ```
-server.ts                      # MCP channel server — all tools, Discord client, handlers
-lib/memory.ts                  # SQLite memory store (core + archival + reminders)
-lib/config.ts                  # Config manager (personas, rate limits, settings)
+server.ts                      # Entry point — wiring only (~40 lines)
+lib/
+  types.ts                     # AppContext, ToolDef, text/err helpers
+  context.ts                   # Env/config loading, creates AppContext
+  mcp-server.ts                # MCP Server creation, instructions, tool registration
+  discord.ts                   # Discord client, Ready handler, MessageCreate
+  conversation.ts              # Channel activation, rate limiting, uptime
+  permissions.ts               # Permission relay (tool approval via DM)
+  reminders.ts                 # Reminder checker interval
+  memory.ts                    # SQLite memory store (core + archival + reminders)
+  config.ts                    # Config manager (personas, rate limits, settings)
+  tools/
+    index.ts                   # Tool registry — aggregates all tool modules
+    discord-tools.ts           # reply, react, edit, fetch, search, thread, pin/unpin
+    memory-tools.ts            # save/search/list/delete memory, summary, stats
+    persona-tools.ts           # switch/save/list/delete persona
+    reminder-tools.ts          # set/list/cancel reminder
+    github-tools.ts            # check_github
+    status-tools.ts            # choomfie_status
 .claude-plugin/plugin.json     # Plugin metadata
 .mcp.json                      # How Claude Code spawns the server
 skills/
@@ -27,6 +43,12 @@ skills/
 ├── memory/SKILL.md            # /choomfie:memory — view/manage memories
 └── status/SKILL.md            # /choomfie:status — config overview
 ```
+
+## Architecture
+
+Shared state flows through a single `AppContext` object (defined in `lib/types.ts`).
+Tools colocate their JSON schema definition + handler in one file as `ToolDef[]` arrays.
+New features (voice, language learning, etc.) add tools by exporting a `ToolDef[]` and registering in `lib/tools/index.ts`.
 
 ## How It Works
 

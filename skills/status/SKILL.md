@@ -32,7 +32,7 @@ List all core memories.
 Run: `sqlite3 ~/.claude/channels/choomfie/choomfie.db "SELECT id, message, due_at FROM reminders WHERE fired = 0 ORDER BY due_at ASC;"`
 
 ## 5. Personality
-Read the `instructions` array in `~/choomfie/server.ts` and show the current personality line (first line of instructions).
+Read the `instructions` array in `~/choomfie/lib/mcp-server.ts` and show the current personality line (first line of instructions).
 
 ## 6. Available Features & How to Configure
 
@@ -40,7 +40,7 @@ Display this table:
 
 | Feature | Status | How to Change |
 |---------|--------|---------------|
-| **Personality** | (show first line of instructions) | Edit `instructions` array in `~/choomfie/server.ts` |
+| **Personality** | (show first line of instructions) | Edit `instructions` array in `~/choomfie/lib/mcp-server.ts` |
 | **Discord token** | (configured/not configured) | `/choomfie:configure <token>` |
 | **Access policy** | (show policy) | `/choomfie:access policy allowlist\|open` |
 | **Allowlisted users** | (count) | `/choomfie:access add <id>` or `/choomfie:access remove <id>` |
