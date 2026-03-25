@@ -6,7 +6,7 @@ import type { ToolDef } from "../../lib/types.ts";
 import { text, err } from "../../lib/types.ts";
 import { getLanguageModule, listLanguages } from "./languages/index.ts";
 import { getSession, setLevel, setLanguage } from "./session.ts";
-import { getSRS } from "./index.ts";
+import { getSRS } from "./srs-instance.ts";
 import * as kana from "./kana.ts";
 
 export const languageLearningTools: ToolDef[] = [
@@ -193,13 +193,15 @@ export const languageLearningTools: ToolDef[] = [
     },
     handler: async (args, ctx) => {
       const langName = (args.language as string).toLowerCase();
-      // Validate language exists
-      getLanguageModule(langName);
-      setLanguage(args.user_id as string, langName);
-      const langModule = getLanguageModule(langName);
-      return text(
-        `Switched to **${langModule.displayName}**. Level: ${getSession(args.user_id as string).level}`
-      );
+      try {
+        const langModule = getLanguageModule(langName);
+        setLanguage(args.user_id as string, langName);
+        return text(
+          `Switched to **${langModule.displayName}**. Level: ${getSession(args.user_id as string).level}`
+        );
+      } catch (e: any) {
+        return err(e.message);
+      }
     },
   },
   {

@@ -19,9 +19,15 @@ export async function initFurigana(): Promise<void> {
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
-    kuroshiro = new Kuroshiro();
-    await kuroshiro.init(new KuromojiAnalyzer());
-    console.error("Furigana engine initialized");
+    try {
+      kuroshiro = new Kuroshiro();
+      await kuroshiro.init(new KuromojiAnalyzer());
+      console.error("Furigana engine initialized");
+    } catch (e) {
+      kuroshiro = null;
+      initPromise = null;
+      throw e;
+    }
   })();
 
   return initPromise;
@@ -30,10 +36,19 @@ export async function initFurigana(): Promise<void> {
 /** Add furigana to Japanese text. Returns bracket notation: 食[た]べる */
 export async function addFurigana(text: string): Promise<string> {
   if (!kuroshiro) await initFurigana();
-  return kuroshiro.convert(text, {
+  // Kuroshiro returns HTML ruby tags — convert to bracket notation for Discord
+  const html = await kuroshiro.convert(text, {
     mode: "furigana",
     to: "hiragana",
   });
+  // <ruby>食<rp>(</rp><rt>た</rt><rp>)</rp></ruby>べる → 食[た]べる
+  return html
+    .replace(/<ruby>/g, "")
+    .replace(/<\/ruby>/g, "")
+    .replace(/<rp>\(<\/rp>/g, "")
+    .replace(/<rp>\)<\/rp>/g, "")
+    .replace(/<rt>/g, "[")
+    .replace(/<\/rt>/g, "]");
 }
 
 /** Convert Japanese text to hiragana */

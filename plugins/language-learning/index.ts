@@ -11,9 +11,8 @@
 import type { Plugin } from "../../lib/types.ts";
 import { languageLearningTools } from "./tools.ts";
 import { SRSManager } from "./srs.ts";
+import { setSRS } from "./srs-instance.ts";
 import { initFurigana } from "./furigana.ts";
-
-let srs: SRSManager | null = null;
 
 const languageLearningPlugin: Plugin = {
   name: "language-learning",
@@ -60,7 +59,8 @@ const languageLearningPlugin: Plugin = {
 
   async init(ctx) {
     // Initialize SRS database
-    srs = new SRSManager(`${ctx.DATA_DIR}/srs.db`);
+    const srs = new SRSManager(`${ctx.DATA_DIR}/srs.db`);
+    setSRS(srs);
     console.error("Language learning: SRS initialized");
 
     // Initialize furigana engine (async, loads kuromoji dictionary)
@@ -72,16 +72,13 @@ const languageLearningPlugin: Plugin = {
   },
 
   async destroy() {
+    const { getSRS } = await import("./srs-instance.ts");
+    const srs = getSRS();
     if (srs) {
       srs.close();
-      srs = null;
+      setSRS(null as any);
     }
   },
 };
-
-// Module-level accessor for tools
-export function getSRS(): SRSManager | null {
-  return srs;
-}
 
 export default languageLearningPlugin;

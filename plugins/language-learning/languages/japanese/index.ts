@@ -209,6 +209,14 @@ Always be encouraging and patient. Language learning is hard!`;
       },
     ];
 
-    return pick(grammarQs);
+    // Shuffle grammar quiz options
+    const q = pick(grammarQs);
+    const correctAnswer = q.options[q.correctIndex];
+    const shuffled = [...q.options].sort(() => Math.random() - 0.5);
+    return {
+      ...q,
+      options: shuffled,
+      correctIndex: shuffled.indexOf(correctAnswer),
+    };
   },
 };
