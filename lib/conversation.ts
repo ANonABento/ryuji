@@ -2,15 +2,17 @@
  * Conversation mode helpers — channel activation, rate limiting, uptime formatting.
  */
 
-export const CONVO_IDLE_TIMEOUT = 2 * 60 * 1000; // 2 min
+/** Default timeout — actual value comes from config.convoTimeoutMs at runtime */
+export const DEFAULT_CONVO_IDLE_TIMEOUT = 5 * 60 * 1000; // 5 min
 
 export function isChannelActive(
   activeChannels: Map<string, number>,
-  channelId: string
+  channelId: string,
+  timeoutMs: number = DEFAULT_CONVO_IDLE_TIMEOUT
 ): boolean {
   const lastActivity = activeChannels.get(channelId);
   if (!lastActivity) return false;
-  if (Date.now() - lastActivity > CONVO_IDLE_TIMEOUT) {
+  if (Date.now() - lastActivity > timeoutMs) {
     activeChannels.delete(channelId);
     return false;
   }

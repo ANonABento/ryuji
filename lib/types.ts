@@ -6,6 +6,7 @@ import type { Client, GatewayIntentBits, Message } from "discord.js";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import type { MemoryStore } from "./memory.ts";
 import type { ConfigManager } from "./config.ts";
+import type { ReminderScheduler } from "./reminders.ts";
 
 export interface AppContext {
   discord: Client;
@@ -30,6 +31,12 @@ export interface AppContext {
   DATA_DIR: string;
   CHANNELS_DIR: string;
   accessPath: string;
+  /** Active typing intervals per channel */
+  typingIntervals: Map<string, ReturnType<typeof setInterval>>;
+  /** Pending typing clear timeouts — delayed so multi-message turns keep typing */
+  typingClearTimeouts: Map<string, ReturnType<typeof setTimeout>>;
+  /** Timer-based reminder scheduler */
+  reminderScheduler: ReminderScheduler;
 }
 
 export interface Plugin {

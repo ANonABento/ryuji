@@ -135,6 +135,18 @@
   - [ ] Active — user participates alongside clones
   - [ ] Scenario — seed a topic and watch clones react
 
+## Testing & CI (v0.5 / v1.0)
+
+> See [testing.md](testing.md) for full strategy
+
+- [ ] E2E tests — spawn server, verify startup/shutdown/PID lifecycle
+- [ ] E2E tests — MCP tool round-trips over stdio
+- [ ] E2E tests — Discord message flow (test bot + test server)
+- [ ] Unit tests — reminders, memory, conversation, time, config
+- [ ] Plugin tests — voice, language-learning, socials
+- [ ] CI pipeline — run tests + type-check + lint on PRs
+- [ ] Merge gates — block PR on test/lint failure
+
 ## Non-Goals (For Now)
 
 - **Multi-user isolation** — Choomfie is a personal assistant

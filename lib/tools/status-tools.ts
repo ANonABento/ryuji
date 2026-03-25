@@ -4,7 +4,7 @@
 
 import type { ToolDef } from "../types.ts";
 import { text } from "../types.ts";
-import { CONVO_IDLE_TIMEOUT, formatUptime } from "../conversation.ts";
+import { formatUptime } from "../conversation.ts";
 
 export const statusTools: ToolDef[] = [
   {
@@ -25,6 +25,7 @@ export const statusTools: ToolDef[] = [
       const personaKey = ctx.config.getActivePersonaKey();
       const allPersonas = ctx.config.listPersonas();
       const botUser = ctx.discord.user;
+      const convoTimeout = ctx.config.getConvoTimeoutMs();
 
       // Uptime
       const uptimeStr = ctx.startedAt
@@ -38,7 +39,7 @@ export const statusTools: ToolDef[] = [
       const now = Date.now();
       const activeChans: string[] = [];
       for (const [id, ts] of ctx.activeChannels) {
-        if (now - ts <= CONVO_IDLE_TIMEOUT) {
+        if (now - ts <= convoTimeout) {
           activeChans.push(
             `<#${id}> (active ${formatUptime(now - ts)} ago)`
           );
@@ -75,7 +76,7 @@ export const statusTools: ToolDef[] = [
         "",
         "## Conversation Mode",
         `  Trigger: @mention or reply to bot activates channel`,
-        `  Idle timeout: ${CONVO_IDLE_TIMEOUT / 1000}s (${CONVO_IDLE_TIMEOUT / 60000} min)`,
+        `  Idle timeout: ${convoTimeout / 1000}s (${convoTimeout / 60000} min)`,
         `  Behavior: responds to all users in channel while active`,
         `  DMs: always active (no timeout)`,
         "",
@@ -129,7 +130,12 @@ export const statusTools: ToolDef[] = [
         "",
         reminders.length > 0 ? "## Active Reminders" : null,
         ...reminders.map(
-          (r) => `  [#${r.id}] ${r.message} (due: ${r.dueAt})`
+          (r) => {
+            const cron = r.cron ? ` (recurring: ${r.cron})` : "";
+            const nag = r.nagInterval ? ` (nag every ${r.nagInterval}m)` : "";
+            const cat = r.category ? ` [${r.category}]` : "";
+            return `  [#${r.id}]${cat} ${r.message} (due: ${r.dueAt})${cron}${nag}`;
+          }
         ),
         "",
         "## Skills (Claude Code terminal only)",
@@ -139,16 +145,19 @@ export const statusTools: ToolDef[] = [
         "  /choomfie:status — this overview (detailed file-level version)",
         "",
         "## Tools (available in Discord & terminal)",
-        "  **Discord:** reply, react, edit_message, fetch_messages, create_thread, pin_message, unpin_message",
+        "  **Discord:** reply (with embeds), react, edit_message, fetch_messages, create_thread, create_poll, pin_message, unpin_message",
         "  **Memory:** save_memory, search_memory, list_memories, delete_memory, save_conversation_summary, memory_stats",
-        "  **Reminders:** set_reminder, list_reminders, cancel_reminder",
+        "  **Reminders:** set_reminder, list_reminders, cancel_reminder, snooze_reminder, ack_reminder",
         "  **GitHub:** check_github (prs, issues, notifications, pr_status)",
+        "  **Access:** allow_user, remove_user, list_allowed_users (owner only)",
         "  **Status:** choomfie_status",
         "",
         "## What You Can Change (just ask me!)",
         '  **Personality** — "be more sarcastic" / "talk like a pirate"',
         '  **Memories** — "remember my name is X" / "forget my timezone"',
-        '  **Reminders** — "remind me in 30min to X" / "cancel reminder #3"',
+        '  **Reminders** — "remind me in 30min to X" / "cancel reminder #3" / "snooze #1 for 1hr" / "done with #1"',
+        '  **Recurring** — "remind me every day at 9am to check PRs"',
+        '  **Nag mode** — "remind me to deploy and nag me until I do it"',
         '  **Pin/unpin** — "pin that" / "unpin that"',
         '  **Threads** — "start a thread about this"',
         '  **GitHub** — "what PRs need review?" / "any open issues?"',

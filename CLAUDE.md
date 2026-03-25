@@ -16,7 +16,7 @@ Choomfie is a Claude Code Channels plugin (v0.4.0) — an MCP server that bridge
 ## Project Structure
 
 ```
-server.ts                      # Entry point — wiring only (~40 lines)
+server.ts                      # Entry point — wiring + lifecycle (~95 lines)
 lib/
   types.ts                     # AppContext, ToolDef, text/err helpers
   context.ts                   # Env/config loading, creates AppContext
@@ -24,15 +24,17 @@ lib/
   discord.ts                   # Discord client, Ready handler, MessageCreate
   conversation.ts              # Channel activation, rate limiting, uptime
   permissions.ts               # Permission relay (tool approval via DM)
-  reminders.ts                 # Reminder checker interval
+  reminders.ts                 # ReminderScheduler — timer-based (setTimeout per reminder)
+  time.ts                      # Shared datetime utils (SQLite-compatible formatting)
   memory.ts                    # SQLite memory store (core + archival + reminders)
   config.ts                    # Config manager (personas, rate limits, settings)
   tools/
     index.ts                   # Tool registry — aggregates all tool modules
-    discord-tools.ts           # reply, react, edit, fetch, search, thread, pin/unpin
+    discord-tools.ts           # reply (embeds), react, edit, fetch, search, thread, poll, pin/unpin
+    access-tools.ts            # allow/remove/list users (owner only)
     memory-tools.ts            # save/search/list/delete memory, summary, stats
     persona-tools.ts           # switch/save/list/delete persona
-    reminder-tools.ts          # set/list/cancel reminder
+    reminder-tools.ts          # set/list/cancel/snooze/ack reminder
     github-tools.ts            # check_github
     status-tools.ts            # choomfie_status
   plugins.ts                   # Plugin loader (discovers + loads from plugins/)
@@ -68,19 +70,64 @@ Enable plugins in `config.json`: `"plugins": ["voice", "image-gen"]`
 ## How It Works
 
 1. Claude Code spawns `bun server.ts` as an MCP subprocess
-2. server.ts connects to Discord via discord.js
-3. Incoming messages → `notifications/claude/channel` → Claude Code
-4. Claude calls MCP tools (reply, save_memory, etc.) → server.ts → Discord/SQLite
-5. Reminders checked every 30 seconds via background timer
+2. Single-instance guard: kills any stale process from a previous session via PID file (`choomfie.pid`)
+3. server.ts connects to Discord via discord.js
+4. Incoming messages → `notifications/claude/channel` → Claude Code
+5. Claude calls MCP tools (reply, save_memory, etc.) → server.ts → Discord/SQLite
+6. Reminders use precise setTimeout timers — each reminder gets its own timer that fires exactly when due (zero polling overhead)
+7. On shutdown (SIGINT/SIGTERM/SIGHUP/stdin close): destroys Discord client, cleans up plugins/reminders/memory, removes PID file
 
-## Tools (20)
+## Tools (26)
 
-Discord: reply, react, edit_message, fetch_messages, search_messages, create_thread, pin_message, unpin_message
+Discord: reply (with embeds), react, edit_message, fetch_messages, search_messages, create_thread, create_poll, pin_message, unpin_message
 Memory: save_memory, search_memory, list_memories, delete_memory, save_conversation_summary, memory_stats
 Personas: switch_persona, save_persona, list_personas, delete_persona
-Reminders: set_reminder, list_reminders, cancel_reminder
+Reminders: set_reminder, list_reminders, cancel_reminder, snooze_reminder, ack_reminder
+Access: allow_user, remove_user, list_allowed_users (owner only)
 GitHub: check_github
 Status: choomfie_status
+
+### Rich Embeds
+
+The `reply` tool supports Discord embeds via the `embeds` parameter. Each embed takes:
+- `title`, `description`, `color` (name: blue/green/yellow/orange/red/purple/pink/grey, or hex)
+- `fields` array of `{name, value, inline?}`
+- `footer`, `thumbnail`, `url`
+
+Use for structured content (status, lists, summaries). Plain text for casual chat.
+
+### Polls
+
+`create_poll` creates Discord native polls:
+- 2-10 options, 1-168 hour duration (default 24)
+- Optional multi-select
+- Uses Discord's built-in poll UI (not reaction-based)
+
+### Reminder System
+
+Reminders use precise `setTimeout` timers — each reminder gets its own timer that fires exactly when due. No polling, zero wasted compute.
+
+Architecture:
+- `ReminderScheduler` class in `lib/reminders.ts` manages all timers
+- On startup: loads pending reminders from DB, sets a timer for each
+- On create/snooze: immediately schedules a new timer
+- On cancel/ack: clears the timer
+- Nag mode: after firing, schedules a repeating nag timer
+
+Features:
+- **Recurring:** `cron` param supports "hourly", "daily", "weekly", "monthly", "every Xm/h/d"
+- **Nag mode:** `nag_interval` (minutes) re-pings until user acknowledges via `ack_reminder`
+- **Snooze:** `snooze_reminder` reschedules a fired reminder (non-recurring only; recurring auto-acks)
+- **Categories:** optional label for grouping (e.g. "work", "personal")
+- **History:** `list_reminders` with `include_history=true` shows fired reminders
+
+**Datetime format:** All dates stored in SQLite use space-separated format (`YYYY-MM-DD HH:MM:SS`), never ISO 8601 with `T`/`Z`. Use `lib/time.ts` utilities (`toSQLiteDatetime`, `dateToSQLite`, `nowUTC`) for all conversions.
+
+DB schema (auto-migrated):
+```sql
+reminders: id, user_id, chat_id, message, due_at, fired, created_at,
+           cron, nag_interval, category, ack, last_nag_at
+```
 
 ## Key Details
 
@@ -90,11 +137,32 @@ Status: choomfie_status
 - Personality loaded from core memory (key: "personality") at startup
 - Console output goes to stderr (stdout is MCP stdio transport)
 - DMs require Partials.Channel + Partials.Message in discord.js
-- Images downloaded to `~/.claude/channels/choomfie/inbox/`
+- All attachments downloaded to `~/.claude/channels/choomfie/inbox/` (file_path = first, file_paths = all semicolon-separated)
 - GitHub integration shells out to `gh` CLI
 - Servers: only responds when @mentioned or replied to (not every message)
 - DMs: always responds
 - Rate limit: configurable via config.json (default 5s)
+- Conversation timeout: configurable via config.json `convoTimeoutMs` (default 5 min)
+- Typing indicator: shows "bot is typing..." while Claude processes, refreshes every 8s, clears on reply/poll, auto-expires after 2 min
+- Allowlist: loaded at startup from access.json. Use `allow_user`/`remove_user` tools to modify in-memory + persist to file (no restart needed). Manual file edits require restart.
 - @mentions stripped from message before forwarding to Claude
 - Personas stored in config.json, switchable from Discord
 - search_messages paginates up to 1000 messages for user/keyword filtering
+
+## Config (config.json)
+
+Runtime-configurable settings — changes take effect immediately, no restart needed:
+
+```json
+{
+  "activePersona": "takagi",
+  "rateLimitMs": 5000,
+  "convoTimeoutMs": 300000,
+  "autoSummarize": true,
+  "plugins": [],
+  "personas": { ... },
+  "voice": { "stt": "groq", "tts": "elevenlabs" }
+}
+```
+
+Settings can be changed via tools (e.g. `setRateLimitMs`, `setConvoTimeoutMs`) or by editing the file directly.

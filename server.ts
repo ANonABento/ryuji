@@ -13,9 +13,28 @@ import { createContext } from "./lib/context.ts";
 import { loadPlugins } from "./lib/plugins.ts";
 import { createMcpServer } from "./lib/mcp-server.ts";
 import { createDiscordClient } from "./lib/discord.ts";
+import { readFile, writeFile, unlink } from "node:fs/promises";
 
 // Initialize context (loads env, config, memory, access list)
 const { ctx, discordToken } = await createContext();
+
+// Single-instance guard — kill stale processes before starting
+const pidPath = `${ctx.DATA_DIR}/choomfie.pid`;
+try {
+  const oldPid = parseInt(await readFile(pidPath, "utf-8"), 10);
+  if (oldPid && oldPid !== process.pid) {
+    try {
+      process.kill(oldPid, "SIGTERM");
+      // Give it a moment to clean up
+      await new Promise((r) => setTimeout(r, 500));
+    } catch {
+      // Process already dead, that's fine
+    }
+  }
+} catch {
+  // No PID file yet
+}
+await writeFile(pidPath, String(process.pid));
 
 // Load plugins (before MCP server so tools + instructions are available)
 ctx.plugins = await loadPlugins(ctx.config, import.meta.dir);
@@ -44,8 +63,12 @@ if (discordToken) {
   );
 }
 
-// Graceful shutdown — destroy plugins
-process.on("SIGINT", async () => {
+// Graceful shutdown
+let shutdownCalled = false;
+const shutdown = async () => {
+  if (shutdownCalled) return;
+  shutdownCalled = true;
+  ctx.reminderScheduler.destroy();
   for (const plugin of ctx.plugins) {
     if (plugin.destroy) {
       try {
@@ -53,5 +76,21 @@ process.on("SIGINT", async () => {
       } catch {}
     }
   }
+  // Destroy Discord client so the bot goes offline
+  try {
+    ctx.discord.destroy();
+  } catch {}
+  ctx.memory.close();
+  // Remove PID file
+  try {
+    await unlink(`${ctx.DATA_DIR}/choomfie.pid`);
+  } catch {}
   process.exit(0);
-});
+};
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
+process.on("SIGHUP", shutdown);
+
+// Detect when stdin closes (MCP transport disconnected) — parent Claude session ended
+process.stdin.on("end", shutdown);
+process.stdin.on("close", shutdown);

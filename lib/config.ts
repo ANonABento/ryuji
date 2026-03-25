@@ -20,6 +20,7 @@ export interface Config {
   activePersona: string;
   personas: Record<string, Persona>;
   rateLimitMs: number;
+  convoTimeoutMs: number;
   autoSummarize: boolean;
   plugins: string[];
   voice: VoiceConfig;
@@ -35,6 +36,7 @@ const DEFAULT_CONFIG: Config = {
     },
   },
   rateLimitMs: 5000,
+  convoTimeoutMs: 5 * 60 * 1000, // 5 min
   autoSummarize: true,
   plugins: [],
   voice: { stt: "groq", tts: "elevenlabs" },
@@ -118,6 +120,15 @@ export class ConfigManager {
 
   setRateLimitMs(ms: number) {
     this.config.rateLimitMs = ms;
+    this.save();
+  }
+
+  getConvoTimeoutMs(): number {
+    return this.config.convoTimeoutMs || 5 * 60 * 1000;
+  }
+
+  setConvoTimeoutMs(ms: number) {
+    this.config.convoTimeoutMs = ms;
     this.save();
   }
 

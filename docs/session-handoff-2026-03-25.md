@@ -108,7 +108,7 @@ plugins/language-learning/
 ## Key Files
 
 ```
-server.ts                              # Entry point (57 lines)
+server.ts                              # Entry point + lifecycle (~95 lines)
 lib/
 ├── types.ts                           # AppContext, Plugin, ToolDef
 ├── context.ts                         # Env/config loading

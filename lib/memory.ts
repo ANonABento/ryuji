@@ -10,6 +10,7 @@
  */
 
 import { Database } from "bun:sqlite";
+import { toSQLiteDatetime } from "./time.ts";
 
 export interface CoreMemory {
   key: string;
@@ -31,6 +32,11 @@ export interface Reminder {
   message: string;
   dueAt: string;
   createdAt: string;
+  cron: string | null;
+  nagInterval: number | null;
+  category: string | null;
+  ack: number;
+  lastNagAt: string | null;
 }
 
 export interface MemoryStats {
@@ -72,9 +78,29 @@ export class MemoryStore {
         message TEXT NOT NULL,
         due_at TEXT NOT NULL,
         fired INTEGER DEFAULT 0,
-        created_at TEXT DEFAULT (datetime('now'))
+        created_at TEXT DEFAULT (datetime('now')),
+        cron TEXT,
+        nag_interval INTEGER,
+        category TEXT,
+        ack INTEGER DEFAULT 0,
+        last_nag_at TEXT
       );
     `);
+
+    // Migration: add new columns to existing tables
+    this.migrate();
+  }
+
+  private migrate() {
+    // Safely add columns if they don't exist (idempotent)
+    const cols = ["cron TEXT", "nag_interval INTEGER", "category TEXT", "ack INTEGER DEFAULT 0", "last_nag_at TEXT"];
+    for (const col of cols) {
+      try {
+        this.db.exec(`ALTER TABLE reminders ADD COLUMN ${col}`);
+      } catch {
+        // Column already exists, ignore
+      }
+    }
   }
 
   // --- Core memory ---
@@ -121,18 +147,30 @@ export class MemoryStore {
 
   // --- Reminders ---
 
-  addReminder(userId: string, chatId: string, message: string, dueAt: string) {
+  private static readonly REMINDER_COLS = `id, user_id as userId, chat_id as chatId, message, due_at as dueAt,
+    created_at as createdAt, cron, nag_interval as nagInterval, category, ack, last_nag_at as lastNagAt`;
+
+  addReminder(
+    userId: string,
+    chatId: string,
+    message: string,
+    dueAt: string,
+    opts?: { cron?: string; nagInterval?: number; category?: string }
+  ): number {
+    const normalized = toSQLiteDatetime(dueAt);
     this.db
       .query(
-        "INSERT INTO reminders (user_id, chat_id, message, due_at) VALUES (?, ?, ?, ?)"
+        "INSERT INTO reminders (user_id, chat_id, message, due_at, cron, nag_interval, category) VALUES (?, ?, ?, ?, ?, ?, ?)"
       )
-      .run(userId, chatId, message, dueAt);
+      .run(userId, chatId, message, normalized, opts?.cron ?? null, opts?.nagInterval ?? null, opts?.category ?? null);
+    // Return the new reminder ID
+    return (this.db.query("SELECT last_insert_rowid() as id").get() as any).id;
   }
 
   getDueReminders(): Reminder[] {
     return this.db
       .query(
-        `SELECT id, user_id as userId, chat_id as chatId, message, due_at as dueAt, created_at as createdAt
+        `SELECT ${MemoryStore.REMINDER_COLS}
          FROM reminders
          WHERE fired = 0 AND due_at <= datetime('now')
          ORDER BY due_at ASC`
@@ -140,32 +178,100 @@ export class MemoryStore {
       .all() as Reminder[];
   }
 
-  markReminderFired(id: number) {
-    this.db.query("UPDATE reminders SET fired = 1 WHERE id = ?").run(id);
-  }
-
-  getActiveReminders(userId?: string): Reminder[] {
-    if (userId) {
-      return this.db
-        .query(
-          `SELECT id, user_id as userId, chat_id as chatId, message, due_at as dueAt, created_at as createdAt
-           FROM reminders WHERE fired = 0 AND user_id = ? ORDER BY due_at ASC`
-        )
-        .all(userId) as Reminder[];
-    }
+  /** Get reminders in nag mode that are fired but unacknowledged and due for another nag */
+  getNagReminders(): Reminder[] {
     return this.db
       .query(
-        `SELECT id, user_id as userId, chat_id as chatId, message, due_at as dueAt, created_at as createdAt
-         FROM reminders WHERE fired = 0 ORDER BY due_at ASC`
+        `SELECT ${MemoryStore.REMINDER_COLS}
+         FROM reminders
+         WHERE fired = 1 AND ack = 0 AND nag_interval IS NOT NULL
+         AND (last_nag_at IS NULL OR datetime(last_nag_at, '+' || nag_interval || ' minutes') <= datetime('now'))
+         ORDER BY due_at ASC`
       )
       .all() as Reminder[];
   }
 
+  markReminderFired(id: number) {
+    this.db.query("UPDATE reminders SET fired = 1, last_nag_at = datetime('now') WHERE id = ?").run(id);
+  }
+
+  updateNagTime(id: number) {
+    this.db.query("UPDATE reminders SET last_nag_at = datetime('now') WHERE id = ?").run(id);
+  }
+
+  ackReminder(id: number): boolean {
+    const result = this.db.query("UPDATE reminders SET ack = 1 WHERE id = ? AND fired = 1").run(id);
+    return result.changes > 0;
+  }
+
+  snoozeReminder(id: number, newDueAt: string): boolean {
+    const normalized = toSQLiteDatetime(newDueAt);
+    const result = this.db
+      .query("UPDATE reminders SET fired = 0, ack = 0, due_at = ?, last_nag_at = NULL WHERE id = ?")
+      .run(normalized, id);
+    return result.changes > 0;
+  }
+
+  /** Get a single reminder by ID */
+  getReminder(id: number): Reminder | null {
+    return (
+      this.db
+        .query(`SELECT ${MemoryStore.REMINDER_COLS} FROM reminders WHERE id = ?`)
+        .get(id) as Reminder | null
+    );
+  }
+
+  getActiveReminders(userId?: string): Reminder[] {
+    const filter = userId ? "AND user_id = ?" : "";
+    const args = userId ? [userId] : [];
+    return this.db
+      .query(
+        `SELECT ${MemoryStore.REMINDER_COLS}
+         FROM reminders WHERE fired = 0 ${filter} ORDER BY due_at ASC`
+      )
+      .all(...args) as Reminder[];
+  }
+
+  /** Get fired but unacknowledged nag reminders */
+  getUnackedReminders(userId?: string): Reminder[] {
+    const where = userId ? "AND user_id = ?" : "";
+    const args = userId ? [userId] : [];
+    return this.db
+      .query(
+        `SELECT ${MemoryStore.REMINDER_COLS}
+         FROM reminders WHERE fired = 1 AND ack = 0 AND nag_interval IS NOT NULL ${where}
+         ORDER BY due_at ASC`
+      )
+      .all(...args) as Reminder[];
+  }
+
+  /** Get reminder history (fired reminders) */
+  getReminderHistory(limit: number = 10): Reminder[] {
+    return this.db
+      .query(
+        `SELECT ${MemoryStore.REMINDER_COLS}
+         FROM reminders WHERE fired = 1 ORDER BY due_at DESC LIMIT ?`
+      )
+      .all(limit) as Reminder[];
+  }
+
   cancelReminder(id: number): boolean {
     const result = this.db
-      .query("DELETE FROM reminders WHERE id = ? AND fired = 0")
+      .query("DELETE FROM reminders WHERE id = ? AND (fired = 0 OR (fired = 1 AND ack = 0))")
       .run(id);
     return result.changes > 0;
+  }
+
+  /** Purge old fired+acked reminders. Returns number deleted. */
+  purgeOldReminders(olderThanDays: number = 7): number {
+    const result = this.db
+      .query(
+        `DELETE FROM reminders
+         WHERE fired = 1 AND ack = 1
+         AND due_at <= datetime('now', '-' || ? || ' days')`
+      )
+      .run(olderThanDays);
+    return result.changes;
   }
 
   // --- Stats ---

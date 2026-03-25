@@ -4,7 +4,24 @@
 
 import { MemoryStore } from "./memory.ts";
 import { ConfigManager } from "./config.ts";
+import { ReminderScheduler } from "./reminders.ts";
 import type { AppContext } from "./types.ts";
+
+/** Write current access state to disk. */
+export async function saveAccess(ctx: AppContext) {
+  await Bun.write(
+    ctx.accessPath,
+    JSON.stringify(
+      {
+        policy: "allowlist",
+        owner: ctx.ownerUserId,
+        allowed: [...ctx.allowedUsers],
+      },
+      null,
+      2
+    )
+  );
+}
 
 export async function createContext(): Promise<{
   ctx: AppContext;
@@ -68,6 +85,9 @@ export async function createContext(): Promise<{
     DATA_DIR,
     CHANNELS_DIR,
     accessPath,
+    typingIntervals: new Map(),
+    typingClearTimeouts: new Map(),
+    reminderScheduler: new ReminderScheduler(),
   };
 
   return { ctx, discordToken };

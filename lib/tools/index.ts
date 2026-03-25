@@ -9,6 +9,7 @@ import { personaTools } from "./persona-tools.ts";
 import { reminderTools } from "./reminder-tools.ts";
 import { githubTools } from "./github-tools.ts";
 import { statusTools } from "./status-tools.ts";
+import { accessTools } from "./access-tools.ts";
 
 export function getAllTools(ctx: AppContext): ToolDef[] {
   return [
@@ -16,6 +17,7 @@ export function getAllTools(ctx: AppContext): ToolDef[] {
     ...memoryTools,
     ...personaTools,
     ...reminderTools,
+    ...accessTools,
     ...githubTools,
     ...statusTools,
     ...ctx.plugins.flatMap((p) => p.tools ?? []),

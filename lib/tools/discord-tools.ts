@@ -1,24 +1,96 @@
 /**
- * Discord tools — reply, react, edit, fetch, search messages, threads, pin/unpin.
+ * Discord tools — reply (with embeds), react, edit, fetch, search, threads, pin/unpin, polls.
  */
 
-import { ChannelType, type TextChannel, type ThreadChannel } from "discord.js";
-import type { ToolDef } from "../types.ts";
+import {
+  ChannelType,
+  EmbedBuilder,
+  PollLayoutType,
+  type TextChannel,
+  type ThreadChannel,
+} from "discord.js";
+import type { ToolDef, AppContext } from "../types.ts";
 import { text, err } from "../types.ts";
+
+/**
+ * Clear typing indicator after a reply is sent.
+ * Simple and correct: stop immediately, no lingering.
+ */
+function clearTyping(ctx: AppContext, channelId: string) {
+  const interval = ctx.typingIntervals.get(channelId);
+  if (interval) {
+    clearInterval(interval);
+    ctx.typingIntervals.delete(channelId);
+  }
+  const pending = ctx.typingClearTimeouts.get(channelId);
+  if (pending) {
+    clearTimeout(pending);
+    ctx.typingClearTimeouts.delete(channelId);
+  }
+}
+
+/** Discord embed color constants */
+const COLORS = {
+  blue: 0x5865f2,
+  green: 0x57f287,
+  yellow: 0xfee75c,
+  orange: 0xf0883e,
+  red: 0xed4245,
+  purple: 0x9b59b6,
+  pink: 0xeb459e,
+  grey: 0x95a5a6,
+} as const;
+
+interface EmbedField {
+  name: string;
+  value: string;
+  inline?: boolean;
+}
+
+interface EmbedInput {
+  title?: string;
+  description?: string;
+  color?: string | number;
+  fields?: EmbedField[];
+  footer?: string;
+  thumbnail?: string;
+  url?: string;
+}
+
+function buildEmbed(input: EmbedInput): EmbedBuilder {
+  const embed = new EmbedBuilder();
+  if (input.title) embed.setTitle(input.title);
+  if (input.description) embed.setDescription(input.description);
+  if (input.color) {
+    const c = typeof input.color === "string"
+      ? COLORS[input.color as keyof typeof COLORS] ?? parseInt(input.color.replace("#", ""), 16)
+      : input.color;
+    embed.setColor(c);
+  }
+  if (input.fields) {
+    for (const f of input.fields) {
+      embed.addFields({ name: f.name, value: f.value, inline: f.inline ?? false });
+    }
+  }
+  if (input.footer) embed.setFooter({ text: input.footer });
+  if (input.thumbnail) embed.setThumbnail(input.thumbnail);
+  if (input.url) embed.setURL(input.url);
+  return embed;
+}
 
 export const discordTools: ToolDef[] = [
   {
     definition: {
       name: "reply",
       description:
-        "Reply to a Discord message. Pass chat_id from the inbound message.",
+        "Reply to a Discord message. Pass chat_id from the inbound message. Supports rich embeds for structured content.",
       inputSchema: {
         type: "object" as const,
         properties: {
           chat_id: { type: "string", description: "Discord channel ID" },
           text: {
             type: "string",
-            description: "Message text (markdown OK)",
+            description: "Message text (markdown OK). Optional if embeds are provided.",
           },
           reply_to: {
             type: "string",
@@ -30,8 +102,35 @@ export const discordTools: ToolDef[] = [
             items: { type: "string" },
             description: "Absolute file paths to attach",
           },
+          embeds: {
+            type: "array",
+            description: "Rich embeds to include. Each embed has: title, description, color (name like 'blue'/'green'/'orange'/'red'/'purple' or hex '#5865f2' or int), fields (array of {name, value, inline?}), footer, thumbnail, url.",
+            items: {
+              type: "object",
+              properties: {
+                title: { type: "string" },
+                description: { type: "string" },
+                color: { type: "string", description: "Color name (blue, green, yellow, orange, red, purple, pink, grey) or hex string" },
+                fields: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      name: { type: "string" },
+                      value: { type: "string" },
+                      inline: { type: "boolean" },
+                    },
+                    required: ["name", "value"],
+                  },
+                },
+                footer: { type: "string" },
+                thumbnail: { type: "string" },
+                url: { type: "string" },
+              },
+            },
+          },
         },
-        required: ["chat_id", "text"],
+        required: ["chat_id"],
       },
     },
     handler: async (args, ctx) => {
@@ -42,7 +141,20 @@ export const discordTools: ToolDef[] = [
         return err("Channel not found or not text-based");
 
       const textChannel = channel as TextChannel | ThreadChannel;
-      const opts: Record<string, unknown> = { content: args.text as string };
+      const opts: Record<string, unknown> = {};
+
+      // Text content (can be omitted if embeds are provided)
+      const content = args.text as string | undefined;
+      if (content) opts.content = content;
+
+      if (!content && (!args.embeds || !Array.isArray(args.embeds) || (args.embeds as unknown[]).length === 0)) {
+        return err("Must provide text or embeds (or both).");
+      }
+
+      // Rich embeds
+      if (args.embeds && Array.isArray(args.embeds)) {
+        opts.embeds = (args.embeds as EmbedInput[]).map(buildEmbed);
+      }
 
       if (args.reply_to) {
         try {
@@ -63,6 +175,10 @@ export const discordTools: ToolDef[] = [
 
       const sent = await textChannel.send(opts as any);
       ctx.messageStats.sent++;
+
+      // Stop typing indicator now that reply is sent
+      clearTyping(ctx, args.chat_id as string);
+
       return text(`sent (id: ${sent.id})`);
     },
   },
@@ -368,6 +484,70 @@ export const discordTools: ToolDef[] = [
       );
       await msg.unpin();
       return text("unpinned");
+    },
+  },
+  {
+    definition: {
+      name: "create_poll",
+      description:
+        "Create a Discord native poll in a channel. Great for decisions, votes, and getting feedback.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          chat_id: {
+            type: "string",
+            description: "Channel ID to post poll in",
+          },
+          question: {
+            type: "string",
+            description: "The poll question (max 300 chars)",
+          },
+          options: {
+            type: "array",
+            items: { type: "string" },
+            description: "Poll options (2-10 choices, each max 55 chars)",
+          },
+          duration_hours: {
+            type: "number",
+            description: "How long the poll runs in hours (1-168, default 24)",
+          },
+          multi_select: {
+            type: "boolean",
+            description: "Allow selecting multiple options (default false)",
+          },
+        },
+        required: ["chat_id", "question", "options"],
+      },
+    },
+    handler: async (args, ctx) => {
+      const channel = await ctx.discord.channels.fetch(
+        args.chat_id as string
+      );
+      if (!channel?.isTextBased())
+        return err("Channel not found or not text-based");
+
+      const options = args.options as string[];
+      if (options.length < 2 || options.length > 10) {
+        return err("Polls need 2-10 options.");
+      }
+
+      const duration = Math.min(Math.max((args.duration_hours as number) || 24, 1), 168);
+
+      const sent = await (channel as TextChannel).send({
+        poll: {
+          question: { text: (args.question as string).slice(0, 300) },
+          answers: options.map((o) => ({
+            text: o.slice(0, 55),
+          })),
+          duration,
+          allowMultiselect: (args.multi_select as boolean) ?? false,
+          layoutType: PollLayoutType.Default,
+        },
+      });
+
+      ctx.messageStats.sent++;
+      clearTyping(ctx, args.chat_id as string);
+      return text(`Poll created (id: ${sent.id}): "${args.question}" with ${options.length} options, ${duration}h duration`);
     },
   },
 ];
