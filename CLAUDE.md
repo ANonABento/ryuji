@@ -101,8 +101,20 @@ Defined in `lib/commands.ts`, deployed via `scripts/deploy-commands.ts`:
 - `/github <check> [repo]` — check PRs, issues, notifications
 - `/status` — bot status and stats (ephemeral)
 - `/persona [switch]` — list or switch personas
+- `/quickremind` — opens a modal form for reminder creation (with recurring option)
+- `/newpersona` — opens a modal form to create a persona (key, name, personality)
+- `/savememory` — opens a modal form to save a memory (key, value)
 
 Deploy: `bun scripts/deploy-commands.ts` (guild, instant) or `--global` (up to 1hr propagation).
+
+### Modals
+
+Modal forms triggered from slash commands, defined in `lib/interactions.ts`:
+- Reminder modal: message, time, recurring fields
+- Persona modal: key, name, personality fields
+- Memory modal: key, value fields
+- Modal submissions handled via `registerModalHandler(prefix, handler)` with customId prefix routing
+- Key constraint: `showModal()` must be the first response to an interaction (cannot defer first)
 
 ## Tools (26)
 

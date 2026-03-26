@@ -10,8 +10,12 @@ import {
   ButtonBuilder,
   ButtonStyle,
   MessageFlags,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
   type ButtonInteraction,
   type Interaction,
+  type ModalSubmitInteraction,
 } from "discord.js";
 import type { AppContext } from "./types.ts";
 import { getCommandHandler } from "./commands.ts";
@@ -23,12 +27,26 @@ type ButtonHandler = (
   ctx: AppContext
 ) => Promise<void>;
 
+/** Modal submit handler signature */
+type ModalHandler = (
+  interaction: ModalSubmitInteraction,
+  parts: string[],
+  ctx: AppContext
+) => Promise<void>;
+
 /** Registry of button handlers by prefix */
 const buttonHandlers = new Map<string, ButtonHandler>();
+/** Registry of modal handlers by prefix */
+const modalHandlers = new Map<string, ModalHandler>();
 
 /** Register a button handler for a prefix */
 export function registerButtonHandler(prefix: string, handler: ButtonHandler) {
   buttonHandlers.set(prefix, handler);
+}
+
+/** Register a modal submit handler for a prefix */
+export function registerModalHandler(prefix: string, handler: ModalHandler) {
+  modalHandlers.set(prefix, handler);
 }
 
 /** Main interaction router — called from discord.ts */
@@ -80,6 +98,28 @@ export async function handleInteraction(
         await handler(interaction, parts, ctx);
       } catch (e) {
         console.error(`Button handler error (${prefix}): ${e}`);
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({
+            content: "Something went wrong.",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+      }
+    }
+    return;
+  }
+
+  // Modal submissions
+  if (interaction.isModalSubmit()) {
+    const parts = interaction.customId.split(":");
+    const prefix = parts[0];
+    const handler = modalHandlers.get(prefix);
+
+    if (handler) {
+      try {
+        await handler(interaction, parts, ctx);
+      } catch (e) {
+        console.error(`Modal handler error (${prefix}): ${e}`);
         if (!interaction.replied && !interaction.deferred) {
           await interaction.reply({
             content: "Something went wrong.",
@@ -208,5 +248,187 @@ registerButtonHandler(
         components: [],
       });
     }
+  }
+);
+
+// --- Modal builders ---
+
+/** Build a reminder creation modal */
+export function buildReminderModal(): ModalBuilder {
+  return new ModalBuilder()
+    .setCustomId("modal-remind")
+    .setTitle("Set a Reminder")
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId("message")
+          .setLabel("What to remind you about")
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder("e.g. Deploy the new build")
+          .setRequired(true)
+          .setMaxLength(200)
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId("time")
+          .setLabel("When")
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder("e.g. in 30 min, tomorrow 9am, 3pm")
+          .setRequired(true)
+          .setMaxLength(50)
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId("recurring")
+          .setLabel("Recurring? (leave empty for one-off)")
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder("hourly, daily, weekly, monthly, every 2h")
+          .setRequired(false)
+          .setMaxLength(20)
+      )
+    );
+}
+
+/** Build a persona creation modal */
+export function buildPersonaModal(): ModalBuilder {
+  return new ModalBuilder()
+    .setCustomId("modal-persona")
+    .setTitle("Create a Persona")
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId("key")
+          .setLabel("Key (lowercase, no spaces)")
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder("e.g. pirate, yoda, chill")
+          .setRequired(true)
+          .setMaxLength(20)
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId("name")
+          .setLabel("Display Name")
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder("e.g. Captain Jack")
+          .setRequired(true)
+          .setMaxLength(50)
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId("personality")
+          .setLabel("Personality Description")
+          .setStyle(TextInputStyle.Paragraph)
+          .setPlaceholder("Describe how this persona talks, acts, and thinks...")
+          .setRequired(true)
+          .setMaxLength(1000)
+      )
+    );
+}
+
+/** Build a memory save modal */
+export function buildMemoryModal(): ModalBuilder {
+  return new ModalBuilder()
+    .setCustomId("modal-memory")
+    .setTitle("Save a Memory")
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId("key")
+          .setLabel("Memory Key")
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder("e.g. favorite_language, timezone, project")
+          .setRequired(true)
+          .setMaxLength(50)
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId("value")
+          .setLabel("What to Remember")
+          .setStyle(TextInputStyle.Paragraph)
+          .setPlaceholder("The information to store...")
+          .setRequired(true)
+          .setMaxLength(500)
+      )
+    );
+}
+
+// --- Modal submit handlers ---
+
+registerModalHandler(
+  "modal-remind",
+  async (interaction, _parts, ctx) => {
+    const message = interaction.fields.getTextInputValue("message");
+    const timeStr = interaction.fields.getTextInputValue("time");
+    const recurring = interaction.fields.getTextInputValue("recurring") || null;
+
+    // Reuse the natural time parser from commands.ts
+    const { parseNaturalTime } = await import("./commands.ts");
+    const dueAt = parseNaturalTime(timeStr);
+
+    if (!dueAt) {
+      await interaction.reply({
+        content: `Couldn't parse time: "${timeStr}". Try "in 30 min", "tomorrow 9am", etc.`,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    // Validate recurring pattern if provided
+    const validCron = ["hourly", "daily", "weekly", "monthly"];
+    const cronMatch = recurring?.match(/^every\s+\d+\s*(m|min|h|hr|d|day)s?$/i);
+    if (recurring && !validCron.includes(recurring) && !cronMatch) {
+      await interaction.reply({
+        content: `Invalid recurring pattern: "${recurring}". Use hourly, daily, weekly, monthly, or "every Xh".`,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const newId = ctx.memory.addReminder(
+      interaction.user.id,
+      interaction.channelId!,
+      message,
+      dueAt.toISOString(),
+      { cron: recurring ?? undefined }
+    );
+
+    const reminder = ctx.memory.getReminder(newId);
+    if (reminder) ctx.reminderScheduler.scheduleReminder(reminder);
+
+    const ts = Math.floor(dueAt.getTime() / 1000);
+    const parts = [`**Reminder set** for <t:${ts}:R>: ${message}`];
+    if (recurring) parts.push(`Recurring: ${recurring}`);
+
+    await interaction.reply({ content: parts.join("\n") });
+  }
+);
+
+registerModalHandler(
+  "modal-persona",
+  async (interaction, _parts, ctx) => {
+    const key = interaction.fields.getTextInputValue("key").toLowerCase().replace(/\s+/g, "-");
+    const name = interaction.fields.getTextInputValue("name");
+    const personality = interaction.fields.getTextInputValue("personality");
+
+    ctx.config.savePersona(key, name, personality);
+
+    await interaction.reply({
+      content: `**Persona created:** \`${key}\` — **${name}**\n${personality}\n\nSwitch with \`/persona switch:${key}\` or ask me to switch.`,
+    });
+  }
+);
+
+registerModalHandler(
+  "modal-memory",
+  async (interaction, _parts, ctx) => {
+    const key = interaction.fields.getTextInputValue("key");
+    const value = interaction.fields.getTextInputValue("value");
+
+    ctx.memory.setCoreMemory(key, value);
+
+    await interaction.reply({
+      content: `**Memory saved:** \`${key}\` = ${value}`,
+      flags: MessageFlags.Ephemeral,
+    });
   }
 );

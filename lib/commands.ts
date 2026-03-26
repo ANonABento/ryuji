@@ -13,6 +13,11 @@ import {
   type ChatInputCommandInteraction,
   type RESTPostAPIChatInputApplicationCommandsJSONBody,
 } from "discord.js";
+import {
+  buildReminderModal,
+  buildPersonaModal,
+  buildMemoryModal,
+} from "./interactions.ts";
 import type { AppContext } from "./types.ts";
 
 /** Command handler signature */
@@ -300,10 +305,52 @@ commands.set(
   }
 );
 
+// /quickremind — opens a modal form for detailed reminder setup
+commands.set(
+  "quickremind",
+  {
+    data: new SlashCommandBuilder()
+      .setName("quickremind")
+      .setDescription("Set a reminder via form (with optional recurring)")
+      .toJSON(),
+    handler: async (interaction) => {
+      await interaction.showModal(buildReminderModal());
+    },
+  }
+);
+
+// /newpersona — opens a modal form for creating a persona
+commands.set(
+  "newpersona",
+  {
+    data: new SlashCommandBuilder()
+      .setName("newpersona")
+      .setDescription("Create a new persona via form")
+      .toJSON(),
+    handler: async (interaction) => {
+      await interaction.showModal(buildPersonaModal());
+    },
+  }
+);
+
+// /savememory — opens a modal form for saving a memory
+commands.set(
+  "savememory",
+  {
+    data: new SlashCommandBuilder()
+      .setName("savememory")
+      .setDescription("Save something to memory via form")
+      .toJSON(),
+    handler: async (interaction) => {
+      await interaction.showModal(buildMemoryModal());
+    },
+  }
+);
+
 // --- Helpers ---
 
 /** Parse natural time expressions into a Date */
-function parseNaturalTime(input: string): Date | null {
+export function parseNaturalTime(input: string): Date | null {
   const now = new Date();
   const lower = input.toLowerCase().trim();
 
