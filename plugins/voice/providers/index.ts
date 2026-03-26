@@ -126,12 +126,17 @@ export async function detectAllProviders(): Promise<ProviderReport[]> {
     );
   }
 
-  return Promise.race([
-    Promise.all(checks),
-    new Promise<ProviderReport[]>((_, reject) =>
-      setTimeout(() => reject(new Error("Provider detection timed out")), DETECT_ALL_TIMEOUT)
-    ),
-  ]);
+  let timer: ReturnType<typeof setTimeout>;
+  try {
+    return await Promise.race([
+      Promise.all(checks),
+      new Promise<ProviderReport[]>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Provider detection timed out")), DETECT_ALL_TIMEOUT);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer!);
+  }
 }
 
 export type { STTProvider, TTSProvider, ProviderStatus };
