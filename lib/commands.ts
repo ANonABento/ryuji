@@ -11,10 +11,13 @@ import {
   SlashCommandBuilder,
   EmbedBuilder,
   MessageFlags,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
 } from "discord.js";
 import { dirname, join } from "node:path";
 import { VERSION } from "./version.ts";
-import { registerCommand } from "./interactions.ts";
+import { registerCommand, registerButtonHandler } from "./interactions.ts";
 import { formatDuration, fromSQLiteDatetime } from "./time.ts";
 import { isOwner, requireOwner } from "./handlers/shared.ts";
 import { buildGhArgs, runGh } from "./handlers/github.ts";
@@ -220,11 +223,12 @@ registerCommand("help", {
           inline: false,
         },
         {
-          name: "Plugins",
+          name: "Plugins & Voice",
           value: [
             "`/plugins` — list available plugins",
             "`/plugins enable:<name>` — enable a plugin",
             "`/plugins disable:<name>` — disable a plugin",
+            "`/voice` — voice provider setup wizard",
           ].join("\n"),
           inline: false,
         },
@@ -503,4 +507,121 @@ registerCommand("plugins", {
       await interaction.reply({ embeds: [embed] });
     }
   },
+});
+
+// /voice setup — interactive provider wizard (owner only)
+registerCommand("voice", {
+  data: new SlashCommandBuilder()
+    .setName("voice")
+    .setDescription("Voice plugin setup and status (owner only)")
+    .toJSON(),
+  handler: async (interaction, ctx) => {
+    if (await requireOwner(interaction, ctx)) return;
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+    // Dynamically import to avoid loading voice code when plugin isn't enabled
+    const { detectAllProviders } = await import(
+      "../plugins/voice/providers/index.ts"
+    );
+    const reports = await detectAllProviders();
+    const voiceConfig = ctx.config.getVoiceConfig();
+
+    const sttReports = reports.filter((r) => r.kind === "stt");
+    const ttsReports = reports.filter((r) => r.kind === "tts");
+
+    const formatReport = (items: typeof reports) =>
+      items
+        .map((r) => {
+          const icon = r.status.available ? "✅" : "❌";
+          const active =
+            voiceConfig.stt === r.name || voiceConfig.tts === r.name
+              ? " ← active"
+              : "";
+          const install = r.status.install ? ` · \`${r.status.install}\`` : "";
+          return `${icon} **${r.name}** — ${r.status.reason}${install}${active}`;
+        })
+        .join("\n");
+
+    const embed = new EmbedBuilder()
+      .setColor(0x5865f2)
+      .setTitle("Voice Setup")
+      .setDescription(
+        `Current: STT=\`${voiceConfig.stt}\` TTS=\`${voiceConfig.tts}\`\nPick providers below.`
+      )
+      .addFields(
+        { name: "STT Providers", value: formatReport(sttReports) },
+        { name: "TTS Providers", value: formatReport(ttsReports) }
+      )
+      .setFooter({ text: "Select a provider or use Auto to let the bot choose" });
+
+    // STT buttons
+    const sttRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId("voice-setup:stt:auto")
+        .setLabel("Auto")
+        .setStyle(voiceConfig.stt === "auto" ? ButtonStyle.Success : ButtonStyle.Secondary),
+      ...sttReports.map((r) =>
+        new ButtonBuilder()
+          .setCustomId(`voice-setup:stt:${r.name}`)
+          .setLabel(r.name)
+          .setStyle(
+            voiceConfig.stt === r.name ? ButtonStyle.Success : ButtonStyle.Primary
+          )
+          .setDisabled(!r.status.available)
+      )
+    );
+
+    // TTS buttons
+    const ttsRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId("voice-setup:tts:auto")
+        .setLabel("Auto")
+        .setStyle(voiceConfig.tts === "auto" ? ButtonStyle.Success : ButtonStyle.Secondary),
+      ...ttsReports.map((r) =>
+        new ButtonBuilder()
+          .setCustomId(`voice-setup:tts:${r.name}`)
+          .setLabel(r.name)
+          .setStyle(
+            voiceConfig.tts === r.name ? ButtonStyle.Success : ButtonStyle.Primary
+          )
+          .setDisabled(!r.status.available)
+      )
+    );
+
+    await interaction.editReply({
+      embeds: [embed],
+      components: [sttRow, ttsRow],
+    });
+  },
+});
+
+// --- Voice setup button handler ---
+registerButtonHandler("voice-setup", async (interaction, parts, ctx) => {
+  if (!isOwner(ctx, interaction.user.id)) {
+    await interaction.reply({
+      content: "Only the owner can change voice settings.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const [, kind, provider] = parts; // voice-setup:stt:whisper or voice-setup:tts:edge-tts
+  if (kind !== "stt" && kind !== "tts") return;
+
+  ctx.config.setVoiceConfig({ [kind]: provider });
+  const voiceConfig = ctx.config.getVoiceConfig();
+
+  const embed = new EmbedBuilder()
+    .setColor(0x57f287)
+    .setTitle("Voice Config Updated")
+    .addFields(
+      { name: "STT", value: `\`${voiceConfig.stt}\``, inline: true },
+      { name: "TTS", value: `\`${voiceConfig.tts}\``, inline: true }
+    )
+    .setFooter({ text: "Restart to apply changes" });
+
+  await interaction.update({
+    embeds: [embed],
+    components: [],
+  });
 });

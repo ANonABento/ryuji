@@ -41,7 +41,7 @@ const DEFAULT_CONFIG: Config = {
   convoTimeoutMs: 5 * 60 * 1000, // 5 min
   autoSummarize: true,
   plugins: [],
-  voice: { stt: "groq", tts: "elevenlabs" },
+  voice: { stt: "auto", tts: "auto" },
 };
 
 function mergeConfig(saved: Partial<Config>): Config {
@@ -168,7 +168,12 @@ export class ConfigManager {
   // --- Voice ---
 
   getVoiceConfig(): VoiceConfig {
-    return this.config.voice || { stt: "groq", tts: "elevenlabs" };
+    return this.config.voice || { stt: "auto", tts: "auto" };
+  }
+
+  setVoiceConfig(voice: Partial<VoiceConfig>) {
+    this.config.voice = { ...this.config.voice, ...voice };
+    this.save();
   }
 
   // --- Plugins ---

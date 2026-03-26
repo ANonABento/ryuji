@@ -115,6 +115,7 @@ Defined in `lib/commands.ts`, deployed via `scripts/deploy-commands.ts`:
 - `/persona [switch]` — list or switch personas
 - `/newpersona` — opens a modal form to create a persona (key, name, personality)
 - `/plugins [action] [name]` — list, enable, or disable plugins (owner only, restart needed)
+- `/voice` — voice provider setup wizard with auto-detection and interactive buttons (owner only)
 - `/help` — show all commands and capabilities
 
 Deploy: `bun scripts/deploy-commands.ts` (guild, instant) or `--global` (up to 1hr propagation).
