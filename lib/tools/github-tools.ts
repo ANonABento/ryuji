@@ -2,12 +2,9 @@
  * GitHub tools — check PRs, issues, notifications via gh CLI.
  */
 
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import type { ToolDef } from "../types.ts";
 import { text, err } from "../types.ts";
-
-const execFileAsync = promisify(execFile);
+import { buildGhArgs, runGh } from "../handlers/github.ts";
 
 export const githubTools: ToolDef[] = [
   {
@@ -34,36 +31,15 @@ export const githubTools: ToolDef[] = [
       },
     },
     handler: async (args, _ctx) => {
-      const repo = args.repo ? ["-R", args.repo as string] : [];
-      let ghArgs: string[] = [];
-
-      switch (args.command) {
-        case "prs":
-          ghArgs = ["pr", "list", "--state=open", "--limit=10", ...repo];
-          break;
-        case "issues":
-          ghArgs = ["issue", "list", "--state=open", "--limit=10", ...repo];
-          break;
-        case "notifications":
-          ghArgs = [
-            "api",
-            "/notifications",
-            "--jq",
-            ".[].subject.title",
-          ];
-          break;
-        case "pr_status":
-          ghArgs = ["pr", "status", ...repo];
-          break;
-        default:
-          return err(`Unknown GitHub command: ${args.command}`);
-      }
+      const ghArgs = buildGhArgs(
+        args.command as string,
+        args.repo as string | undefined
+      );
+      if (!ghArgs) return err(`Unknown GitHub command: ${args.command}`);
 
       try {
-        const { stdout, stderr } = await execFileAsync("gh", ghArgs, {
-          timeout: 15_000,
-        });
-        return text(stdout.trim() || stderr.trim() || "(no results)");
+        const output = await runGh(ghArgs);
+        return text(output);
       } catch (e: any) {
         return err(`GitHub CLI error: ${e.message}`);
       }

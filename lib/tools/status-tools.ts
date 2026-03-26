@@ -5,6 +5,7 @@
 import type { ToolDef } from "../types.ts";
 import { text } from "../types.ts";
 import { formatUptime } from "../conversation.ts";
+import { VERSION } from "../version.ts";
 
 export const statusTools: ToolDef[] = [
   {
@@ -58,7 +59,7 @@ export const statusTools: ToolDef[] = [
         "",
         "## Bot",
         `  Name: ${botUser?.username || "unknown"}#${botUser?.discriminator || "0"}`,
-        `  Version: 0.4.0`,
+        `  Version: ${VERSION}`,
         `  Runtime: Bun ${Bun.version}`,
         `  Uptime: ${uptimeStr} (since ${startedAtStr})`,
         `  Server: Claude Code Plugin (MCP)`,

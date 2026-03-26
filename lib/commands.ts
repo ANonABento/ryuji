@@ -11,9 +11,11 @@ import {
   SlashCommandBuilder,
   MessageFlags,
 } from "discord.js";
+import { VERSION } from "./version.ts";
 import { registerCommand } from "./interactions.ts";
 import { parseNaturalTime, formatDuration } from "./time.ts";
-import { createAndScheduleReminder } from "./handlers/shared.ts";
+import { createAndScheduleReminder, requireOwner } from "./handlers/shared.ts";
+import { buildGhArgs, runGh } from "./handlers/github.ts";
 import {
   buildReminderModal,
   buildPersonaModal,
@@ -143,35 +145,15 @@ registerCommand("github", {
 
     const command = interaction.options.getString("check", true);
     const repo = interaction.options.getString("repo");
-    const repoArgs = repo ? ["-R", repo] : [];
-    let ghArgs: string[] = [];
+    const ghArgs = buildGhArgs(command, repo);
 
-    switch (command) {
-      case "prs":
-        ghArgs = ["pr", "list", "--state=open", "--limit=10", ...repoArgs];
-        break;
-      case "issues":
-        ghArgs = ["issue", "list", "--state=open", "--limit=10", ...repoArgs];
-        break;
-      case "notifications":
-        ghArgs = ["api", "/notifications", "--jq", ".[].subject.title"];
-        break;
-      case "pr_status":
-        ghArgs = ["pr", "status", ...repoArgs];
-        break;
+    if (!ghArgs) {
+      await interaction.editReply({ content: `Unknown command: ${command}` });
+      return;
     }
 
     try {
-      const proc = Bun.spawn(["gh", ...ghArgs], {
-        stdout: "pipe",
-        stderr: "pipe",
-        env: process.env,
-      });
-      const stdout = await new Response(proc.stdout).text();
-      const stderr = await new Response(proc.stderr).text();
-      await proc.exited;
-
-      const output = stdout.trim() || stderr.trim() || "(no results)";
+      const output = await runGh(ghArgs);
       await interaction.editReply({ content: `\`\`\`\n${output.slice(0, 1900)}\n\`\`\`` });
     } catch (e: any) {
       await interaction.editReply({ content: `GitHub CLI error: ${e.message}` });
@@ -191,7 +173,7 @@ registerCommand("status", {
     const persona = ctx.config.getActivePersona();
 
     const lines = [
-      `**Choomfie** v0.4.0 | Uptime: ${uptime}`,
+      `**Choomfie** v${VERSION} | Uptime: ${uptime}`,
       `Persona: ${persona.name} | Messages: ${ctx.messageStats.received} in, ${ctx.messageStats.sent} out`,
       `Memory: ${stats.coreCount} core, ${stats.archivalCount} archival | Reminders: ${stats.reminderCount} active`,
     ];
@@ -216,6 +198,7 @@ registerCommand("persona", {
     const switchTo = interaction.options.getString("switch");
 
     if (switchTo) {
+      if (await requireOwner(interaction, ctx)) return;
       const persona = ctx.config.switchPersona(switchTo);
       if (!persona) {
         const available = ctx.config
@@ -255,24 +238,26 @@ registerCommand("quickremind", {
   },
 });
 
-// /newpersona — opens a modal form
+// /newpersona — opens a modal form (owner only)
 registerCommand("newpersona", {
   data: new SlashCommandBuilder()
     .setName("newpersona")
-    .setDescription("Create a new persona via form")
+    .setDescription("Create a new persona via form (owner only)")
     .toJSON(),
-  handler: async (interaction) => {
+  handler: async (interaction, ctx) => {
+    if (await requireOwner(interaction, ctx)) return;
     await interaction.showModal(buildPersonaModal());
   },
 });
 
-// /savememory — opens a modal form
+// /savememory — opens a modal form (owner only)
 registerCommand("savememory", {
   data: new SlashCommandBuilder()
     .setName("savememory")
-    .setDescription("Save something to memory via form")
+    .setDescription("Save something to memory via form (owner only)")
     .toJSON(),
-  handler: async (interaction) => {
+  handler: async (interaction, ctx) => {
+    if (await requireOwner(interaction, ctx)) return;
     await interaction.showModal(buildMemoryModal());
   },
 });

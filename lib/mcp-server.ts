@@ -11,12 +11,13 @@ import type { AppContext } from "./types.ts";
 import { err } from "./types.ts";
 import { getAllTools } from "./tools/index.ts";
 import { registerPermissionRelay } from "./permissions.ts";
+import { VERSION } from "./version.ts";
 
 export function createMcpServer(ctx: AppContext): Server {
   const activePersona = ctx.config.getActivePersona();
 
   const mcp = new Server(
-    { name: "choomfie", version: "0.4.0" },
+    { name: "choomfie", version: VERSION },
     {
       capabilities: {
         tools: {},

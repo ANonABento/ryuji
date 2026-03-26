@@ -2,7 +2,32 @@
  * Shared handler utilities — DRY helpers used by both slash commands and modals.
  */
 
+import { MessageFlags, type ChatInputCommandInteraction } from "discord.js";
 import type { AppContext } from "../types.ts";
+
+/** Check if a Discord user is the owner */
+export function isOwner(ctx: AppContext, userId: string): boolean {
+  return ctx.ownerUserId ? userId === ctx.ownerUserId : false;
+}
+
+/** Check if a Discord user is allowed (on the allowlist or owner) */
+export function isAllowed(ctx: AppContext, userId: string): boolean {
+  if (ctx.allowedUsers.size === 0) return true; // bootstrap mode
+  return ctx.allowedUsers.has(userId);
+}
+
+/** Reply with "owner only" error. Returns true if blocked. */
+export async function requireOwner(
+  interaction: ChatInputCommandInteraction,
+  ctx: AppContext
+): Promise<boolean> {
+  if (isOwner(ctx, interaction.user.id)) return false;
+  await interaction.reply({
+    content: "This command is owner-only~",
+    flags: MessageFlags.Ephemeral,
+  });
+  return true;
+}
 
 interface ReminderOpts {
   userId: string;
