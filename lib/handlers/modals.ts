@@ -35,7 +35,7 @@ export function buildReminderModal(): ModalBuilder {
           .setCustomId("time")
           .setLabel("When")
           .setStyle(TextInputStyle.Short)
-          .setPlaceholder("e.g. in 30 min, tomorrow 9am, 3pm")
+          .setPlaceholder("e.g. 30m, 2h, in 30 min, tomorrow 9am")
           .setRequired(true)
           .setMaxLength(50)
       ),
@@ -47,6 +47,15 @@ export function buildReminderModal(): ModalBuilder {
           .setPlaceholder("hourly, daily, weekly, monthly, every 2h")
           .setRequired(false)
           .setMaxLength(20)
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId("nag")
+          .setLabel("Nag until done? (yes/no, default: no)")
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder("yes or no")
+          .setRequired(false)
+          .setMaxLength(3)
       )
     );
 }
@@ -120,6 +129,8 @@ registerModalHandler("modal-remind", async (interaction, _parts, ctx) => {
   const message = interaction.fields.getTextInputValue("message");
   const timeStr = interaction.fields.getTextInputValue("time");
   const recurring = interaction.fields.getTextInputValue("recurring") || null;
+  const nagRaw = interaction.fields.getTextInputValue("nag")?.toLowerCase() || "";
+  const nag = nagRaw === "yes" || nagRaw === "y";
 
   const dueAt = parseNaturalTime(timeStr);
   if (!dueAt) {
@@ -152,6 +163,7 @@ registerModalHandler("modal-remind", async (interaction, _parts, ctx) => {
     message,
     dueAt,
     cron: recurring ?? undefined,
+    nagInterval: nag ? 15 : undefined,
   });
 
   await interaction.reply({ content: response });

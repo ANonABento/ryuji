@@ -105,14 +105,16 @@ Discord interactions (buttons, slash commands, modals) are handled by `lib/inter
 ### Slash Commands
 
 Defined in `lib/commands.ts`, deployed via `scripts/deploy-commands.ts`:
-- `/remind <message> <time> [recurring] [nag]` — set a reminder with natural time parsing
-- `/reminders` — list active reminders (ephemeral)
-- `/github <check> [repo]` — check PRs, issues, notifications
-- `/status` — bot status and stats (ephemeral)
-- `/persona [switch]` — list or switch personas
-- `/quickremind` — opens a modal form for reminder creation (with recurring option)
-- `/newpersona` — opens a modal form to create a persona (key, name, personality)
+- `/remind` — opens a modal form to set a reminder (message, time, recurring, nag)
+- `/reminders` — list active reminders with embed (ephemeral)
+- `/cancel <id>` — cancel a reminder by ID
+- `/memory [search]` — list core memories or search all memories (ephemeral)
 - `/savememory` — opens a modal form to save a memory (key, value)
+- `/github <check> [repo]` — check PRs, issues, notifications
+- `/status` — bot status embed with uptime, persona, stats (ephemeral)
+- `/persona [switch]` — list or switch personas
+- `/newpersona` — opens a modal form to create a persona (key, name, personality)
+- `/help` — show all commands and capabilities
 
 Deploy: `bun scripts/deploy-commands.ts` (guild, instant) or `--global` (up to 1hr propagation).
 

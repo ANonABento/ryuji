@@ -6,7 +6,7 @@
 import type { TextChannel } from "discord.js";
 import type { AppContext } from "./types.ts";
 import type { Reminder } from "./memory.ts";
-import { dateToSQLite, MS_PER_MIN } from "./time.ts";
+import { dateToSQLite, fromSQLiteDatetime, MS_PER_MIN } from "./time.ts";
 import { buildReminderButtons } from "./handlers/reminder-buttons.ts";
 
 const MAX_TIMEOUT_MS = 2_147_483_647;
@@ -94,7 +94,7 @@ export class ReminderScheduler {
   scheduleReminder(reminder: Reminder) {
     // Clear any existing timer for this ID
     this.clearTimer(reminder.id);
-    this.setLongTimeout(this.timers, reminder.id, new Date(reminder.dueAt).getTime(), () => {
+    this.setLongTimeout(this.timers, reminder.id, fromSQLiteDatetime(reminder.dueAt).getTime(), () => {
       void this.fireReminder(reminder);
     });
   }
@@ -154,7 +154,7 @@ export class ReminderScheduler {
 
     // If recurring, create the next occurrence and schedule it
     if (reminder.cron) {
-      const nextDate = getNextCronDate(reminder.cron, new Date(reminder.dueAt));
+      const nextDate = getNextCronDate(reminder.cron, fromSQLiteDatetime(reminder.dueAt));
       if (nextDate) {
         const newId = this.ctx.memory.addReminder(
           reminder.userId,

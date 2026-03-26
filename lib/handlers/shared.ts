@@ -4,6 +4,7 @@
 
 import { MessageFlags, type ChatInputCommandInteraction } from "discord.js";
 import type { AppContext } from "../types.ts";
+import { dateToSQLite } from "../time.ts";
 
 /** Check if a Discord user is the owner */
 export function isOwner(ctx: AppContext, userId: string): boolean {
@@ -50,7 +51,7 @@ export function createAndScheduleReminder(
     opts.userId,
     opts.channelId,
     opts.message,
-    opts.dueAt.toISOString(),
+    dateToSQLite(opts.dueAt),
     {
       cron: opts.cron,
       nagInterval: opts.nagInterval,

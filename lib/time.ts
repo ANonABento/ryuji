@@ -39,6 +39,19 @@ export function dateToSQLite(date: Date): string {
   return toSQLiteDatetime(date.toISOString());
 }
 
+/**
+ * Parse a SQLite datetime string back to a Date (always UTC).
+ * SQLite stores 'YYYY-MM-DD HH:MM:SS' without timezone — this is UTC.
+ * new Date() would interpret it as local time, so we append 'Z'.
+ */
+export function fromSQLiteDatetime(sqliteDate: string): Date {
+  // If already has T or Z, parse as-is; otherwise treat as UTC
+  if (sqliteDate.includes("T") || sqliteDate.includes("Z")) {
+    return new Date(sqliteDate);
+  }
+  return new Date(sqliteDate.replace(" ", "T") + "Z");
+}
+
 // --- Duration formatting ---
 
 /** Format milliseconds as human-readable duration (e.g. "2d 3h", "45m", "12s") */
@@ -57,7 +70,7 @@ export function formatDuration(ms: number): string {
 /** Format relative time from now (e.g. "in 5m", "2h ago") */
 export function relativeTime(isoDate: string): string {
   const now = Date.now();
-  const target = new Date(isoDate).getTime();
+  const target = fromSQLiteDatetime(isoDate).getTime();
   const diffMs = target - now;
   const abs = Math.abs(diffMs);
   const past = diffMs < 0;
@@ -82,8 +95,32 @@ export function parseNaturalTime(input: string): Date | null {
   const now = new Date();
   const lower = input.toLowerCase().trim();
 
+  // Shorthand: "30s", "5m", "2h", "3d" (no spaces, no "in")
+  let match = lower.match(/^(\d+)\s*(s|sec|secs|seconds?)$/);
+  if (match) {
+    return new Date(now.getTime() + parseInt(match[1]) * 1000);
+  }
+  match = lower.match(/^(\d+)\s*(m|min|mins|minutes?)$/);
+  if (match) {
+    return new Date(now.getTime() + parseInt(match[1]) * MS_PER_MIN);
+  }
+  match = lower.match(/^(\d+)\s*(h|hr|hrs|hours?)$/);
+  if (match) {
+    return new Date(now.getTime() + parseInt(match[1]) * MS_PER_HOUR);
+  }
+  match = lower.match(/^(\d+)\s*(d|days?)$/);
+  if (match) {
+    return new Date(now.getTime() + parseInt(match[1]) * MS_PER_DAY);
+  }
+
+  // "in X seconds/sec/s"
+  match = lower.match(/^in\s+(\d+)\s*(s|sec|secs|seconds?)$/);
+  if (match) {
+    return new Date(now.getTime() + parseInt(match[1]) * 1000);
+  }
+
   // "in X min/minutes/m"
-  let match = lower.match(/^in\s+(\d+)\s*(m|min|mins|minutes?)$/);
+  match = lower.match(/^in\s+(\d+)\s*(m|min|mins|minutes?)$/);
   if (match) {
     return new Date(now.getTime() + parseInt(match[1]) * MS_PER_MIN);
   }
@@ -100,8 +137,8 @@ export function parseNaturalTime(input: string): Date | null {
     return new Date(now.getTime() + parseInt(match[1]) * MS_PER_DAY);
   }
 
-  // "in Xh Ym" or "in X hours Y minutes"
-  match = lower.match(/^in\s+(\d+)\s*h(?:ours?)?\s+(\d+)\s*m(?:in(?:ute)?s?)?$/);
+  // "Xh Ym" or "X hours Y minutes" (with or without "in")
+  match = lower.match(/^(?:in\s+)?(\d+)\s*h(?:ours?)?\s+(\d+)\s*m(?:in(?:ute)?s?)?$/);
   if (match) {
     return new Date(
       now.getTime() +

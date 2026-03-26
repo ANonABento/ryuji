@@ -9,7 +9,7 @@ import {
   MessageFlags,
 } from "discord.js";
 import { registerButtonHandler } from "../interactions.ts";
-import { MS_PER_MIN, MS_PER_HOUR, MS_PER_DAY } from "../time.ts";
+import { MS_PER_MIN, MS_PER_HOUR, MS_PER_DAY, dateToSQLite } from "../time.ts";
 
 /** Snooze option: label shown to user + duration in ms */
 const SNOOZE_OPTIONS: Record<string, { label: string; ms: number }> = {
@@ -90,7 +90,7 @@ registerButtonHandler("reminder", async (interaction, parts, ctx) => {
       return;
     }
 
-    const newDueAt = new Date(Date.now() + option.ms).toISOString();
+    const newDueAt = dateToSQLite(new Date(Date.now() + option.ms));
     const success = ctx.memory.snoozeReminder(reminderId, newDueAt);
 
     if (success) {

@@ -9,12 +9,13 @@
 
 import {
   SlashCommandBuilder,
+  EmbedBuilder,
   MessageFlags,
 } from "discord.js";
 import { VERSION } from "./version.ts";
 import { registerCommand } from "./interactions.ts";
-import { parseNaturalTime, formatDuration } from "./time.ts";
-import { createAndScheduleReminder, requireOwner } from "./handlers/shared.ts";
+import { formatDuration, fromSQLiteDatetime } from "./time.ts";
+import { isOwner, requireOwner } from "./handlers/shared.ts";
 import { buildGhArgs, runGh } from "./handlers/github.ts";
 import {
   buildReminderModal,
@@ -24,57 +25,14 @@ import {
 
 // --- Command definitions ---
 
-// /remind <message> <time>
+// /remind — opens a modal form
 registerCommand("remind", {
   data: new SlashCommandBuilder()
     .setName("remind")
-    .setDescription("Set a reminder")
-    .addStringOption((o) =>
-      o.setName("message").setDescription("What to remind you about").setRequired(true)
-    )
-    .addStringOption((o) =>
-      o.setName("time").setDescription('When (e.g. "in 30 min", "tomorrow 9am")').setRequired(true)
-    )
-    .addStringOption((o) =>
-      o
-        .setName("recurring")
-        .setDescription("Repeat schedule")
-        .addChoices(
-          { name: "Hourly", value: "hourly" },
-          { name: "Daily", value: "daily" },
-          { name: "Weekly", value: "weekly" },
-          { name: "Monthly", value: "monthly" }
-        )
-    )
-    .addBooleanOption((o) =>
-      o.setName("nag").setDescription("Nag until acknowledged? (default: no)")
-    )
+    .setDescription("Set a reminder via form")
     .toJSON(),
-  handler: async (interaction, ctx) => {
-    const message = interaction.options.getString("message", true);
-    const timeStr = interaction.options.getString("time", true);
-    const recurring = interaction.options.getString("recurring");
-    const nag = interaction.options.getBoolean("nag");
-
-    const dueAt = parseNaturalTime(timeStr);
-    if (!dueAt) {
-      await interaction.reply({
-        content: `Couldn't parse time: "${timeStr}". Try "in 30 min", "in 2 hours", or "tomorrow 9am".`,
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    const response = createAndScheduleReminder(ctx, {
-      userId: interaction.user.id,
-      channelId: interaction.channelId,
-      message,
-      dueAt,
-      cron: recurring ?? undefined,
-      nagInterval: nag ? 15 : undefined,
-    });
-
-    await interaction.reply({ content: response });
+  handler: async (interaction) => {
+    await interaction.showModal(buildReminderModal());
   },
 });
 
@@ -96,26 +54,187 @@ registerCommand("reminders", {
       return;
     }
 
-    const lines: string[] = [];
+    const embed = new EmbedBuilder().setColor(0xf0883e).setTitle("Your Reminders");
+
     if (unacked.length > 0) {
-      lines.push("**Nagging:**");
-      for (const r of unacked) {
-        lines.push(`  ⚠️ #${r.id}: ${r.message}`);
-      }
+      const lines = unacked.map((r) => `⚠️ **#${r.id}** — ${r.message}`);
+      embed.addFields({ name: "Nagging", value: lines.join("\n") });
     }
     if (active.length > 0) {
-      lines.push("**Pending:**");
-      for (const r of active) {
-        const ts = Math.floor(new Date(r.dueAt).getTime() / 1000);
-        const cron = r.cron ? ` (${r.cron})` : "";
-        lines.push(`  ⏰ #${r.id}: ${r.message} — <t:${ts}:R>${cron}`);
-      }
+      const lines = active.map((r) => {
+        const ts = Math.floor(fromSQLiteDatetime(r.dueAt).getTime() / 1000);
+        const cron = r.cron ? ` · ${r.cron}` : "";
+        return `⏰ **#${r.id}** — ${r.message} · <t:${ts}:R>${cron}`;
+      });
+      embed.addFields({ name: "Pending", value: lines.join("\n") });
     }
 
+    embed.setFooter({ text: `${active.length + unacked.length} total · /cancel <id> to remove` });
+
     await interaction.reply({
-      content: lines.join("\n"),
+      embeds: [embed],
       flags: MessageFlags.Ephemeral,
     });
+  },
+});
+
+// /cancel <id> — quick cancel a reminder
+registerCommand("cancel", {
+  data: new SlashCommandBuilder()
+    .setName("cancel")
+    .setDescription("Cancel a reminder by ID")
+    .addIntegerOption((o) =>
+      o.setName("id").setDescription("Reminder ID (from /reminders)").setRequired(true)
+    )
+    .toJSON(),
+  handler: async (interaction, ctx) => {
+    const id = interaction.options.getInteger("id", true);
+    const reminder = ctx.memory.getReminder(id);
+
+    if (!reminder) {
+      await interaction.reply({
+        content: `Reminder #${id} not found.`,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    if (reminder.userId !== interaction.user.id && !isOwner(ctx, interaction.user.id)) {
+      await interaction.reply({
+        content: "That's not your reminder.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    ctx.memory.cancelReminder(id);
+    ctx.reminderScheduler.clearTimer(id);
+    ctx.reminderScheduler.clearNagTimer(id);
+
+    await interaction.reply({
+      content: `Cancelled reminder **#${id}**: ${reminder.message}`,
+      flags: MessageFlags.Ephemeral,
+    });
+  },
+});
+
+// /memory [search] — list or search memories
+registerCommand("memory", {
+  data: new SlashCommandBuilder()
+    .setName("memory")
+    .setDescription("View or search memories")
+    .addStringOption((o) =>
+      o.setName("search").setDescription("Search term (omit to list all core memories)")
+    )
+    .toJSON(),
+  handler: async (interaction, ctx) => {
+    const search = interaction.options.getString("search");
+
+    if (search) {
+      const core = ctx.memory.getCoreMemory().filter(
+        (m) => m.key.includes(search) || m.value.toLowerCase().includes(search.toLowerCase())
+      );
+      const archival = ctx.memory.searchArchival(search, 5);
+
+      if (core.length === 0 && archival.length === 0) {
+        await interaction.reply({
+          content: `No memories matching "${search}".`,
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      const embed = new EmbedBuilder().setColor(0x5865f2).setTitle(`Memory Search: "${search}"`);
+
+      if (core.length > 0) {
+        const lines = core.map((m) => `**${m.key}** — ${m.value.slice(0, 100)}`);
+        embed.addFields({ name: "Core", value: lines.join("\n").slice(0, 1024) });
+      }
+      if (archival.length > 0) {
+        const lines = archival.map((m) => `${m.content.slice(0, 100)}`);
+        embed.addFields({ name: "Archival", value: lines.join("\n").slice(0, 1024) });
+      }
+
+      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+    } else {
+      const core = ctx.memory.getCoreMemory();
+      if (core.length === 0) {
+        await interaction.reply({
+          content: "No core memories saved yet.",
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(0x5865f2)
+        .setTitle("Core Memories")
+        .setDescription(
+          core.map((m) => `**${m.key}** — ${m.value.slice(0, 80)}`).join("\n").slice(0, 4000)
+        )
+        .setFooter({ text: `${core.length} memories · /memory <search> to search` });
+
+      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+    }
+  },
+});
+
+// /help — show all commands and capabilities
+registerCommand("help", {
+  data: new SlashCommandBuilder()
+    .setName("help")
+    .setDescription("Show all commands and what I can do")
+    .toJSON(),
+  handler: async (interaction) => {
+    const embed = new EmbedBuilder()
+      .setColor(0x9b59b6)
+      .setTitle("Choomfie Commands")
+      .addFields(
+        {
+          name: "Reminders",
+          value: [
+            "`/remind` — set a reminder (form)",
+            "`/reminders` — list active reminders",
+            "`/cancel <id>` — cancel a reminder",
+          ].join("\n"),
+          inline: false,
+        },
+        {
+          name: "Memory",
+          value: [
+            "`/memory` — list core memories",
+            "`/memory <search>` — search memories",
+            "`/savememory` — save a memory (form)",
+          ].join("\n"),
+          inline: false,
+        },
+        {
+          name: "Personas",
+          value: [
+            "`/persona` — list all personas",
+            "`/persona switch:<key>` — switch persona",
+            "`/newpersona` — create a persona (form)",
+          ].join("\n"),
+          inline: false,
+        },
+        {
+          name: "Other",
+          value: [
+            "`/github <check>` — PRs, issues, notifications",
+            "`/status` — bot status and stats",
+          ].join("\n"),
+          inline: false,
+        },
+        {
+          name: "In Chat",
+          value:
+            "You can also just talk to me! Ask me to set reminders, remember things, check GitHub, switch personas, or anything else.",
+          inline: false,
+        }
+      )
+      .setFooter({ text: "@ me in a server or DM me directly" });
+
+    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
   },
 });
 
@@ -171,15 +290,29 @@ registerCommand("status", {
     const stats = ctx.memory.getStats();
     const uptime = ctx.startedAt ? formatDuration(Date.now() - ctx.startedAt) : "unknown";
     const persona = ctx.config.getActivePersona();
+    const personas = ctx.config.listPersonas();
+    const botUser = ctx.discord.user;
 
-    const lines = [
-      `**Choomfie** v${VERSION} | Uptime: ${uptime}`,
-      `Persona: ${persona.name} | Messages: ${ctx.messageStats.received} in, ${ctx.messageStats.sent} out`,
-      `Memory: ${stats.coreCount} core, ${stats.archivalCount} archival | Reminders: ${stats.reminderCount} active`,
-    ];
+    const embed = new EmbedBuilder()
+      .setColor(0x9b59b6)
+      .setAuthor({
+        name: `${botUser?.username ?? "Choomfie"} v${VERSION}`,
+        iconURL: botUser?.displayAvatarURL() ?? undefined,
+      })
+      .addFields(
+        { name: "Uptime", value: uptime, inline: true },
+        { name: "Persona", value: `**${persona.name}**`, inline: true },
+        { name: "Messages", value: `${ctx.messageStats.received} in / ${ctx.messageStats.sent} out`, inline: true },
+        { name: "Memory", value: `${stats.coreCount} core · ${stats.archivalCount} archival`, inline: true },
+        { name: "Reminders", value: `${stats.reminderCount} active`, inline: true },
+        { name: "Access", value: `${ctx.allowedUsers.size} users`, inline: true },
+      )
+      .setFooter({
+        text: `Personas: ${personas.map((p) => p.active ? `[${p.key}]` : p.key).join(", ")}`,
+      });
 
     await interaction.reply({
-      content: lines.join("\n"),
+      embeds: [embed],
       flags: MessageFlags.Ephemeral,
     });
   },
@@ -224,17 +357,6 @@ registerCommand("persona", {
         flags: MessageFlags.Ephemeral,
       });
     }
-  },
-});
-
-// /quickremind — opens a modal form
-registerCommand("quickremind", {
-  data: new SlashCommandBuilder()
-    .setName("quickremind")
-    .setDescription("Set a reminder via form (with optional recurring)")
-    .toJSON(),
-  handler: async (interaction) => {
-    await interaction.showModal(buildReminderModal());
   },
 });
 

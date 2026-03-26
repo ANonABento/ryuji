@@ -48,6 +48,34 @@
 - [ ] Mood/tone adaptation based on conversation
 - [ ] Avatar/presence management
 
+## Phase 4.5: Polish & Command Gaps
+
+- [x] `/reminders` — embed format (consistency with /status)
+- [x] `/memory` — search/list memories from Discord
+- [x] `/cancel <id>` — quick cancel reminder from slash command
+- [x] `/help` — show all commands + chat capabilities
+- [x] Fix 5-hour reminder offset bug (SQLite UTC dates parsed as local time)
+- [x] `/remind` — consolidated into modal form (removed /quickremind)
+- [x] `/status` — rich embed format
+- [x] Time parser — lenient input (no "in" required, seconds support)
+
+## Phase 4.6: Quality of Life
+
+- [ ] Scheduled messages — "send X in channel Y at 3pm"
+- [ ] Daily digest — morning summary of reminders, pending PRs, etc.
+- [ ] Per-server personas — different personality per server
+- [ ] Message bookmarks — react with 🔖 to save to memory
+- [ ] Todo lists — lightweight task tracking with Discord buttons
+- [ ] Custom auto-reactions — react to specific keywords/users
+- [ ] Quote database — save and recall funny quotes
+
+## Phase 4.7: Extended GitHub
+
+- [ ] Create issues from Discord
+- [ ] Comment on PRs from Discord
+- [ ] Merge PRs from Discord
+- [ ] Webhook endpoint — external services push notifications through bot
+
 ## Phase 5: MCP Integrations
 
 > See [mcp-integrations.md](mcp-integrations.md) for full research
