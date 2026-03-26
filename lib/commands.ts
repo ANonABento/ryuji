@@ -523,7 +523,16 @@ registerCommand("voice", {
     const { detectAllProviders } = await import(
       "../plugins/voice/providers/index.ts"
     );
-    const reports = await detectAllProviders();
+
+    let reports;
+    try {
+      reports = await detectAllProviders();
+    } catch (e: any) {
+      await interaction.editReply({
+        content: `Provider detection failed: ${e.message}. Check that ffmpeg and python3 are installed.`,
+      });
+      return;
+    }
     const voiceConfig = ctx.config.getVoiceConfig();
 
     const sttReports = reports.filter((r) => r.kind === "stt");
