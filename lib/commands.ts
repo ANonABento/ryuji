@@ -308,6 +308,23 @@ registerCommand("status", {
     const personas = ctx.config.listPersonas();
     const botUser = ctx.discord.user;
 
+    // Plugin info
+    const enabledPlugins = ctx.config.getEnabledPlugins();
+    const pluginStatus = enabledPlugins.length > 0
+      ? enabledPlugins.map((p) => {
+          const loaded = ctx.plugins.find((pl) => pl.name === p);
+          const tools = loaded?.tools?.length ?? 0;
+          return loaded ? `${p} (${tools}t)` : `${p} ⚠️`;
+        }).join(", ")
+      : "none";
+
+    // Voice provider info
+    const voiceConfig = ctx.config.getVoiceConfig();
+    const voicePlugin = ctx.plugins.find((p) => p.name === "voice");
+    const voiceStatus = voicePlugin
+      ? `STT=\`${voiceConfig.stt}\` TTS=\`${voiceConfig.tts}\``
+      : enabledPlugins.includes("voice") ? "enabled (not loaded)" : "disabled";
+
     const embed = new EmbedBuilder()
       .setColor(0x9b59b6)
       .setAuthor({
@@ -321,6 +338,8 @@ registerCommand("status", {
         { name: "Memory", value: `${stats.coreCount} core · ${stats.archivalCount} archival`, inline: true },
         { name: "Reminders", value: `${stats.reminderCount} active`, inline: true },
         { name: "Access", value: `${ctx.allowedUsers.size} users`, inline: true },
+        { name: "Plugins", value: pluginStatus, inline: true },
+        { name: "Voice", value: voiceStatus, inline: true },
       )
       .setFooter({
         text: `Personas: ${personas.map((p) => p.active ? `[${p.key}]` : p.key).join(", ")}`,
