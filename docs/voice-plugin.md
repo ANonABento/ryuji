@@ -100,6 +100,14 @@ Restart Choomfie (`choomfie` or `claude --plugin-dir /path/to/choomfie`).
 
 ## Usage
 
+### Setup Wizard
+
+Use `/voice` in Discord to open the interactive setup wizard:
+1. Auto-detects all installed providers (shows ✅/❌)
+2. Shows current STT/TTS config
+3. Click buttons to pick providers — unavailable ones are grayed out
+4. Config saved instantly, restart to apply
+
 ### From Discord
 
 Tell the bot to join your voice channel:
