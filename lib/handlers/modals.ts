@@ -138,9 +138,17 @@ registerModalHandler("modal-remind", async (interaction, _parts, ctx) => {
     return;
   }
 
+  if (!interaction.channelId) {
+    await interaction.reply({
+      content: "Could not determine channel.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
   const response = createAndScheduleReminder(ctx, {
     userId: interaction.user.id,
-    channelId: interaction.channelId!,
+    channelId: interaction.channelId,
     message,
     dueAt,
     cron: recurring ?? undefined,
