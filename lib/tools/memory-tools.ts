@@ -10,7 +10,7 @@ export const memoryTools: ToolDef[] = [
     definition: {
       name: "save_memory",
       description:
-        "Save a fact to persistent memory. Use for user preferences, project context, or anything worth remembering across sessions.",
+        "Save a fact to persistent memory. Proactively save user preferences, project context, and personal details. Core memories are always in context; archival are searchable long-term storage.",
       inputSchema: {
         type: "object" as const,
         properties: {
@@ -116,7 +116,7 @@ export const memoryTools: ToolDef[] = [
     definition: {
       name: "save_conversation_summary",
       description:
-        "Save a summary of the current conversation to archival memory. Call this after meaningful conversations to preserve context for future sessions.",
+        "Archive a conversation summary. Call after meaningful conversations to preserve context for future sessions.",
       inputSchema: {
         type: "object" as const,
         properties: {

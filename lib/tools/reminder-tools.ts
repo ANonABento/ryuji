@@ -41,7 +41,7 @@ export const reminderTools: ToolDef[] = [
     definition: {
       name: "set_reminder",
       description:
-        "Set a reminder that will be posted to the Discord channel at the specified time. Supports recurring schedules and nag mode.",
+        "Set a reminder. Parse natural time expressions ('in 30 min', 'tomorrow at 9am') into ISO 8601 UTC for due_at. Use cron for recurring, nag_interval to re-ping until ack'd. When a nag fires, tell the user to say 'done' or 'ack' to stop it.",
       inputSchema: {
         type: "object" as const,
         properties: {

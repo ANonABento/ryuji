@@ -67,7 +67,7 @@ export const discordTools: ToolDef[] = [
     definition: {
       name: "reply",
       description:
-        "Reply to a Discord message. Pass chat_id from the inbound message. Supports rich embeds for structured content.",
+        "Reply to a Discord message. Pass chat_id from the inbound message. Use embeds for structured content (status, lists, summaries); plain text for casual chat. Use keep_typing: true when you plan to do more work and send another message. Use edit_message for progress updates (no push notification). Persona changes via switch_persona take effect on restart.",
       inputSchema: {
         type: "object" as const,
         properties: {
@@ -386,7 +386,7 @@ export const discordTools: ToolDef[] = [
     definition: {
       name: "create_thread",
       description:
-        "Create a Discord thread from a message for long conversations.",
+        "Create a Discord thread from a message. Use for long or complex conversations to keep channels clean.",
       inputSchema: {
         type: "object" as const,
         properties: {
@@ -481,7 +481,7 @@ export const discordTools: ToolDef[] = [
     definition: {
       name: "create_poll",
       description:
-        "Create a Discord native poll in a channel. Great for decisions, votes, and getting feedback.",
+        "Create a Discord native poll. Use when the user asks for opinions, votes, or decisions.",
       inputSchema: {
         type: "object" as const,
         properties: {

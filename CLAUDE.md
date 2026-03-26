@@ -135,6 +135,7 @@ reminders: id, user_id, chat_id, message, due_at, fired, created_at,
 - Permission relay: owner receives tool approval requests via DM, replies `yes/no <code>` to approve/deny
 - State lives in `~/.claude/plugins/data/choomfie-inline/` (token, access list, database, inbox)
 - Personality loaded from core memory (key: "personality") at startup
+- Memory auto-compactor: core memories capped at 20. When exceeded, oldest are auto-archived to archival memory with `[auto-archived]` prefix and `auto-archived,core-memory` tags
 - Console output goes to stderr (stdout is MCP stdio transport)
 - DMs require Partials.Channel + Partials.Message in discord.js
 - All attachments downloaded to `~/.claude/plugins/data/choomfie-inline/inbox/` (file_path = first, file_paths = all semicolon-separated)

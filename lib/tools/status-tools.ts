@@ -11,7 +11,7 @@ export const statusTools: ToolDef[] = [
     definition: {
       name: "choomfie_status",
       description:
-        "Show Choomfie's current config: personality, memory stats, active reminders, features, and what can be changed. Use when the user asks about settings, config, or status.",
+        "Show config, memory stats, reminders, and features. Use when user asks about settings, config, status, or 'what can you do'.",
       inputSchema: {
         type: "object" as const,
         properties: {},

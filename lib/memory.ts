@@ -111,6 +111,9 @@ export class MemoryStore {
       .all() as CoreMemory[];
   }
 
+  /** Max core memories before auto-archiving oldest */
+  static readonly MAX_CORE_MEMORIES = 20;
+
   setCoreMemory(key: string, value: string) {
     this.db
       .query(
@@ -119,6 +122,37 @@ export class MemoryStore {
          ON CONFLICT(key) DO UPDATE SET value = ?2, updated_at = datetime('now')`
       )
       .run(key, value);
+
+    // Auto-compact: archive oldest core memories when over limit
+    this.compactCoreMemory();
+  }
+
+  /** Archive oldest core memories when count exceeds MAX_CORE_MEMORIES */
+  compactCoreMemory(): number {
+    const count = (
+      this.db.query("SELECT COUNT(*) as n FROM core_memory").get() as {
+        n: number;
+      }
+    ).n;
+
+    if (count <= MemoryStore.MAX_CORE_MEMORIES) return 0;
+
+    const overflow = count - MemoryStore.MAX_CORE_MEMORIES;
+    const oldest = this.db
+      .query(
+        "SELECT key, value FROM core_memory ORDER BY updated_at ASC LIMIT ?"
+      )
+      .all(overflow) as { key: string; value: string }[];
+
+    for (const m of oldest) {
+      this.addArchival(
+        `[auto-archived] ${m.key}: ${m.value}`,
+        "auto-archived,core-memory"
+      );
+      this.db.query("DELETE FROM core_memory WHERE key = ?").run(m.key);
+    }
+
+    return oldest.length;
   }
 
   deleteCoreMemory(key: string) {
