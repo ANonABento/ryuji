@@ -18,7 +18,7 @@ export const STT_WAV = {
 
 /**
  * Convert audio file to raw PCM for Discord playback (48kHz, mono, s16le).
- * Cleans up the input file after conversion.
+ * Caller is responsible for cleaning up inputPath (use try/finally).
  */
 export async function toDiscordPcm(inputPath: string): Promise<Buffer> {
   const proc = Bun.spawn(
@@ -32,7 +32,7 @@ export async function toDiscordPcm(inputPath: string): Promise<Buffer> {
       String(DISCORD_PCM.sampleRate),
       "-ac",
       String(DISCORD_PCM.channels),
-      "-acodec",
+      "-c:a",
       DISCORD_PCM.codec,
       "pipe:1",
     ],

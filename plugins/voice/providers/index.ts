@@ -110,6 +110,8 @@ export interface ProviderReport {
   status: ProviderStatus;
 }
 
+const DETECT_ALL_TIMEOUT = 15_000; // 15s overall cap for scanning all providers
+
 export async function detectAllProviders(): Promise<ProviderReport[]> {
   const checks: Promise<ProviderReport>[] = [];
 
@@ -124,7 +126,12 @@ export async function detectAllProviders(): Promise<ProviderReport[]> {
     );
   }
 
-  return Promise.all(checks);
+  return Promise.race([
+    Promise.all(checks),
+    new Promise<ProviderReport[]>((_, reject) =>
+      setTimeout(() => reject(new Error("Provider detection timed out")), DETECT_ALL_TIMEOUT)
+    ),
+  ]);
 }
 
 export type { STTProvider, TTSProvider, ProviderStatus };

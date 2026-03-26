@@ -120,6 +120,9 @@ export class VoiceManager {
     this.ensureInitialized();
     const gv = this.guilds.get(guildId);
     if (!gv) throw new Error("Not connected to voice in this server");
+    if (gv.connection.state.status !== VoiceConnectionStatus.Ready) {
+      throw new Error("Voice connection not ready");
+    }
 
     const audioBuffer = await this.tts.synthesize(text, language);
 
@@ -213,7 +216,7 @@ export class VoiceManager {
         String(STT_WAV.sampleRate),
         "-ac",
         String(STT_WAV.channels),
-        "-acodec",
+        "-c:a",
         STT_WAV.codec,
         "pipe:1",
       ],
