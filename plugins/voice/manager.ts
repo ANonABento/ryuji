@@ -24,7 +24,7 @@ import {
   type STTProvider,
   type TTSProvider,
 } from "./providers/index.ts";
-import { STT_WAV } from "./providers/audio.ts";
+import { STT_WAV, DISCORD_PCM } from "./providers/audio.ts";
 
 // --- Timeouts ---
 const CONNECTION_TIMEOUT = 10_000; // 10s to establish voice connection
@@ -91,6 +91,15 @@ export class VoiceManager {
       listeningTo: new Set(),
     };
     this.guilds.set(guildId, guildVoice);
+
+    // Play a short silence frame to prime Discord's voice receive pipeline.
+    // Without this, Discord won't send us audio packets (speaking events never fire).
+    const silenceBuffer = Buffer.alloc(DISCORD_PCM.sampleRate * DISCORD_PCM.channels * 2 * 0.5, 0); // 0.5s silence
+    const silenceStream = Readable.from(silenceBuffer);
+    const silenceResource = createAudioResource(silenceStream, { inputType: StreamType.Raw });
+    player.play(silenceResource);
+    await entersState(player, AudioPlayerStatus.Playing, PLAYBACK_START_TIMEOUT);
+    await entersState(player, AudioPlayerStatus.Idle, PLAYBACK_FINISH_TIMEOUT);
 
     connection.receiver.speaking.on("start", (userId: string) => {
       if (guildVoice.listeningTo.has(userId)) return;
@@ -245,9 +254,8 @@ export class VoiceManager {
       { stdin: "pipe", stdout: "pipe", stderr: "pipe" }
     );
 
-    const writer = proc.stdin.getWriter();
-    await writer.write(rawPcm);
-    await writer.close();
+    proc.stdin.write(rawPcm);
+    proc.stdin.end();
 
     const [output, stderr] = await Promise.all([
       new Response(proc.stdout).arrayBuffer(),

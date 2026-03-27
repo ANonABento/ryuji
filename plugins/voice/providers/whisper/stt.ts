@@ -8,13 +8,26 @@
  * For multilingual: set WHISPER_MODEL=ggml-small (slower, 500MB)
  */
 
-import { tmpdir } from "node:os";
+import { tmpdir, homedir } from "node:os";
 import { join } from "node:path";
-import { unlinkSync } from "node:fs";
+import { unlinkSync, existsSync } from "node:fs";
 import type { STTProvider } from "../types.ts";
 import { checkBinary } from "../detect.ts";
 
 const DEFAULT_MODEL = "ggml-base.en";
+const MODEL_CACHE_DIR = join(homedir(), ".cache", "whisper-cpp");
+
+/** Resolve model name to full path — checks cache dir, then uses as-is */
+function resolveModelPath(model: string): string {
+  // Already a full path
+  if (model.startsWith("/")) return model;
+  // Add .bin extension if missing
+  const withExt = model.endsWith(".bin") ? model : `${model}.bin`;
+  const cached = join(MODEL_CACHE_DIR, withExt);
+  if (existsSync(cached)) return cached;
+  // Fall back to bare name (let whisper-cli handle it)
+  return model;
+}
 
 /** Resolve the whisper binary — newer brew versions install as whisper-cli */
 async function resolveWhisperBin(): Promise<string | null> {
@@ -37,7 +50,7 @@ export const whisperSTT: STTProvider = {
   },
 
   async transcribe(audio: Buffer, language?: string): Promise<string> {
-    const model = process.env.WHISPER_MODEL || DEFAULT_MODEL;
+    const model = resolveModelPath(process.env.WHISPER_MODEL || DEFAULT_MODEL);
 
     // Write WAV to temp file (whisper-cpp needs a file path)
     const tempPath = join(tmpdir(), `choomfie-stt-${Date.now()}.wav`);
