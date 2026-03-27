@@ -111,7 +111,7 @@ Defined in `lib/commands.ts`, deployed via `scripts/deploy-commands.ts`:
 - `/memory [search]` — list core memories or search all memories (ephemeral)
 - `/savememory` — opens a modal form to save a memory (key, value)
 - `/github <check> [repo]` — check PRs, issues, notifications
-- `/status` — bot status embed with uptime, persona, stats, plugins, voice providers (ephemeral)
+- `/status` — bot status embed with uptime, persona, stats, plugins (ephemeral)
 - `/persona [switch]` — list or switch personas
 - `/newpersona` — opens a modal form to create a persona (key, name, personality)
 - `/plugins [action] [name]` — list, enable, or disable plugins (owner only, restart needed)

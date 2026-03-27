@@ -223,7 +223,7 @@ registerCommand("help", {
           inline: false,
         },
         {
-          name: "Plugins & Voice",
+          name: "Plugins",
           value: [
             "`/plugins` — list available plugins",
             "`/plugins enable:<name>` — enable a plugin",
@@ -308,22 +308,19 @@ registerCommand("status", {
     const personas = ctx.config.listPersonas();
     const botUser = ctx.discord.user;
 
-    // Plugin info
+    // Plugin info (voice details folded in when enabled)
     const enabledPlugins = ctx.config.getEnabledPlugins();
+    const voiceConfig = ctx.config.getVoiceConfig();
     const pluginStatus = enabledPlugins.length > 0
       ? enabledPlugins.map((p) => {
           const loaded = ctx.plugins.find((pl) => pl.name === p);
           const tools = loaded?.tools?.length ?? 0;
+          if (p === "voice" && loaded) {
+            return `voice (${tools}t) STT=${voiceConfig.stt} TTS=${voiceConfig.tts}`;
+          }
           return loaded ? `${p} (${tools}t)` : `${p} ⚠️`;
-        }).join(", ")
+        }).join("\n")
       : "none";
-
-    // Voice provider info
-    const voiceConfig = ctx.config.getVoiceConfig();
-    const voicePlugin = ctx.plugins.find((p) => p.name === "voice");
-    const voiceStatus = voicePlugin
-      ? `STT=\`${voiceConfig.stt}\` TTS=\`${voiceConfig.tts}\``
-      : enabledPlugins.includes("voice") ? "enabled (not loaded)" : "disabled";
 
     const embed = new EmbedBuilder()
       .setColor(0x9b59b6)
@@ -339,7 +336,6 @@ registerCommand("status", {
         { name: "Reminders", value: `${stats.reminderCount} active`, inline: true },
         { name: "Access", value: `${ctx.allowedUsers.size} users`, inline: true },
         { name: "Plugins", value: pluginStatus, inline: true },
-        { name: "Voice", value: voiceStatus, inline: true },
       )
       .setFooter({
         text: `Personas: ${personas.map((p) => p.active ? `[${p.key}]` : p.key).join(", ")}`,
