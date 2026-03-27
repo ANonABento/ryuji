@@ -24,8 +24,8 @@ export interface STTProvider {
 
 export interface TTSProvider {
   name: string;
-  /** Synthesize text to PCM audio buffer (48kHz, 16-bit, mono) */
-  synthesize(text: string, language?: string): Promise<Buffer>;
+  /** Synthesize text to PCM audio buffer (48kHz, 16-bit, stereo) */
+  synthesize(text: string, language?: string, speed?: number): Promise<Buffer>;
   /** Check if this provider's dependencies are available */
   detect(): Promise<ProviderStatus>;
 }

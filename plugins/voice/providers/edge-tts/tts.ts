@@ -41,7 +41,7 @@ export const edgeTTS: TTSProvider = {
     };
   },
 
-  async synthesize(text: string, language: string = "en"): Promise<Buffer> {
+  async synthesize(text: string, language: string = "en", speed: number = 1.0): Promise<Buffer> {
     if (!text?.trim()) throw new Error("Cannot synthesize empty text");
 
     const voice =
@@ -52,9 +52,13 @@ export const edgeTTS: TTSProvider = {
     const tempMp3 = join(tmpdir(), `choomfie-tts-${Date.now()}.mp3`);
 
     try {
+      // Convert speed multiplier to edge-tts rate string (e.g., 0.85 → "-15%")
+      const ratePercent = Math.round((speed - 1.0) * 100);
+      const rateStr = `${ratePercent >= 0 ? "+" : ""}${ratePercent}%`;
+
       // Generate MP3 via edge-tts CLI
       const ttsProc = Bun.spawn(
-        ["edge-tts", "--voice", voice, "--text", text, "--write-media", tempMp3],
+        ["edge-tts", "--voice", voice, "--rate", rateStr, "--text", text, "--write-media", tempMp3],
         { stdout: "pipe", stderr: "pipe" }
       );
 
@@ -72,6 +76,7 @@ export const edgeTTS: TTSProvider = {
         );
       }
 
+      // No need for ffmpeg speed adjustment — edge-tts handles rate natively
       return await toDiscordPcm(tempMp3);
     } finally {
       try {

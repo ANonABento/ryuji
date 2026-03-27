@@ -16,6 +16,7 @@ export interface Persona {
 export interface VoiceConfig {
   stt: string;
   tts: string;
+  ttsSpeed?: number; // 0.5 to 2.0 (default 1.0)
 }
 
 export interface Config {
@@ -41,7 +42,7 @@ const DEFAULT_CONFIG: Config = {
   convoTimeoutMs: 5 * 60 * 1000, // 5 min
   autoSummarize: true,
   plugins: [],
-  voice: { stt: "auto", tts: "auto" },
+  voice: { stt: "auto", tts: "auto", ttsSpeed: 0.7 },
 };
 
 function mergeConfig(saved: Partial<Config>): Config {

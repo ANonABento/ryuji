@@ -61,6 +61,7 @@ export function createDiscordClient(ctx: AppContext): Client {
   discord.once(Events.ClientReady, async (c) => {
     console.error(`Choomfie Discord: logged in as ${c.user.tag}`);
     ctx.startedAt = Date.now();
+    const initDone = () => { (ctx as any)._discordReadyResolve?.(); };
 
     // Fallback: auto-detect owner if not set during setup
     if (!ctx.ownerUserId) {
@@ -102,7 +103,9 @@ export function createDiscordClient(ctx: AppContext): Client {
         // inbox dir doesn't exist yet, that's fine
       }
     };
-    setInterval(cleanInbox, 60 * 60 * 1000);
+    // Clear previous interval if restarting, then start fresh
+    if ((ctx as any)._inboxInterval) clearInterval((ctx as any)._inboxInterval);
+    (ctx as any)._inboxInterval = setInterval(cleanInbox, 60 * 60 * 1000);
     cleanInbox(); // Run on startup
 
     // Initialize plugins
@@ -141,6 +144,8 @@ export function createDiscordClient(ctx: AppContext): Client {
     } catch (e) {
       console.error(`Slash command auto-deploy failed: ${e}`);
     }
+
+    initDone();
   });
 
   discord.on(Events.MessageCreate, async (message: Message) => {

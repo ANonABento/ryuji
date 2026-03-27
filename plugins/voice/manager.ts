@@ -125,7 +125,8 @@ export class VoiceManager {
       throw new Error("Voice connection not ready");
     }
 
-    const audioBuffer = await this.tts.synthesize(text, language);
+    const speed = this.ctx.config.getVoiceConfig().ttsSpeed ?? 1.0;
+    const audioBuffer = await this.tts.synthesize(text, language, speed);
 
     const stream = Readable.from(audioBuffer);
     const resource = createAudioResource(stream, {
@@ -206,34 +207,46 @@ export class VoiceManager {
   }
 
   private async opusToPcm(opusChunks: Buffer[]): Promise<Buffer> {
+    // Discord sends individual Opus frames (not an OggOpus container).
+    // Decode each frame with @discordjs/opus, then resample with ffmpeg.
+    const { OpusEncoder } = require("@discordjs/opus");
+    const decoder = new OpusEncoder(48000, 2); // Discord sends stereo 48kHz opus
+
+    // Decode each opus frame to raw PCM
+    const pcmChunks: Buffer[] = [];
+    for (const chunk of opusChunks) {
+      try {
+        pcmChunks.push(decoder.decode(chunk));
+      } catch {
+        // Skip corrupted frames
+      }
+    }
+
+    if (pcmChunks.length === 0) {
+      throw new Error("No valid opus frames decoded");
+    }
+
+    const rawPcm = Buffer.concat(pcmChunks);
+
+    // Resample from 48kHz stereo to 16kHz mono for STT via ffmpeg
     const proc = Bun.spawn(
       [
         "ffmpeg",
-        "-f",
-        "opus",
-        "-i",
-        "pipe:0",
-        "-f",
-        "wav",
-        "-ar",
-        String(STT_WAV.sampleRate),
-        "-ac",
-        String(STT_WAV.channels),
-        "-c:a",
-        STT_WAV.codec,
+        "-f", "s16le",
+        "-ar", "48000",
+        "-ac", "2",
+        "-i", "pipe:0",
+        "-f", "wav",
+        "-ar", String(STT_WAV.sampleRate),
+        "-ac", String(STT_WAV.channels),
+        "-c:a", STT_WAV.codec,
         "pipe:1",
       ],
-      {
-        stdin: "pipe",
-        stdout: "pipe",
-        stderr: "pipe",
-      }
+      { stdin: "pipe", stdout: "pipe", stderr: "pipe" }
     );
 
     const writer = proc.stdin.getWriter();
-    for (const chunk of opusChunks) {
-      await writer.write(chunk);
-    }
+    await writer.write(rawPcm);
     await writer.close();
 
     const [output, stderr] = await Promise.all([
@@ -243,7 +256,7 @@ export class VoiceManager {
     await proc.exited;
 
     if (proc.exitCode !== 0) {
-      throw new Error(`ffmpeg opus→pcm conversion failed: ${stderr}`);
+      throw new Error(`ffmpeg resample failed: ${stderr}`);
     }
 
     return Buffer.from(output);

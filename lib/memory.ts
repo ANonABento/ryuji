@@ -355,6 +355,11 @@ export class MemoryStore {
   }
 
   close() {
+    // Checkpoint WAL before closing — ensures all writes are flushed to the main DB file
+    // and prevents WAL contention when a new worker opens the same database on restart
+    try {
+      this.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    } catch {}
     this.db.close();
   }
 }

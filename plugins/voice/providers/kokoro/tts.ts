@@ -47,14 +47,15 @@ export const kokoroTTS: TTSProvider = {
     };
   },
 
-  async synthesize(text: string, language: string = "en"): Promise<Buffer> {
+  async synthesize(text: string, language: string = "en", speed: number = 1.0): Promise<Buffer> {
+    console.error(`Kokoro TTS: speed=${speed}, text="${text.slice(0, 50)}..."`);
     if (!text?.trim()) throw new Error("Cannot synthesize empty text");
 
     const voice = process.env.KOKORO_VOICE || DEFAULT_VOICE;
     const tempWav = join(tmpdir(), `choomfie-kokoro-${Date.now()}.wav`);
 
     try {
-      // Run Kokoro via Python
+      // Run Kokoro via Python (speed=1.0 always — kokoro-onnx has int32 bug with fractional speeds)
       const pyProc = Bun.spawn(
         [getPython(), "-c", KOKORO_SCRIPT, voice, tempWav, text],
         { stdout: "pipe", stderr: "pipe" }
@@ -79,7 +80,7 @@ export const kokoroTTS: TTSProvider = {
         );
       }
 
-      return await toDiscordPcm(tempWav);
+      return await toDiscordPcm(tempWav, speed);
     } finally {
       try {
         unlinkSync(tempWav);
