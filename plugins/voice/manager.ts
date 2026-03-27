@@ -183,6 +183,10 @@ export class VoiceManager {
         const transcript = await this.stt.transcribe(pcmBuffer);
         if (!transcript || transcript.trim().length === 0) return;
 
+        // Filter out whisper hallucinations on silence/noise
+        const normalized = transcript.trim().toLowerCase();
+        if (normalized === "[blank_audio]" || normalized === "(blank audio)") return;
+
         console.error(`Voice STT [${userId}]: ${transcript}`);
 
         const user = await this.ctx.discord.users.fetch(userId);
