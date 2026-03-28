@@ -26,6 +26,7 @@ import {
 } from "./providers/index.ts";
 import { STT_WAV, DISCORD_PCM } from "./providers/audio.ts";
 import { splitSentences } from "./sentence-splitter.ts";
+import { SileroVAD, SpeechDetector, downsampleForVAD } from "./vad.ts";
 
 // --- Timeouts ---
 const CONNECTION_TIMEOUT = 10_000; // 10s to establish voice connection
@@ -35,6 +36,7 @@ const PLAYBACK_FINISH_TIMEOUT = 120_000; // 2min for current playback to finish 
 // --- Audio thresholds ---
 const MIN_OPUS_CHUNKS = 10; // Skip utterances shorter than ~200ms
 const MIN_PCM_BYTES = 4800; // Skip audio < 300ms at 16kHz mono
+const LISTEN_HARD_TIMEOUT = 30_000; // 30s safety net for leaked subscriptions
 
 interface GuildVoice {
   connection: VoiceConnection;
@@ -48,14 +50,19 @@ export class VoiceManager {
   private guilds = new Map<string, GuildVoice>();
   private stt!: STTProvider;
   private tts!: TTSProvider;
+  private sileroVAD!: SileroVAD;
 
   constructor(private ctx: AppContext) {}
 
   async init() {
     this.stt = await getSTTProvider(this.ctx.config);
     this.tts = await getTTSProvider(this.ctx.config);
+
+    // Load Silero VAD model (small ONNX, ~2MB) for speech endpointing
+    this.sileroVAD = await SileroVAD.create();
+
     console.error(
-      `Voice providers: STT=${this.stt.name}, TTS=${this.tts.name}`
+      `Voice providers: STT=${this.stt.name}, TTS=${this.tts.name}, VAD=silero`
     );
   }
 
@@ -221,65 +228,179 @@ export class VoiceManager {
 
     gv.listeningTo.add(userId);
 
+    // Manual endpointing — VAD controls when speech ends
     const opusStream = gv.connection.receiver.subscribe(userId, {
-      end: {
-        behavior: EndBehaviorType.AfterSilence,
-        duration: 1000,
-      },
+      end: { behavior: EndBehaviorType.Manual },
     });
 
-    const chunks: Buffer[] = [];
+    const { OpusEncoder } = require("@discordjs/opus");
+    const decoder = new OpusEncoder(48000, 2); // Discord stereo 48kHz opus
+    const speechDetector = new SpeechDetector();
+
+    // Reset Silero hidden state for this new subscription
+    this.sileroVAD.resetState();
+
+    const chunks: Buffer[] = []; // Original opus chunks for STT
+    let collecting = false;
+
+    // Accumulate PCM samples for VAD (need FRAME_SIZE=512 samples per inference)
+    let vadBuffer = new Float32Array(0);
+
+    // Serialize async VAD processing to prevent race conditions
+    let processingChain = Promise.resolve();
+
+    // Safety net: hard timeout prevents leaked subscriptions
+    const hardTimeout = setTimeout(() => {
+      console.error(`Voice: hard timeout for user ${userId}, ending subscription`);
+      cleanup();
+    }, LISTEN_HARD_TIMEOUT);
+
+    const cleanup = () => {
+      clearTimeout(hardTimeout);
+      opusStream.destroy();
+      gv.listeningTo.delete(userId);
+    };
 
     opusStream.on("data", (chunk: Buffer) => {
-      chunks.push(chunk);
+      // Discord silence frames (3 bytes: 0xF8, 0xFF, 0xFE) mean user stopped transmitting
+      if (chunk.length <= 3) {
+        // Feed zero probability to speed up speech_end detection
+        const event = speechDetector.processProbability(0);
+        if (event === "speech_end" && collecting) {
+          collecting = false;
+          this.processUtterance(guildId, userId, [...chunks]);
+          chunks.length = 0;
+          cleanup();
+        }
+        return;
+      }
+
+      // Decode opus frame to PCM for VAD analysis
+      let pcm: Buffer;
+      try {
+        pcm = decoder.decode(chunk);
+      } catch {
+        return; // Skip corrupted frames
+      }
+
+      // Store original opus when collecting (before async VAD, to preserve order)
+      if (collecting) {
+        chunks.push(chunk);
+      }
+
+      // Downsample to 16kHz mono float32 for Silero
+      const mono16k = downsampleForVAD(pcm);
+
+      // Append to VAD buffer
+      const combined = new Float32Array(vadBuffer.length + mono16k.length);
+      combined.set(vadBuffer, 0);
+      combined.set(mono16k, vadBuffer.length);
+      vadBuffer = combined;
+
+      // Serialize VAD inference to prevent concurrent ONNX calls
+      processingChain = processingChain.then(async () => {
+        // Process as many complete 512-sample frames as available
+        while (vadBuffer.length >= SileroVAD.FRAME_SIZE) {
+          const frame = vadBuffer.slice(0, SileroVAD.FRAME_SIZE);
+          vadBuffer = vadBuffer.slice(SileroVAD.FRAME_SIZE);
+
+          let probability: number;
+          try {
+            probability = await this.sileroVAD.process(frame);
+          } catch (e) {
+            console.error(`Voice VAD error: ${e}`);
+            continue;
+          }
+
+          const event = speechDetector.processProbability(probability);
+
+          if (event === "speech_start") {
+            collecting = true;
+            chunks.length = 0;
+          }
+
+          if (event === "speech_end" && collecting) {
+            collecting = false;
+            this.processUtterance(guildId, userId, [...chunks]);
+            chunks.length = 0;
+            // Don't cleanup — keep listening for more speech
+            speechDetector.reset();
+            this.sileroVAD.resetState();
+          }
+        }
+      }).catch((e) => {
+        console.error(`Voice VAD chain error: ${e}`);
+      });
     });
 
-    opusStream.on("end", async () => {
+    opusStream.on("end", () => {
+      clearTimeout(hardTimeout);
       gv.listeningTo.delete(userId);
 
-      if (chunks.length < MIN_OPUS_CHUNKS) return;
-
-      try {
-        const pcmBuffer = await this.opusToPcm(chunks);
-        if (pcmBuffer.length < MIN_PCM_BYTES) return;
-
-        const transcript = await this.stt.transcribe(pcmBuffer);
-        if (!transcript || transcript.trim().length === 0) return;
-
-        // Filter out whisper hallucinations on silence/noise
-        const normalized = transcript.trim().toLowerCase();
-        if (normalized === "[blank_audio]" || normalized === "(blank audio)") return;
-
-        console.error(`Voice STT [${userId}]: ${transcript}`);
-
-        const user = await this.ctx.discord.users.fetch(userId);
-        const channelId =
-          this.guilds.get(guildId)?.connection.joinConfig.channelId;
-
-        this.ctx.mcp.notification({
-          method: "notifications/claude/channel",
-          params: {
-            content: transcript,
-            meta: {
-              chat_id: channelId || guildId,
-              message_id: `voice_${Date.now()}`,
-              user: user.username,
-              user_id: userId,
-              ts: new Date().toISOString(),
-              is_dm: "false",
-              role:
-                this.ctx.ownerUserId && userId === this.ctx.ownerUserId
-                  ? "owner"
-                  : "user",
-              source: "voice",
-              guild_id: guildId,
-            },
-          },
-        });
-      } catch (e) {
-        console.error(`Voice STT error: ${e}`);
+      // If we were still collecting when stream ended, process what we have
+      if (collecting && chunks.length > 0) {
+        this.processUtterance(guildId, userId, [...chunks]);
       }
     });
+
+    opusStream.on("error", (err: Error) => {
+      console.error(`Voice opus stream error [${userId}]: ${err.message}`);
+      cleanup();
+    });
+  }
+
+  /**
+   * Process a collected utterance: decode opus → resample → STT → notify MCP.
+   * Runs async, does not block the listen loop.
+   */
+  private async processUtterance(
+    guildId: string,
+    userId: string,
+    opusChunks: Buffer[]
+  ) {
+    if (opusChunks.length < MIN_OPUS_CHUNKS) return;
+
+    try {
+      const pcmBuffer = await this.opusToPcm(opusChunks);
+      if (pcmBuffer.length < MIN_PCM_BYTES) return;
+
+      const transcript = await this.stt.transcribe(pcmBuffer);
+      if (!transcript || transcript.trim().length === 0) return;
+
+      // Filter out whisper hallucinations on silence/noise
+      const normalized = transcript.trim().toLowerCase();
+      if (normalized === "[blank_audio]" || normalized === "(blank audio)")
+        return;
+
+      console.error(`Voice STT [${userId}]: ${transcript}`);
+
+      const user = await this.ctx.discord.users.fetch(userId);
+      const channelId =
+        this.guilds.get(guildId)?.connection.joinConfig.channelId;
+
+      this.ctx.mcp.notification({
+        method: "notifications/claude/channel",
+        params: {
+          content: transcript,
+          meta: {
+            chat_id: channelId || guildId,
+            message_id: `voice_${Date.now()}`,
+            user: user.username,
+            user_id: userId,
+            ts: new Date().toISOString(),
+            is_dm: "false",
+            role:
+              this.ctx.ownerUserId && userId === this.ctx.ownerUserId
+                ? "owner"
+                : "user",
+            source: "voice",
+            guild_id: guildId,
+          },
+        },
+      });
+    } catch (e) {
+      console.error(`Voice STT error: ${e}`);
+    }
   }
 
   private async opusToPcm(opusChunks: Buffer[]): Promise<Buffer> {
