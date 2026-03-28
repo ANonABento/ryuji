@@ -38,6 +38,12 @@ const MIN_OPUS_CHUNKS = 10; // Skip utterances shorter than ~200ms
 const MIN_PCM_BYTES = 4800; // Skip audio < 300ms at 16kHz mono
 const LISTEN_HARD_TIMEOUT = 30_000; // 30s safety net for leaked subscriptions
 
+// --- Streaming STT (Phase 5) ---
+// Max speech duration before flushing a segment to whisper.
+// Discord sends ~50 opus packets/sec (20ms frames), so 3s ≈ 150 chunks.
+const MAX_SEGMENT_MS = 3_000;
+const MAX_SEGMENT_CHUNKS = 150; // ~3s at 50 packets/sec
+
 // --- Interruption ---
 const BARGE_IN_THRESHOLD_MS = 300; // Sustained speech before treating as interruption
 
@@ -318,8 +324,26 @@ export class VoiceManager {
     // Reset Silero hidden state for this new subscription
     this.sileroVAD.resetState();
 
-    const chunks: Buffer[] = []; // Original opus chunks for STT
+    const chunks: Buffer[] = []; // Current segment's opus chunks
     let collecting = false;
+
+    // --- Streaming STT state (Phase 5) ---
+    // Transcribe segments incrementally while user is still speaking.
+    // Each segment is flushed to whisper after MAX_SEGMENT_CHUNKS opus packets.
+    const segmentTranscripts: Promise<string | null>[] = [];
+    let chunksSinceFlush = 0;
+
+    /** Flush current opus chunks as a segment to STT (non-blocking) */
+    const flushSegment = () => {
+      if (chunks.length < MIN_OPUS_CHUNKS) return;
+      const segmentChunks = [...chunks];
+      chunks.length = 0;
+      chunksSinceFlush = 0;
+
+      // Fire-and-forget transcription — result collected on speech_end
+      const transcriptPromise = this.transcribeSegment(segmentChunks);
+      segmentTranscripts.push(transcriptPromise);
+    };
 
     // Accumulate PCM samples for VAD (need FRAME_SIZE=512 samples per inference)
     let vadBuffer = new Float32Array(0);
@@ -339,6 +363,23 @@ export class VoiceManager {
       gv.listeningTo.delete(userId);
     };
 
+    /** Finalize: flush remaining chunks, gather all segment transcripts, send MCP notification */
+    const finalizeUtterance = () => {
+      // Flush any remaining audio as the last segment
+      if (chunks.length >= MIN_OPUS_CHUNKS) {
+        flushSegment();
+      }
+      chunks.length = 0;
+      chunksSinceFlush = 0;
+
+      if (segmentTranscripts.length === 0) return;
+
+      // Gather all segment transcripts and send combined result
+      const pending = [...segmentTranscripts];
+      segmentTranscripts.length = 0;
+      this.combineAndNotify(guildId, userId, pending);
+    };
+
     opusStream.on("data", (chunk: Buffer) => {
       // Discord silence frames (3 bytes: 0xF8, 0xFF, 0xFE) mean user stopped transmitting
       if (chunk.length <= 3) {
@@ -352,8 +393,7 @@ export class VoiceManager {
           }
           if (collecting) {
             collecting = false;
-            this.processUtterance(guildId, userId, [...chunks]);
-            chunks.length = 0;
+            finalizeUtterance();
             cleanup();
           }
         }
@@ -371,6 +411,13 @@ export class VoiceManager {
       // Store original opus when collecting (before async VAD, to preserve order)
       if (collecting) {
         chunks.push(chunk);
+        chunksSinceFlush++;
+
+        // Streaming STT: flush segment when we hit max duration
+        if (chunksSinceFlush >= MAX_SEGMENT_CHUNKS) {
+          console.error(`Voice: flushing STT segment (${chunks.length} chunks) while user still speaking`);
+          flushSegment();
+        }
       }
 
       // Downsample to 16kHz mono float32 for Silero
@@ -402,6 +449,8 @@ export class VoiceManager {
           if (event === "speech_start") {
             collecting = true;
             chunks.length = 0;
+            chunksSinceFlush = 0;
+            segmentTranscripts.length = 0;
 
             // Barge-in: user started speaking while bot is playing
             if (this.isBotSpeaking(guildId)) {
@@ -428,8 +477,7 @@ export class VoiceManager {
 
             if (collecting) {
               collecting = false;
-              this.processUtterance(guildId, userId, [...chunks]);
-              chunks.length = 0;
+              finalizeUtterance();
               // Don't cleanup — keep listening for more speech
               speechDetector.reset();
               this.sileroVAD.resetState();
@@ -445,9 +493,9 @@ export class VoiceManager {
       clearTimeout(hardTimeout);
       gv.listeningTo.delete(userId);
 
-      // If we were still collecting when stream ended, process what we have
-      if (collecting && chunks.length > 0) {
-        this.processUtterance(guildId, userId, [...chunks]);
+      // If we were still collecting when stream ended, finalize what we have
+      if (collecting && (chunks.length > 0 || segmentTranscripts.length > 0)) {
+        finalizeUtterance();
       }
     });
 
@@ -458,29 +506,47 @@ export class VoiceManager {
   }
 
   /**
-   * Process a collected utterance: decode opus → resample → STT → notify MCP.
-   * Runs async, does not block the listen loop.
+   * Transcribe a single segment of opus chunks to text.
+   * Returns the transcript string, or null if too short / empty / hallucination.
    */
-  private async processUtterance(
-    guildId: string,
-    userId: string,
-    opusChunks: Buffer[]
-  ) {
-    if (opusChunks.length < MIN_OPUS_CHUNKS) return;
+  private async transcribeSegment(opusChunks: Buffer[]): Promise<string | null> {
+    if (opusChunks.length < MIN_OPUS_CHUNKS) return null;
 
     try {
       const pcmBuffer = await this.opusToPcm(opusChunks);
-      if (pcmBuffer.length < MIN_PCM_BYTES) return;
+      if (pcmBuffer.length < MIN_PCM_BYTES) return null;
 
       const transcript = await this.stt.transcribe(pcmBuffer);
-      if (!transcript || transcript.trim().length === 0) return;
+      if (!transcript || transcript.trim().length === 0) return null;
 
       // Filter out whisper hallucinations on silence/noise
       const normalized = transcript.trim().toLowerCase();
-      if (normalized === "[blank_audio]" || normalized === "(blank audio)")
-        return;
+      if (normalized === "[blank_audio]" || normalized === "(blank audio)") return null;
 
-      console.error(`Voice STT [${userId}]: ${transcript}`);
+      return transcript.trim();
+    } catch (e) {
+      console.error(`Voice STT segment error: ${e}`);
+      return null;
+    }
+  }
+
+  /**
+   * Combine transcripts from multiple segments and send a single MCP notification.
+   * Segments were transcribed in parallel while the user was still speaking (Phase 5).
+   */
+  private async combineAndNotify(
+    guildId: string,
+    userId: string,
+    segmentPromises: Promise<string | null>[]
+  ) {
+    try {
+      const results = await Promise.all(segmentPromises);
+      const transcripts = results.filter((t): t is string => t !== null);
+
+      if (transcripts.length === 0) return;
+
+      const combined = transcripts.join(" ");
+      console.error(`Voice STT [${userId}]: ${combined}${transcripts.length > 1 ? ` (${transcripts.length} segments)` : ""}`);
 
       const user = await this.ctx.discord.users.fetch(userId);
       const channelId =
@@ -489,7 +555,7 @@ export class VoiceManager {
       this.ctx.mcp.notification({
         method: "notifications/claude/channel",
         params: {
-          content: transcript,
+          content: combined,
           meta: {
             chat_id: channelId || guildId,
             message_id: `voice_${Date.now()}`,
@@ -507,7 +573,7 @@ export class VoiceManager {
         },
       });
     } catch (e) {
-      console.error(`Voice STT error: ${e}`);
+      console.error(`Voice STT combine error: ${e}`);
     }
   }
 
