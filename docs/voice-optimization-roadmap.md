@@ -446,11 +446,105 @@ async init() {
 
 ---
 
-## Phase 3: Interruption Handling
+## Phase 3: Interruption Handling & Cancellation Propagation
 
-**Goal:** Stop playback immediately when the user starts speaking, like a natural conversation.
+**Goal:** Stop playback immediately when the user starts speaking, cancel in-flight work, and reconcile state — like a natural conversation.
 
-**Expected improvement:** Better UX, not a latency improvement per se.
+**Expected improvement:** Better UX, prevents stale responses from playing.
+
+### Industry Research
+
+**Pipecat** uses a frame-based system where `InterruptionFrame` (high priority) bypasses all queues and hits every processor immediately. Each processor's `_start_interruption()` fires: TTS stops, LLM stops, buffers clear. Critically, they track what was *actually spoken* via TTS timestamps — only committed text is kept in context.
+
+**LiveKit Agents** returns a `SpeechHandle` from `say()` / `generate_reply()` that you can call `interrupt()` on. They have false-interruption recovery — if VAD triggers but transcript is empty (noise), the agent resumes from where it left off.
+
+**Vapi** uses `stop_speaking_plan` config with `numWords` (how many user words before interrupting) and `voiceSeconds` (minimum speech duration, default 0.2s). They use word-level TTS timestamps to reconstruct exactly what was heard.
+
+**Retell AI** uses a predictive turn-taking model that combines acoustic signals + LLM fusion, targeting ~800ms response latency.
+
+### Recommended Patterns for Choomfie
+
+#### Pattern A: Generation ID (Invalidate Stale Responses)
+
+Since Claude processes via MCP and we can't cancel its thinking, use a monotonic counter. When `speak()` is called, check if the generation is still current:
+
+```typescript
+private generationId = 0;
+
+async speak(guildId: string, text: string) {
+  const myGen = ++this.generationId;
+  const audio = await this.tts.synthesize(text);
+  if (this.generationId !== myGen) return; // stale — discard
+  this.playAudio(gv, audio);
+}
+```
+
+#### Pattern B: Interrupt-on-Speech (Stop Playback)
+
+When user speaks while bot is playing, stop immediately:
+
+```typescript
+connection.receiver.speaking.on("start", (userId) => {
+  if (userId === botId) return;
+  if (gv.player.state.status === AudioPlayerStatus.Playing) {
+    gv.player.stop();
+    this.generationId++; // invalidate queued speak() calls
+  }
+});
+```
+
+#### Pattern C: Mutable Speak Queue
+
+Replace simple FIFO with cancellable entries:
+
+```typescript
+interface SpeakEntry {
+  text: string;
+  generationId: number;
+  cancelled: boolean;
+}
+
+cancelPendingSpeech() {
+  for (const entry of this.speakQueue) entry.cancelled = true;
+  gv.player.stop();
+}
+```
+
+#### Pattern D: Debounce Rapid Utterances
+
+Combine rapid user messages before sending to Claude:
+
+```typescript
+onUtteranceEnd(userId, transcript) {
+  const existing = this.pendingTranscripts.get(userId);
+  if (existing) {
+    clearTimeout(existing.timer);
+    existing.text += " " + transcript;
+  }
+  entry.timer = setTimeout(() => {
+    this.sendToClaudeFinal(userId, entry.text);
+  }, 300); // 300ms debounce
+}
+```
+
+#### Pattern E: State Reconciliation
+
+Include interruption context in MCP notifications so Claude knows what the user heard:
+
+```typescript
+if (this.wasInterrupted && this.lastSpokenText) {
+  meta.interrupted_previous = true;
+  meta.partial_response = this.lastSpokenText;
+}
+```
+
+### Edge Cases
+
+- **Echo cancellation:** Bot's own audio picked up by user mics. Filter by userId (already done) + potentially mute receive during playback.
+- **Rapid interruption loops:** User interrupts → bot responds → user interrupts again. Need a circuit breaker — after N interruptions in M seconds, wait for longer silence.
+- **Queue starvation with MCP:** Claude may call `speak()` multiple times. If user interrupts during sentence 1, sentences 2-3 are in-flight MCP tool calls. Worker must silently discard stale calls via generation ID.
+- **False interruption recovery:** If VAD triggers on noise but transcript is empty, resume previous response (LiveKit pattern).
+- **Race between STT and new speech:** User finishes A, bot processes. User starts B. Without debouncing, Claude gets A then B and may generate two responses.
 
 ### State Machine
 
@@ -678,12 +772,41 @@ this.ctx.config.on("personaChanged", async (newPersona: string) => {
 });
 ```
 
+### Filler Generation Script (Part of Voice Setup)
+
+Fillers should be generated as part of the `/voice` setup wizard, after the user picks their TTS provider and voice:
+
+```bash
+# scripts/generate-fillers.ts
+# Run after voice provider selection during /voice setup
+
+import { getTTSProvider } from "../plugins/voice/providers/index.ts";
+import { FILLER_SETS } from "../plugins/voice/fillers.ts";
+
+const tts = await getTTSProvider(config);
+const outputDir = `${DATA_DIR}/voice-cache/fillers/${persona}`;
+await mkdir(outputDir, { recursive: true });
+
+for (const [i, phrase] of fillers.thinking.entries()) {
+  const pcm = await tts.synthesize(phrase, "en", speed);
+  await Bun.write(`${outputDir}/thinking_${i}.pcm`, pcm);
+}
+// ... same for ack fillers
+```
+
+**Setup flow:**
+1. User runs `/voice` → picks TTS provider → picks voice
+2. Script generates filler audio files for active persona
+3. Files cached to `~/.claude/plugins/data/choomfie-inline/voice-cache/fillers/`
+4. On startup, fillers loaded from cache (no re-synthesis needed)
+5. On persona switch, check cache → generate if missing
+
 ### Memory footprint
 
 - ~5-10 phrases per persona, each ~1-3 seconds of audio
 - PCM at 48kHz stereo 16-bit: ~192KB/second
 - Total per persona: ~1-3MB
-- Acceptable for in-memory caching
+- Acceptable for in-memory caching, also persisted to disk for fast startup
 
 ---
 
@@ -1039,6 +1162,8 @@ async speak(guildId, text, language) {
 ```
 
 This is a prerequisite for Phase 1 (Streaming TTS) — the `StreamingTTSQueue` replaces this with a proper audio chunk queue.
+
+**Related regression:** `PLAYBACK_FINISH_TIMEOUT` was bumped from 30s to 120s to accommodate long TTS responses. This is a band-aid — with streaming TTS (Phase 1), each chunk is only a sentence (~3-5s audio), so the timeout can be reduced back to 30s or less. Track this when implementing Phase 1.
 
 ---
 

@@ -29,7 +29,7 @@ import { STT_WAV, DISCORD_PCM } from "./providers/audio.ts";
 // --- Timeouts ---
 const CONNECTION_TIMEOUT = 10_000; // 10s to establish voice connection
 const PLAYBACK_START_TIMEOUT = 5_000; // 5s for player to start playing
-const PLAYBACK_FINISH_TIMEOUT = 30_000; // 30s for current playback to finish
+const PLAYBACK_FINISH_TIMEOUT = 120_000; // 2min for current playback to finish (long TTS responses)
 
 // --- Audio thresholds ---
 const MIN_OPUS_CHUNKS = 10; // Skip utterances shorter than ~200ms
