@@ -19,6 +19,13 @@ export interface VoiceConfig {
   ttsSpeed?: number; // 0.5 to 2.0 (default 1.0)
 }
 
+export interface SocialsConfig {
+  linkedin?: {
+    clientId: string;
+    clientSecret: string;
+  };
+}
+
 export interface Config {
   activePersona: string;
   personas: Record<string, Persona>;
@@ -27,6 +34,7 @@ export interface Config {
   autoSummarize: boolean;
   plugins: string[];
   voice: VoiceConfig;
+  socials?: SocialsConfig;
 }
 
 const DEFAULT_CONFIG: Config = {
@@ -52,6 +60,8 @@ function mergeConfig(saved: Partial<Config>): Config {
       : {};
   const savedVoice =
     saved.voice && typeof saved.voice === "object" ? saved.voice : {};
+  const savedSocials =
+    saved.socials && typeof saved.socials === "object" ? saved.socials : undefined;
 
   return {
     ...DEFAULT_CONFIG,
@@ -64,6 +74,7 @@ function mergeConfig(saved: Partial<Config>): Config {
       ...DEFAULT_CONFIG.voice,
       ...savedVoice,
     },
+    ...(savedSocials ? { socials: savedSocials } : {}),
   };
 }
 
@@ -186,6 +197,12 @@ export class ConfigManager {
   setEnabledPlugins(names: string[]) {
     this.config.plugins = names;
     this.save();
+  }
+
+  // --- Socials ---
+
+  getSocialsConfig(): SocialsConfig | undefined {
+    return this.config.socials;
   }
 
   // --- Full config ---

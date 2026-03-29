@@ -59,3 +59,17 @@ export interface RedditProvider {
   /** Get comments on a post */
   getComments(postUrl: string, limit?: number): Promise<RedditComment[]>;
 }
+
+// --- LinkedIn ---
+
+export interface LinkedInPostResult {
+  id: string;
+  url?: string;
+}
+
+export interface LinkedInProfile {
+  sub: string;
+  name: string;
+  email?: string;
+  picture?: string;
+}
