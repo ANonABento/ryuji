@@ -1167,6 +1167,41 @@ This is a prerequisite for Phase 1 (Streaming TTS) — the `StreamingTTSQueue` r
 
 ---
 
+## Potential Future Providers
+
+### TTS: Microsoft VibeVoice-Realtime-0.5B
+
+- **Repo:** github.com/microsoft/VibeVoice | MIT License
+- **Model:** 0.5B params, ~300ms first audio latency, streaming text input
+- **Languages:** EN + CN
+- **Status:** Model weights on HuggingFace. Official usage code disabled ("widespread misuse"), but community forks have it running.
+- **Hardware:** Likely needs NVIDIA GPU. Apple Silicon unknown.
+- **Why interesting:** 300ms streaming latency would be excellent for our voice pipeline. If Apple Silicon support arrives, this beats Kokoro on latency.
+- **Why not yet:** 6x larger than Kokoro (500M vs 82M), GPU-dependent, only 2 languages, no official install path.
+- **Watch:** Community forks, Apple Silicon compatibility, Microsoft re-enabling code.
+
+### TTS: Microsoft VibeVoice-TTS-1.5B
+
+- **Model:** 1.5B params, up to 90 minutes long-form, 4 speakers, expressive/conversational
+- **Languages:** EN + CN
+- **Status:** Model on HuggingFace (`microsoft/VibeVoice-1.5B`). Code disabled. Community archive at `shijincai/VibeVoice` has restored code including removed 7B version.
+- **Hardware:** Definitely needs GPU. Too heavy for CPU.
+- **Why interesting:** Multi-speaker, long-form, expressive. Perfect for podcast-style generation.
+- **Why not yet:** Way too heavy for real-time Discord voice on our hardware. Better suited for async content generation.
+
+### STT: Microsoft VibeVoice-ASR-7B
+
+- **Model:** 7B params, 60-min long-form in single pass, 50+ languages
+- **Features:** Speaker diarization, timestamps, hotwords, structured output
+- **Why interesting:** Dramatically better than whisper for long-form. Hotword support useful for domain-specific terms.
+- **Why not yet:** 7B is massive. GPU-only. Our use case is short utterances where whisper-cpp is fast enough.
+
+### General Notes on VibeVoice
+
+The 7.5 Hz ultra-low frame rate tokenizer is the key innovation — enables long-form generation that other models can't do. The architecture (LLM + diffusion head) produces very natural speech. Worth re-evaluating when Apple Silicon support materializes or if we add GPU support.
+
+---
+
 ## Backward Compatibility
 
 All changes must be backward compatible:
