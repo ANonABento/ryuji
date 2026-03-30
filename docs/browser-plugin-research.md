@@ -4,7 +4,46 @@
 
 The landscape has matured. For **social media automation** (Facebook, Reddit, LinkedIn), vanilla Playwright gets detected and blocked — you need stealth capabilities. For **dev/testing**, Playwright MCP or CLI is still king.
 
-**Recommendation: Two browsers** — clean Playwright for dev/testing, stealth browser for social media.
+**Final Recommendation: Playwright CLI** — zero token overhead, session persistence, stealth upgrade via Patchright swap. Wrap as single MCP tool.
+
+## Decision Matrix (Weighted)
+
+| Tool | Token Eff (25) | Stealth (20) | Sessions (15) | Speed (10) | Free (10) | TS/Bun (5) | Setup (5) | Screenshot (5) | Stable (3) | AI-Native (2) | **TOTAL** |
+|------|---|---|---|---|---|---|---|---|---|---|---|
+| **Playwright CLI** | 5 | 2 | 5 | 5 | 5 | 5 | 4 | 5 | 5 | 3 | **4.21** |
+| **Patchright MCP Lite** | 5 | 4 | 3 | 4 | 5 | 5 | 3 | 4 | 2 | 3 | **4.16** |
+| **Patchright MCP (Ikaleio)** | 3 | 4 | 5 | 5 | 5 | 5 | 4 | 5 | 2 | 3 | **3.91** |
+| **BrowserMCP** | 2 | 5 | 5 | 4 | 5 | 3 | 3 | 4 | 2 | 3 | **3.76** |
+| **Playwright MCP** | 3 | 2 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 3 | **3.71** |
+| **Stagehand MCP** | 5 | 2 | 3 | 3 | 2 | 5 | 3 | 4 | 4 | 5 | **3.24** |
+| **Bright Data** | 4 | 5 | 1 | 2 | 2 | 3 | 4 | 3 | 4 | 3 | **3.17** |
+| **mcp-browser-use** | 5 | 2 | 3 | 2 | 4 | 1 | 2 | 4 | 3 | 5 | **3.14** |
+| **Stealth Browser MCP** | 1 | 5 | 3 | 3 | 5 | 1 | 2 | 4 | 2 | 4 | **3.10** |
+
+## What Other Agents Use
+
+| Agent | Browser Tool | # Actions | Token Overhead |
+|-------|-------------|-----------|---------------|
+| Cline / Kilo Code | Puppeteer | **6** | ~1,800 |
+| Devin | Chromium in VM | **~10** | N/A (closed) |
+| OpenHands | BrowserGym + Playwright | **~15** | N/A (Python) |
+| Claude Code | Playwright MCP | **22** | ~6,600 |
+| **Our target** | Playwright CLI | **0 MCP tools** | **~0** |
+
+## Minimum Viable Browser Actions (12)
+
+navigate, click, type, snapshot, screenshot, evaluate JS, press key, scroll/hover, select option, wait, back, close
+
+## Token Cost Comparison
+
+| Tool | # MCP Tools | Token Overhead |
+|------|------------|---------------|
+| Playwright CLI | 0 | **~0** |
+| Patchright MCP Lite | 4 | ~1,200 |
+| Stagehand MCP | 6 | ~1,800 |
+| Playwright MCP (core) | 15 | ~4,500 |
+| Playwright MCP (full) | 22 | ~6,600 |
+| Stealth Browser MCP | 90 | ~27,000 |
 
 ## MCP Browser Servers (Plug Into Claude Code Today)
 
@@ -160,10 +199,20 @@ Two browsers: clean Playwright for dev/testing, stealth for social media.
 | OpenAI Operator | Shut down |
 | Fellou | Closed-source consumer product |
 
-## Implementation Priority
+## Implementation Plan
 
-1. **Add Stealth Browser MCP** — `uvx stealth-browser-mcp` in .mcp.json
-2. **Log into Facebook/Reddit/LinkedIn** — manual first login, sessions persist
-3. **Build automation workflows** — scrape housing groups, post to socials
-4. **Add Playwright CLI** for dev/testing (optional, Playwright MCP works fine)
-5. **Evaluate BrowserMCP** for quick ad-hoc tasks
+### Phase 1: Playwright CLI
+1. `npm install -g @playwright/cli@latest && playwright-cli install --skills`
+2. Wrap as single MCP tool `browse` in `plugins/browser/index.ts`
+3. Claude sends task via Bash → CLI commands → returns screenshot + content
+4. Persistent sessions with `--persistent` and `-s=<name>`
+
+### Phase 2: Stealth (if needed)
+1. Swap Chromium → Patchright: `npx patchright install chromium`
+2. Same CLI, same API, just undetectable browser
+3. Only do this if Facebook/LinkedIn blocks us
+
+### Phase 3: Choomfie Integration
+1. `browse` tool returns screenshots → upload to Discord via reply tool
+2. Named sessions per platform (facebook, reddit, linkedin)
+3. Automated workflows (scrape housing groups, post to socials)
