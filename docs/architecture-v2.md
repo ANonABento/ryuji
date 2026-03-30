@@ -222,6 +222,29 @@ query({
 
 **Downside:** Worker restarts also restart the MCP connection and Claude session. But if meta-supervisor handles cycling anyway, this is fine — the whole point is that sessions are disposable.
 
+## Design Decisions
+
+### Worker is a sibling, not a child
+Meta-supervisor spawns BOTH Claude session and worker directly. They're siblings, not nested. This means cycling Claude does NOT kill the worker — Discord stays connected.
+
+```
+Meta-Supervisor
+  ├→ Claude Session (can be cycled independently)
+  └→ Worker (stays alive during session cycles)
+```
+
+### Message bus over direct IPC
+Instead of point-to-point routing, use a simple event emitter inside meta-supervisor. Worker publishes events ("discord_message", "voice_transcript"), meta-supervisor subscribes and routes to Claude. Makes it easy to add consumers later (logging, analytics, parallel sessions).
+
+### Model routing at the meta level
+Meta-supervisor sees every message before Claude. Could route simple messages (reactions, short replies) to Haiku and complex ones to Opus via SDK's `setModel()`. Not for Phase 1, but the architecture supports it naturally.
+
+### No fallback during session cycling
+Session swap takes ~12s. During this time, Discord messages queue in meta-supervisor and replay when the new session is ready. No special "degradation mode" needed — the queue handles it.
+
+### Keep supervisor in Phase 1
+Don't refactor the current supervisor/worker system yet. Phase 1 wraps the existing architecture. Prove session cycling works first. Collapse later.
+
 ## Open Questions
 
 1. **Can the Agent SDK load plugins that register MCP tools?** If yes, Option A is simplest.
@@ -251,3 +274,52 @@ query({
   - Meta-supervisor manages both Claude session and worker
 
 Don't refactor prematurely. The current architecture works. Add the meta layer first, prove it works, then simplify.
+
+## Agent SDK Reference
+
+```bash
+bun add @anthropic-ai/claude-agent-sdk
+```
+
+```typescript
+import { query } from "@anthropic-ai/claude-agent-sdk";
+
+const session = query({
+  prompt: messageGenerator, // AsyncGenerator yields messages on demand
+  options: {
+    model: "claude-sonnet-4-6",
+    permissionMode: "bypassPermissions",
+    allowDangerouslySkipPermissions: true,
+    plugins: [{ directory: "/path/to/choomfie" }],
+    systemPrompt: { type: "preset", preset: "claude_code", append: handoffSummary },
+    persistSession: true,
+  }
+});
+```
+
+### Session Cycling Protocol
+
+**State machine:** `ACTIVE` → `DRAINING` → `CYCLING` → `ACTIVE`
+
+1. **ACTIVE:** Normal operation. Track tokens/turns from SDK messages.
+2. **DRAINING:** Threshold reached (~120K tokens or 80 turns). Queue new messages, wait for in-flight tool calls, generate handoff summary, store in SQLite.
+3. **CYCLING:** Close old session (`query.close()`), start new one with summary as system prompt.
+4. **ACTIVE:** Replay queued messages, resume.
+
+### CLI Flags
+
+```bash
+claude \
+  --input-format stream-json \
+  --output-format stream-json \
+  --permission-mode bypassPermissions \
+  --plugin-dir /path/to/choomfie \
+  --session-id <uuid> \
+  --append-system-prompt "Handoff context: ..."
+```
+
+### Caveats
+
+- ~12s overhead per new `query()` call — use streaming input to keep session alive
+- No programmatic `/compact` — must cycle sessions instead
+- `stream-json` stdin format poorly documented (GitHub #24594)
