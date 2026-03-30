@@ -12,6 +12,7 @@ import {
 import type { ToolDef, AppContext } from "../types.ts";
 import { text, err } from "../types.ts";
 import { onReplySent } from "../typing.ts";
+import { refreshChannel } from "../conversation.ts";
 
 /** Discord embed color constants */
 const COLORS = {
@@ -164,6 +165,9 @@ export const discordTools: ToolDef[] = [
 
       const sent = await textChannel.send(opts as any);
       ctx.messageStats.sent++;
+
+      // Refresh conversation timeout — bot replies count as activity
+      refreshChannel(ctx.activeChannels, args.chat_id as string);
 
       // Transition typing to cooldown — unless keep_typing is set
       if (!args.keep_typing) {
