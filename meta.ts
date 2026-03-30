@@ -39,13 +39,11 @@ import { existsSync } from "node:fs";
 const TOKEN_THRESHOLD = 120_000;
 const TURN_THRESHOLD = 80;
 const CONTEXT_CHECK_INTERVAL = 60_000; // Check context usage every 60s
-const SESSION_START_TIMEOUT = 60_000; // 60s for session to start
 const HANDOFF_SUMMARY_TIMEOUT = 30_000; // 30s to generate handoff summary
 const MAX_RESTART_BACKOFF = 60_000; // Max 60s between restart attempts
 const INITIAL_RESTART_BACKOFF = 2_000; // Start with 2s backoff
 const CONTEXT_CHECK_FAILURE_LIMIT = 5; // Fall back to turn-count after N failures
 const WORKER_HEALTH_INTERVAL = 30_000; // Check worker health every 30s
-const WORKER_HEALTH_TIMEOUT = 10_000; // Worker must respond within 10s
 const WORKER_MAX_CONSECUTIVE_FAILURES = 3; // Trigger recovery after 3 consecutive failures
 
 const DATA_DIR =
@@ -80,12 +78,6 @@ type HandoffEntry = {
 type WorkerHealthStatus = {
   /** Is the worker process alive (PID exists)? */
   processAlive: boolean;
-  /** Is the worker's Discord client connected? */
-  discordConnected: boolean;
-  /** Worker uptime in ms (0 if not running) */
-  uptimeMs: number;
-  /** Number of active plugins */
-  pluginCount: number;
   /** Last time worker was confirmed healthy */
   lastHealthyAt: number;
   /** Consecutive health check failures */
@@ -861,15 +853,15 @@ async function checkWorkerHealth(state: MetaState): Promise<void> {
 
   if (!processAlive) {
     state.workerHealth.consecutiveFailures++;
-    state.workerHealth.discordConnected = false;
     log(
       `Worker health: process NOT alive ` +
         `(failure ${state.workerHealth.consecutiveFailures}/${WORKER_MAX_CONSECUTIVE_FAILURES})`
     );
 
-    if (state.workerHealth.consecutiveFailures >= WORKER_MAX_CONSECUTIVE_FAILURES) {
+    if (state.workerHealth.consecutiveFailures >= WORKER_MAX_CONSECUTIVE_FAILURES && state.state === "ACTIVE") {
       log("Worker appears dead — triggering session cycle to respawn");
       state.lastCycleReason = "worker_dead";
+      stopWorkerHealthMonitor(state); // Prevent re-entry during cycle
       await cycleSession(state, state.totalInputTokens);
     }
     return;
@@ -986,9 +978,6 @@ function createInitialState(): MetaState {
     lastAssistantText: null,
     workerHealth: {
       processAlive: false,
-      discordConnected: false,
-      uptimeMs: 0,
-      pluginCount: 0,
       lastHealthyAt: 0,
       consecutiveFailures: 0,
     },
