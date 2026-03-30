@@ -9,3 +9,9 @@ dist/
 # Kokoro TTS models (~300MB)
 *.onnx
 voices-*.bin
+
+# Playwright CLI workspace
+.playwright-cli/
+
+# Claude Code worktrees
+.claude/worktrees/
