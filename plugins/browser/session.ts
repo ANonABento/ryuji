@@ -1,49 +1,50 @@
 /**
- * Browser session manager — launches and manages Playwright browser instances.
+ * Browser session manager — persistent Playwright browser contexts.
  *
- * Each session is a named browser context with one page.
- * Sessions persist until explicitly closed or plugin destroyed.
+ * Each named session gets its own user data dir so cookies/localStorage
+ * survive across restarts. Use named sessions (e.g. "facebook") to stay
+ * logged in to different sites simultaneously.
  */
 
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { chromium, type BrowserContext, type Page } from "playwright";
 import { join } from "node:path";
 import { mkdirSync, existsSync } from "node:fs";
 
-const SCREENSHOT_DIR = join(
-  process.env.HOME ?? "/tmp",
-  ".claude/plugins/data/choomfie-inline/browser/screenshots"
-);
+const DATA_DIR =
+  process.env.CLAUDE_PLUGIN_DATA ??
+  join(process.env.HOME ?? "/tmp", ".claude/plugins/data/choomfie-inline");
+const SCREENSHOT_DIR = join(DATA_DIR, "browser/screenshots");
+const USER_DATA_BASE = join(DATA_DIR, "browser/sessions");
 
 interface Session {
   context: BrowserContext;
   page: Page;
 }
 
-let browser: Browser | null = null;
 const sessions = new Map<string, Session>();
 
-/** Ensure browser is launched. */
-async function ensureBrowser(): Promise<Browser> {
-  if (browser?.isConnected()) return browser;
-  browser = await chromium.launch({ headless: true });
-  return browser;
-}
-
-/** Get or create a named session. */
+/** Get or create a named session with persistent user data dir. */
 async function getSession(name: string): Promise<Session> {
   const existing = sessions.get(name);
   if (existing && !existing.page.isClosed()) return existing;
 
   // Clean up stale session entry
-  if (existing) sessions.delete(name);
+  if (existing) {
+    await existing.context.close().catch(() => {});
+    sessions.delete(name);
+  }
 
-  const b = await ensureBrowser();
-  const context = await b.newContext({
+  // Each named session gets its own persistent user data dir (cookies survive restarts)
+  const userDataDir = join(USER_DATA_BASE, name);
+  if (!existsSync(userDataDir)) mkdirSync(userDataDir, { recursive: true });
+
+  const context = await chromium.launchPersistentContext(userDataDir, {
+    headless: true,
     viewport: { width: 1280, height: 720 },
     userAgent:
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
   });
-  const page = await context.newPage();
+  const page = context.pages()[0] || (await context.newPage());
   const session: Session = { context, page };
   sessions.set(name, session);
   return session;
@@ -76,7 +77,13 @@ export async function snapshot(sessionName: string): Promise<string> {
     .locator(":root")
     .ariaSnapshot({ timeout: 10_000 });
 
-  return `# ${title}\nURL: ${url}\n\n${ariaYaml}`;
+  const header = `# ${title}\nURL: ${url}\n\n`;
+  // Truncate very large snapshots to avoid blowing up context
+  const maxLen = 8000;
+  if (ariaYaml.length > maxLen) {
+    return header + ariaYaml.slice(0, maxLen) + "\n...(snapshot truncated)";
+  }
+  return header + ariaYaml;
 }
 
 /** Click an element by its accessibility ref (role + name combo or index). */
@@ -163,8 +170,16 @@ export async function evaluate(
     throw new Error("No browser open. Use `browse` to open a page first.");
   }
 
-  const result = await session.page.evaluate(code);
-  return typeof result === "string" ? result : JSON.stringify(result, null, 2);
+  // Try as expression first, fall back to statement wrapper
+  let result: unknown;
+  try {
+    result = await session.page.evaluate(code);
+  } catch {
+    result = await session.page.evaluate(`(() => { ${code} })()`);
+  }
+  const str = typeof result === "string" ? result : JSON.stringify(result, null, 2);
+  // Truncate large results
+  return str.length > 5000 ? str.slice(0, 5000) + "\n...(truncated)" : str;
 }
 
 /** Close a specific session. */
@@ -176,15 +191,11 @@ export async function closeSession(sessionName: string): Promise<void> {
   }
 }
 
-/** Close all sessions and the browser. */
+/** Close all sessions. */
 export async function closeAll(): Promise<void> {
   for (const [name, session] of sessions) {
     await session.context.close().catch(() => {});
     sessions.delete(name);
-  }
-  if (browser) {
-    await browser.close().catch(() => {});
-    browser = null;
   }
 }
 

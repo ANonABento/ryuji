@@ -30,9 +30,9 @@ const browserPlugin: Plugin = {
     "browser_click",
     "browser_type",
     "browser_screenshot",
-    "browser_eval",
     "browser_press_key",
     "browser_close",
+    // browser_eval is owner-only (arbitrary JS execution)
   ],
 
   async init() {

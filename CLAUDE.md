@@ -68,6 +68,19 @@ plugins/                       # Plugin directory (each plugin = subdirectory)
       elevenlabs/              # ElevenLabs — paid API (STT + TTS)
       groq/stt.ts              # Groq — free cloud STT API
       whisper/stt.ts           # whisper-cpp — local STT via CLI
+  browser/
+    index.ts                   # Browser plugin entry — tools, instructions, lifecycle
+    session.ts                 # Session manager — persistent Playwright contexts
+    tools.ts                   # MCP tools: browse, click, type, screenshot, eval, key, close
+  socials/
+    index.ts                   # Socials plugin entry — aggregates platform tools
+    tools.ts                   # MCP tools for all platforms
+    providers/
+      types.ts                 # Shared interfaces (VideoResult, RedditPost, etc.)
+      index.ts                 # Provider factory
+      linkedin/api.ts          # LinkedIn OAuth + posting (personal profile)
+      reddit/api.ts            # Reddit OAuth + full read/write
+      youtube/api.ts           # YouTube Data API comments + yt-dlp reads
 scripts/
   deploy-commands.ts           # Deploy slash commands to Discord
 .claude-plugin/plugin.json     # Plugin metadata
