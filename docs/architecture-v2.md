@@ -260,12 +260,14 @@ Don't refactor the current supervisor/worker system yet. Phase 1 wraps the exist
 - Add session monitoring + cycling
 - Validate everything works
 
-**Phase 2: Evaluate collapse**
-- Once meta-supervisor is stable, measure:
-  - Latency of Agent SDK vs current MCP pipe
-  - Reliability of session cycling
-  - Whether MCP supervisor is still needed
-- Then decide whether to collapse
+**Phase 2: Harden meta-supervisor** ✅
+- Fixed handoff summary capture (proper result-based extraction)
+- Typed state (removed `as any` hacks)
+- Error recovery with exponential backoff
+- `--test-cycle` flag for end-to-end cycling verification
+- `--benchmark` flag for latency measurement
+- `--verbose` flag for debug output
+- Context check fallback (turn-based after 5 failures)
 
 **Phase 3: Refactor if beneficial**
 - If SDK is fast enough and cycling is reliable:

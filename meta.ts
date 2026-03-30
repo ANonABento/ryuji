@@ -5,10 +5,22 @@
  * Spawns a Claude Code session with Choomfie loaded as a plugin, monitors
  * token/turn usage, and cycles sessions when context gets heavy.
  *
- * Usage: bun meta.ts
+ * Usage:
+ *   bun meta.ts                 # Normal operation
+ *   bun meta.ts --test-cycle    # Test session cycling
+ *   bun meta.ts --benchmark     # Measure latency
+ *   bun meta.ts --verbose       # Debug output
  */
 
-import { query, type Query, type SDKMessage, type SDKResultMessage, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import {
+  query,
+  type Query,
+  type SDKMessage,
+  type SDKResultMessage,
+  type SDKResultSuccess,
+  type SDKAssistantMessage,
+  type SDKUserMessage,
+} from "@anthropic-ai/claude-agent-sdk";
 import { readFile, writeFile, unlink, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 
@@ -18,6 +30,10 @@ const TOKEN_THRESHOLD = 120_000;
 const TURN_THRESHOLD = 80;
 const CONTEXT_CHECK_INTERVAL = 60_000; // Check context usage every 60s
 const SESSION_START_TIMEOUT = 60_000; // 60s for session to start
+const HANDOFF_SUMMARY_TIMEOUT = 30_000; // 30s to generate handoff summary
+const MAX_RESTART_BACKOFF = 60_000; // Max 60s between restart attempts
+const INITIAL_RESTART_BACKOFF = 2_000; // Start with 2s backoff
+const CONTEXT_CHECK_FAILURE_LIMIT = 5; // Fall back to turn-count after N failures
 
 const DATA_DIR =
   process.env.CLAUDE_PLUGIN_DATA ||
@@ -27,6 +43,13 @@ const PID_PATH = `${META_DIR}/meta.pid`;
 const HANDOFFS_PATH = `${META_DIR}/handoffs.json`;
 
 const PLUGIN_DIR = import.meta.dir;
+
+// --- CLI Flags ---
+
+const ARGS = new Set(process.argv.slice(2));
+const FLAG_TEST_CYCLE = ARGS.has("--test-cycle");
+const FLAG_BENCHMARK = ARGS.has("--benchmark");
+const FLAG_VERBOSE = ARGS.has("--verbose");
 
 // --- Types ---
 
@@ -44,6 +67,7 @@ type HandoffEntry = {
 type MetaState = {
   state: SessionState;
   session: Query | null;
+  sessionId: string;
   turnCount: number;
   totalInputTokens: number;
   totalOutputTokens: number;
@@ -51,12 +75,28 @@ type MetaState = {
   sessionStartTime: number;
   messageQueue: SDKUserMessage[];
   contextCheckTimer: ReturnType<typeof setInterval> | null;
+  contextCheckFailures: number;
+  restartBackoff: number;
+  pushMessage: ((msg: SDKUserMessage) => void) | null;
+  closeGenerator: (() => void) | null;
+  /** Resolvers waiting for the next result message from the session stream */
+  resultWaiters: Array<(result: SDKResultSuccess) => void>;
+  /** Last assistant text seen from the session stream */
+  lastAssistantText: string | null;
 };
 
 // --- Logging ---
 
+let currentSessionId = "boot";
+
 function log(msg: string) {
-  console.error(`[meta] ${new Date().toISOString()} ${msg}`);
+  console.error(`[meta:${currentSessionId}] ${new Date().toISOString()} ${msg}`);
+}
+
+function verbose(msg: string) {
+  if (FLAG_VERBOSE) {
+    console.error(`[meta:${currentSessionId}:debug] ${new Date().toISOString()} ${msg}`);
+  }
 }
 
 // --- PID Guard ---
@@ -122,6 +162,10 @@ function getLastHandoffSummary(handoffs: HandoffEntry[]): string | undefined {
 
 // --- Session Manager ---
 
+function generateSessionId(): string {
+  return `s-${Date.now().toString(36)}`;
+}
+
 function createMessageGenerator(): {
   generator: AsyncGenerator<SDKUserMessage>;
   push: (msg: SDKUserMessage) => void;
@@ -136,7 +180,9 @@ function createMessageGenerator(): {
       if (queue.length > 0) {
         yield queue.shift()!;
       } else {
-        await new Promise<void>((r) => { resolve = r; });
+        await new Promise<void>((r) => {
+          resolve = r;
+        });
         resolve = null;
       }
     }
@@ -160,20 +206,37 @@ function buildSystemPromptAppend(handoffSummary?: string): string {
 
   parts.push(
     "You are running under the Choomfie meta-supervisor. " +
-    "Your session will be automatically cycled when context gets heavy. " +
-    "If asked for a handoff summary, provide a concise summary of the current conversation state, " +
-    "active tasks, important context, and any pending work."
+      "Your session will be automatically cycled when context gets heavy. " +
+      "If asked for a handoff summary, provide a concise summary of the current conversation state, " +
+      "active tasks, important context, and any pending work."
   );
 
   if (handoffSummary) {
     parts.push(
       "\n\n--- HANDOFF CONTEXT FROM PREVIOUS SESSION ---\n" +
-      handoffSummary +
-      "\n--- END HANDOFF CONTEXT ---"
+        handoffSummary +
+        "\n--- END HANDOFF CONTEXT ---"
     );
   }
 
   return parts.join("");
+}
+
+/**
+ * Extract text content from an SDKAssistantMessage.
+ * The message.message is a BetaMessage which has a content array of content blocks.
+ */
+function extractAssistantText(msg: SDKAssistantMessage): string | null {
+  const content = msg.message?.content;
+  if (!Array.isArray(content)) return null;
+
+  const texts: string[] = [];
+  for (const block of content) {
+    if (block.type === "text" && typeof block.text === "string") {
+      texts.push(block.text);
+    }
+  }
+  return texts.length > 0 ? texts.join("\n") : null;
 }
 
 async function startSession(
@@ -186,14 +249,20 @@ async function startSession(
   state.totalOutputTokens = 0;
   state.totalCostUsd = 0;
   state.sessionStartTime = Date.now();
+  state.contextCheckFailures = 0;
+  state.lastAssistantText = null;
+  state.resultWaiters = [];
+
+  const sid = generateSessionId();
+  state.sessionId = sid;
+  currentSessionId = sid;
 
   log("Starting new Claude Code session...");
 
   const { generator, push, close: closeGenerator } = createMessageGenerator();
 
-  // Store push/close on state for later use
-  (state as any)._pushMessage = push;
-  (state as any)._closeGenerator = closeGenerator;
+  state.pushMessage = push;
+  state.closeGenerator = closeGenerator;
 
   const session = query({
     prompt: generator,
@@ -218,9 +287,10 @@ async function startSession(
   // Start consuming the session stream in the background
   consumeSessionStream(state).catch((err) => {
     log(`Session stream error: ${err.message || err}`);
+    handleStreamError(state, err);
   });
 
-  // Wait a moment for session to initialize, then check MCP status
+  // Wait a moment for session to initialize
   await new Promise((r) => setTimeout(r, 3000));
 
   state.state = "ACTIVE";
@@ -237,6 +307,9 @@ async function startSession(
     }
     state.messageQueue = [];
   }
+
+  // Reset backoff on successful start
+  state.restartBackoff = INITIAL_RESTART_BACKOFF;
 }
 
 async function consumeSessionStream(state: MetaState): Promise<void> {
@@ -250,11 +323,58 @@ async function consumeSessionStream(state: MetaState): Promise<void> {
     if (err.name === "AbortError") {
       log("Session aborted");
     } else {
-      log(`Session stream ended: ${err.message || err}`);
+      throw err; // Re-throw so the caller's .catch() handles it
     }
   }
 
   log("Session stream closed");
+}
+
+/**
+ * Handle session stream errors with auto-restart and exponential backoff.
+ */
+async function handleStreamError(state: MetaState, err: any): Promise<void> {
+  if (state.state === "CYCLING" || state.state === "DRAINING") {
+    verbose("Stream error during cycling/draining — ignoring");
+    return;
+  }
+
+  log(`Session stream failed unexpectedly: ${err.message || err}`);
+
+  // Clean up current session
+  try {
+    state.closeGenerator?.();
+    state.session?.close();
+  } catch {}
+  state.session = null;
+  state.pushMessage = null;
+  state.closeGenerator = null;
+
+  // Notify any waiting result consumers
+  for (const waiter of state.resultWaiters) {
+    // They'll get nothing — their timeout will handle it
+  }
+  state.resultWaiters = [];
+
+  // Exponential backoff restart
+  const delay = state.restartBackoff;
+  state.restartBackoff = Math.min(state.restartBackoff * 2, MAX_RESTART_BACKOFF);
+
+  log(`Restarting session in ${delay}ms (backoff: ${state.restartBackoff}ms)...`);
+  await new Promise((r) => setTimeout(r, delay));
+
+  // Get last handoff summary for continuity
+  const handoffs = await loadHandoffs();
+  const lastSummary = getLastHandoffSummary(handoffs);
+
+  try {
+    await startSession(state, lastSummary);
+    log("Session restarted successfully after error");
+  } catch (restartErr: any) {
+    log(`Restart failed: ${restartErr.message || restartErr}`);
+    // Try again with more backoff
+    handleStreamError(state, restartErr);
+  }
 }
 
 function handleSessionMessage(state: MetaState, message: SDKMessage): void {
@@ -262,11 +382,11 @@ function handleSessionMessage(state: MetaState, message: SDKMessage): void {
     case "result": {
       const result = message as SDKResultMessage;
       if (result.subtype === "success") {
-        state.turnCount = result.num_turns;
-        state.totalCostUsd = result.total_cost_usd;
+        const successResult = result as SDKResultSuccess;
+        state.turnCount = successResult.num_turns;
+        state.totalCostUsd = successResult.total_cost_usd;
 
-        // Extract token usage from the result
-        const usage = result.usage;
+        const usage = successResult.usage;
         if (usage) {
           state.totalInputTokens = usage.input_tokens ?? 0;
           state.totalOutputTokens = usage.output_tokens ?? 0;
@@ -274,23 +394,34 @@ function handleSessionMessage(state: MetaState, message: SDKMessage): void {
 
         log(
           `Turn complete: ${state.turnCount} turns, ` +
-          `${state.totalInputTokens}/${TOKEN_THRESHOLD} input tokens, ` +
-          `$${state.totalCostUsd.toFixed(4)}`
+            `${state.totalInputTokens}/${TOKEN_THRESHOLD} input tokens, ` +
+            `$${state.totalCostUsd.toFixed(4)}`
         );
+
+        verbose(`Result text (first 200 chars): ${successResult.result?.slice(0, 200)}`);
+
+        // Notify any waiters for this result
+        if (state.resultWaiters.length > 0) {
+          const waiter = state.resultWaiters.shift()!;
+          waiter(successResult);
+        }
       } else {
-        // Error result
         log(`Session error result: ${JSON.stringify(result)}`);
       }
       break;
     }
 
     case "assistant": {
-      // Track assistant messages for turn counting
+      const assistantMsg = message as SDKAssistantMessage;
+      const text = extractAssistantText(assistantMsg);
+      if (text) {
+        state.lastAssistantText = text;
+        verbose(`Assistant text (first 200 chars): ${text.slice(0, 200)}`);
+      }
       break;
     }
 
     case "system": {
-      // Log system messages (compaction boundaries, etc.)
       if ((message as any).subtype === "compact_boundary") {
         log("Context compaction occurred");
       }
@@ -298,13 +429,12 @@ function handleSessionMessage(state: MetaState, message: SDKMessage): void {
     }
 
     default:
-      // Other message types (status, auth, etc.) — ignore silently
+      verbose(`Message type: ${message.type}`);
       break;
   }
 }
 
 function startContextMonitor(state: MetaState): void {
-  // Clear any existing timer
   if (state.contextCheckTimer) {
     clearInterval(state.contextCheckTimer);
   }
@@ -317,10 +447,13 @@ function startContextMonitor(state: MetaState): void {
       const tokens = usage.totalTokens;
       const pct = usage.percentage;
 
+      // Reset failure count on success
+      state.contextCheckFailures = 0;
+
       log(
         `Context: ${tokens}/${usage.maxTokens} tokens (${pct.toFixed(1)}%), ` +
-        `${state.turnCount}/${TURN_THRESHOLD} turns, ` +
-        `$${state.totalCostUsd.toFixed(4)}`
+          `${state.turnCount}/${TURN_THRESHOLD} turns, ` +
+          `$${state.totalCostUsd.toFixed(4)}`
       );
 
       if (shouldCycle(state, tokens)) {
@@ -328,8 +461,19 @@ function startContextMonitor(state: MetaState): void {
         await cycleSession(state, tokens);
       }
     } catch (err: any) {
-      // Session might be busy or shutting down
-      log(`Context check failed: ${err.message || err}`);
+      state.contextCheckFailures++;
+      log(
+        `Context check failed (${state.contextCheckFailures}/${CONTEXT_CHECK_FAILURE_LIMIT}): ${err.message || err}`
+      );
+
+      // Fall back to turn-count-based cycling if context checks keep failing
+      if (state.contextCheckFailures >= CONTEXT_CHECK_FAILURE_LIMIT) {
+        log("Context checks failing repeatedly — falling back to turn-count cycling");
+        if (shouldCycle(state)) {
+          log("Turn threshold reached (fallback) — initiating session cycle");
+          await cycleSession(state);
+        }
+      }
     }
   }, CONTEXT_CHECK_INTERVAL);
 }
@@ -347,6 +491,78 @@ function shouldCycle(state: MetaState, contextTokens?: number): boolean {
   return false;
 }
 
+/**
+ * Capture a handoff summary from the current session.
+ * Pushes a message asking for a summary, then waits for the result with a timeout.
+ */
+async function captureHandoffSummary(state: MetaState): Promise<string> {
+  if (!state.pushMessage || !state.session) {
+    return "No summary available (no active session)";
+  }
+
+  // Push the handoff request
+  state.pushMessage({
+    type: "user",
+    message: {
+      role: "user",
+      content:
+        "Generate a handoff summary for session transition. Include: " +
+        "1) Current conversation state and active persona " +
+        "2) Recent topics discussed and with whom " +
+        "3) Any pending tasks or ongoing work " +
+        "4) Important context that should carry over " +
+        "Keep it concise (under 500 words).",
+    },
+    parent_tool_use_id: null,
+  });
+
+  // Wait for the result using a promise-based approach
+  try {
+    const result = await waitForResult(state, HANDOFF_SUMMARY_TIMEOUT);
+    // The result.result field contains the assistant's text response
+    if (result.result && result.result.length > 0) {
+      log(`Captured handoff summary (${result.result.length} chars)`);
+      return result.result;
+    }
+    // Fallback: use the last assistant text we saw
+    if (state.lastAssistantText) {
+      log(`Using lastAssistantText as summary (${state.lastAssistantText.length} chars)`);
+      return state.lastAssistantText;
+    }
+  } catch (err: any) {
+    log(`Handoff summary capture failed: ${err.message || err}`);
+    // Try the last assistant text as fallback
+    if (state.lastAssistantText) {
+      log("Falling back to last assistant text for summary");
+      return state.lastAssistantText;
+    }
+  }
+
+  return `Session cycled at ${state.turnCount} turns, ~${state.totalInputTokens} tokens, $${state.totalCostUsd.toFixed(4)}`;
+}
+
+/**
+ * Wait for the next result message from the session stream.
+ * Returns a promise that resolves when a result arrives or rejects on timeout.
+ */
+function waitForResult(state: MetaState, timeoutMs: number): Promise<SDKResultSuccess> {
+  return new Promise<SDKResultSuccess>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      // Remove this waiter from the list
+      const idx = state.resultWaiters.indexOf(waiterFn);
+      if (idx !== -1) state.resultWaiters.splice(idx, 1);
+      reject(new Error(`Timed out waiting for result after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    const waiterFn = (result: SDKResultSuccess) => {
+      clearTimeout(timer);
+      resolve(result);
+    };
+
+    state.resultWaiters.push(waiterFn);
+  });
+}
+
 async function cycleSession(state: MetaState, tokenCount?: number): Promise<void> {
   if (state.state !== "ACTIVE") {
     log("Cannot cycle: not in ACTIVE state");
@@ -362,50 +578,12 @@ async function cycleSession(state: MetaState, tokenCount?: number): Promise<void
     state.contextCheckTimer = null;
   }
 
-  let summary = "No summary available (session cycling)";
-
-  // Ask Claude to generate a handoff summary
-  try {
-    const pushMessage = (state as any)._pushMessage as (msg: SDKUserMessage) => void;
-    if (pushMessage && state.session) {
-      pushMessage({
-        type: "user",
-        message: {
-          role: "user",
-          content:
-            "Generate a handoff summary for session transition. Include: " +
-            "1) Current conversation state and active persona " +
-            "2) Recent topics discussed and with whom " +
-            "3) Any pending tasks or ongoing work " +
-            "4) Important context that should carry over " +
-            "Keep it concise (under 500 words).",
-        },
-        parent_tool_use_id: null,
-      });
-
-      // Wait for the result with a timeout
-      const summaryTimeout = 30_000;
-      const start = Date.now();
-
-      // Consume messages until we get a result or timeout
-      while (Date.now() - start < summaryTimeout) {
-        await new Promise((r) => setTimeout(r, 1000));
-        // The result will be captured by handleSessionMessage
-        // We just need to wait a reasonable time
-        if (state.turnCount > 0) break;
-      }
-
-      // Try to get the summary from the session result
-      // The last assistant message should contain the summary
-      summary = `Session cycled at ${state.turnCount} turns, ~${tokenCount ?? state.totalInputTokens} tokens, $${state.totalCostUsd.toFixed(4)}`;
-    }
-  } catch (err: any) {
-    log(`Failed to generate handoff summary: ${err.message || err}`);
-  }
+  // Capture handoff summary from the live session
+  const summary = await captureHandoffSummary(state);
 
   // Store handoff
   const handoff: HandoffEntry = {
-    sessionId: `session-${state.sessionStartTime}`,
+    sessionId: state.sessionId,
     timestamp: new Date().toISOString(),
     summary,
     tokenCount: tokenCount ?? state.totalInputTokens,
@@ -419,14 +597,16 @@ async function cycleSession(state: MetaState, tokenCount?: number): Promise<void
 
   // Close old session
   try {
-    const closeGenerator = (state as any)._closeGenerator as () => void;
-    closeGenerator?.();
+    state.closeGenerator?.();
     state.session?.close();
   } catch (err: any) {
     log(`Error closing session: ${err.message || err}`);
   }
 
   state.session = null;
+  state.pushMessage = null;
+  state.closeGenerator = null;
+  state.resultWaiters = [];
 
   // Brief pause before starting new session
   await new Promise((r) => setTimeout(r, 2000));
@@ -435,13 +615,226 @@ async function cycleSession(state: MetaState, tokenCount?: number): Promise<void
   await startSession(state, summary);
 }
 
+// --- Test: Session Cycling ---
+
+async function testCycle(): Promise<void> {
+  log("=== TEST: Session Cycling ===");
+
+  await acquirePid();
+  const state = createInitialState();
+
+  // Graceful shutdown on signal
+  setupShutdown(state);
+
+  // Start session
+  await startSession(state);
+
+  // Send a test message
+  log("Sending test message...");
+  state.pushMessage?.({
+    type: "user",
+    message: {
+      role: "user",
+      content: "Say hello and tell me your current persona name. Keep it brief.",
+    },
+    parent_tool_use_id: null,
+  });
+
+  // Wait for response
+  log("Waiting for response...");
+  try {
+    const result = await waitForResult(state, 30_000);
+    log(`Got response: ${result.result?.slice(0, 200)}`);
+  } catch (err: any) {
+    log(`Response wait failed: ${err.message}`);
+  }
+
+  // Wait 10 seconds then trigger cycle
+  log("Waiting 10s before triggering cycle...");
+  await new Promise((r) => setTimeout(r, 10_000));
+
+  log("Triggering manual cycle...");
+  const preCycleTurns = state.turnCount;
+  await cycleSession(state, state.totalInputTokens);
+
+  // Verify new session started
+  if (state.state !== "ACTIVE") {
+    log("FAIL: Session did not reach ACTIVE state after cycle");
+    await cleanup(state);
+    process.exit(1);
+  }
+
+  // Verify handoff was persisted
+  const handoffs = await loadHandoffs();
+  const lastHandoff = handoffs[handoffs.length - 1];
+  if (!lastHandoff) {
+    log("FAIL: No handoff entry found");
+    await cleanup(state);
+    process.exit(1);
+  }
+
+  log(`Handoff summary (first 200 chars): ${lastHandoff.summary.slice(0, 200)}`);
+
+  // Check if the summary is actually meaningful (not just the generic fallback)
+  const isGenericFallback = lastHandoff.summary.startsWith("Session cycled at");
+  if (isGenericFallback) {
+    log("WARN: Got generic fallback summary — handoff capture may not have worked");
+  } else {
+    log("OK: Got meaningful handoff summary");
+  }
+
+  // Send another message to verify new session works with handoff context
+  log("Sending post-cycle message...");
+  state.pushMessage?.({
+    type: "user",
+    message: {
+      role: "user",
+      content:
+        "Do you have any handoff context from a previous session? Just say yes or no briefly.",
+    },
+    parent_tool_use_id: null,
+  });
+
+  try {
+    const result2 = await waitForResult(state, 30_000);
+    log(`Post-cycle response: ${result2.result?.slice(0, 200)}`);
+  } catch (err: any) {
+    log(`Post-cycle response wait failed: ${err.message}`);
+  }
+
+  log("=== TEST COMPLETE: Session Cycling ===");
+  await cleanup(state);
+  process.exit(0);
+}
+
+// --- Benchmark: Latency Measurement ---
+
+async function benchmark(): Promise<void> {
+  log("=== BENCHMARK: Latency Measurement ===");
+
+  await acquirePid();
+  const state = createInitialState();
+  setupShutdown(state);
+
+  await startSession(state);
+
+  const NUM_MESSAGES = 5;
+  const latencies: number[] = [];
+
+  for (let i = 0; i < NUM_MESSAGES; i++) {
+    log(`Message ${i + 1}/${NUM_MESSAGES}...`);
+    const start = performance.now();
+
+    state.pushMessage?.({
+      type: "user",
+      message: {
+        role: "user",
+        content: "Respond with exactly the word 'ok' and nothing else.",
+      },
+      parent_tool_use_id: null,
+    });
+
+    try {
+      await waitForResult(state, 60_000);
+      const elapsed = performance.now() - start;
+      latencies.push(elapsed);
+      log(`  Latency: ${elapsed.toFixed(0)}ms`);
+    } catch (err: any) {
+      log(`  FAILED: ${err.message}`);
+    }
+
+    // Small gap between messages
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+
+  if (latencies.length === 0) {
+    log("FAIL: No successful responses");
+    await cleanup(state);
+    process.exit(1);
+  }
+
+  // Compute stats
+  const sorted = [...latencies].sort((a, b) => a - b);
+  const avg = latencies.reduce((a, b) => a + b, 0) / latencies.length;
+  const p50 = sorted[Math.floor(sorted.length * 0.5)];
+  const p95 = sorted[Math.floor(sorted.length * 0.95)];
+
+  log("=== BENCHMARK RESULTS ===");
+  log(`  Messages:  ${latencies.length}/${NUM_MESSAGES} successful`);
+  log(`  Average:   ${avg.toFixed(0)}ms`);
+  log(`  P50:       ${p50.toFixed(0)}ms`);
+  log(`  P95:       ${p95.toFixed(0)}ms`);
+  log(`  Min:       ${sorted[0].toFixed(0)}ms`);
+  log(`  Max:       ${sorted[sorted.length - 1].toFixed(0)}ms`);
+  log("=========================");
+
+  await cleanup(state);
+  process.exit(0);
+}
+
+// --- Helpers ---
+
+function createInitialState(): MetaState {
+  return {
+    state: "STARTING",
+    session: null,
+    sessionId: generateSessionId(),
+    turnCount: 0,
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
+    totalCostUsd: 0,
+    sessionStartTime: 0,
+    messageQueue: [],
+    contextCheckTimer: null,
+    contextCheckFailures: 0,
+    restartBackoff: INITIAL_RESTART_BACKOFF,
+    pushMessage: null,
+    closeGenerator: null,
+    resultWaiters: [],
+    lastAssistantText: null,
+  };
+}
+
+async function cleanup(state: MetaState): Promise<void> {
+  if (state.contextCheckTimer) {
+    clearInterval(state.contextCheckTimer);
+    state.contextCheckTimer = null;
+  }
+  try {
+    state.closeGenerator?.();
+    state.session?.close();
+  } catch {}
+  await releasePid();
+}
+
+function setupShutdown(state: MetaState): void {
+  let shutdownCalled = false;
+  const shutdown = async () => {
+    if (shutdownCalled) return;
+    shutdownCalled = true;
+    log("Shutting down...");
+    await cleanup(state);
+    log("Shutdown complete");
+    process.exit(0);
+  };
+
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+  process.on("SIGHUP", shutdown);
+}
+
 // --- Main ---
 
 async function main(): Promise<void> {
+  // Handle special modes
+  if (FLAG_TEST_CYCLE) return testCycle();
+  if (FLAG_BENCHMARK) return benchmark();
+
   log("Choomfie Meta-Supervisor starting...");
   log(`Plugin directory: ${PLUGIN_DIR}`);
   log(`Data directory: ${DATA_DIR}`);
   log(`Thresholds: ${TOKEN_THRESHOLD} tokens, ${TURN_THRESHOLD} turns`);
+  if (FLAG_VERBOSE) log("Verbose logging enabled");
 
   // Acquire PID
   await acquirePid();
@@ -455,50 +848,10 @@ async function main(): Promise<void> {
   }
 
   // Initialize state
-  const state: MetaState = {
-    state: "STARTING",
-    session: null,
-    turnCount: 0,
-    totalInputTokens: 0,
-    totalOutputTokens: 0,
-    totalCostUsd: 0,
-    sessionStartTime: 0,
-    messageQueue: [],
-    contextCheckTimer: null,
-  };
+  const state = createInitialState();
 
   // Graceful shutdown
-  let shutdownCalled = false;
-  const shutdown = async () => {
-    if (shutdownCalled) return;
-    shutdownCalled = true;
-    log("Shutting down...");
-
-    // Stop context monitor
-    if (state.contextCheckTimer) {
-      clearInterval(state.contextCheckTimer);
-      state.contextCheckTimer = null;
-    }
-
-    // Close session
-    if (state.session) {
-      try {
-        const closeGenerator = (state as any)._closeGenerator as () => void;
-        closeGenerator?.();
-        state.session.close();
-      } catch {}
-    }
-
-    // Clean up PID
-    await releasePid();
-
-    log("Shutdown complete");
-    process.exit(0);
-  };
-
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
-  process.on("SIGHUP", shutdown);
+  setupShutdown(state);
 
   // Start first session
   await startSession(state, lastSummary);
