@@ -2,8 +2,18 @@
 /**
  * Choomfie Meta-Supervisor — manages Claude Code sessions via the Agent SDK.
  *
- * Spawns a Claude Code session with Choomfie loaded as a plugin, monitors
- * token/turn usage, and cycles sessions when context gets heavy.
+ * Phase 3: The meta-supervisor is the top-level entry point. It manages:
+ *   1. Claude Code sessions (Agent SDK) — cycled when context gets heavy
+ *   2. Worker health monitoring — detects plugin worker issues, triggers recovery
+ *
+ * The worker is still spawned BY the Claude session (via the plugin system),
+ * but meta-supervisor monitors its health and can trigger session cycles to
+ * recover from worker failures.
+ *
+ * Architecture:
+ *   meta.ts (always running)
+ *     └→ Claude Session (Agent SDK, loads Choomfie as plugin)
+ *          └→ supervisor.ts (MCP stdio) → worker.ts (Discord)
  *
  * Usage:
  *   bun meta.ts                 # Normal operation
@@ -34,6 +44,9 @@ const HANDOFF_SUMMARY_TIMEOUT = 30_000; // 30s to generate handoff summary
 const MAX_RESTART_BACKOFF = 60_000; // Max 60s between restart attempts
 const INITIAL_RESTART_BACKOFF = 2_000; // Start with 2s backoff
 const CONTEXT_CHECK_FAILURE_LIMIT = 5; // Fall back to turn-count after N failures
+const WORKER_HEALTH_INTERVAL = 30_000; // Check worker health every 30s
+const WORKER_HEALTH_TIMEOUT = 10_000; // Worker must respond within 10s
+const WORKER_MAX_CONSECUTIVE_FAILURES = 3; // Trigger recovery after 3 consecutive failures
 
 const DATA_DIR =
   process.env.CLAUDE_PLUGIN_DATA ||
@@ -64,6 +77,21 @@ type HandoffEntry = {
   costUsd: number;
 };
 
+type WorkerHealthStatus = {
+  /** Is the worker process alive (PID exists)? */
+  processAlive: boolean;
+  /** Is the worker's Discord client connected? */
+  discordConnected: boolean;
+  /** Worker uptime in ms (0 if not running) */
+  uptimeMs: number;
+  /** Number of active plugins */
+  pluginCount: number;
+  /** Last time worker was confirmed healthy */
+  lastHealthyAt: number;
+  /** Consecutive health check failures */
+  consecutiveFailures: number;
+};
+
 type MetaState = {
   state: SessionState;
   session: Query | null;
@@ -83,6 +111,14 @@ type MetaState = {
   resultWaiters: Array<(result: SDKResultSuccess) => void>;
   /** Last assistant text seen from the session stream */
   lastAssistantText: string | null;
+  /** Worker health monitoring state */
+  workerHealth: WorkerHealthStatus;
+  /** Worker health check timer */
+  workerHealthTimer: ReturnType<typeof setInterval> | null;
+  /** Total session cycles performed */
+  totalCycles: number;
+  /** Reason for last cycle */
+  lastCycleReason: string | null;
 };
 
 // --- Logging ---
@@ -205,10 +241,16 @@ function buildSystemPromptAppend(handoffSummary?: string): string {
   const parts: string[] = [];
 
   parts.push(
-    "You are running under the Choomfie meta-supervisor. " +
+    "You are running under the Choomfie meta-supervisor (Phase 3). " +
       "Your session will be automatically cycled when context gets heavy. " +
+      "The meta-supervisor monitors worker health and will cycle this session " +
+      "if the Discord worker becomes unresponsive.\n\n" +
       "If asked for a handoff summary, provide a concise summary of the current conversation state, " +
-      "active tasks, important context, and any pending work."
+      "active tasks, important context, and any pending work.\n\n" +
+      "The meta-supervisor manages session cycling. The existing 'restart' tool in Choomfie " +
+      "still works for restarting just the Discord worker. A full session cycle (which also " +
+      "restarts the worker) happens automatically when context thresholds are reached or " +
+      "when the worker is detected as unhealthy."
   );
 
   if (handoffSummary) {
@@ -299,6 +341,9 @@ async function startSession(
   // Start periodic context usage checks
   startContextMonitor(state);
 
+  // Start worker health monitoring
+  startWorkerHealthMonitor(state);
+
   // Replay any queued messages
   if (state.messageQueue.length > 0) {
     log(`Replaying ${state.messageQueue.length} queued messages`);
@@ -341,7 +386,8 @@ async function handleStreamError(state: MetaState, err: any): Promise<void> {
 
   log(`Session stream failed unexpectedly: ${err.message || err}`);
 
-  // Clean up current session
+  // Clean up current session and stop monitoring
+  stopWorkerHealthMonitor(state);
   try {
     state.closeGenerator?.();
     state.session?.close();
@@ -570,9 +616,11 @@ async function cycleSession(state: MetaState, tokenCount?: number): Promise<void
   }
 
   state.state = "DRAINING";
-  log("Draining session...");
+  state.totalCycles++;
+  log(`Draining session... (cycle #${state.totalCycles}, reason: ${state.lastCycleReason || "threshold"})`);
 
-  // Stop context monitoring
+  // Stop monitoring during cycle
+  stopWorkerHealthMonitor(state);
   if (state.contextCheckTimer) {
     clearInterval(state.contextCheckTimer);
     state.contextCheckTimer = null;
@@ -772,6 +820,150 @@ async function benchmark(): Promise<void> {
   process.exit(0);
 }
 
+// --- Worker Health Monitoring ---
+
+/**
+ * Check if the worker process is alive by looking for the choomfie PID file
+ * and verifying the supervisor process is running.
+ */
+async function checkWorkerProcessAlive(): Promise<boolean> {
+  const supervisorPidPath = `${DATA_DIR}/choomfie.pid`;
+  try {
+    const pidStr = await readFile(supervisorPidPath, "utf-8");
+    const pid = parseInt(pidStr.trim(), 10);
+    if (!pid || isNaN(pid)) return false;
+
+    // Check if the process is actually running
+    const proc = Bun.spawn(["ps", "-p", String(pid), "-o", "command="], {
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const command = (await new Response(proc.stdout).text()).trim();
+    await proc.exited;
+    return command.length > 0 && (command.includes("choomfie") || command.includes("server.ts") || command.includes("supervisor"));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check worker health by sending a status tool call through the Claude session.
+ * Uses the choomfie_status tool which returns uptime, persona, Discord status, etc.
+ */
+async function checkWorkerHealth(state: MetaState): Promise<void> {
+  if (state.state !== "ACTIVE" || !state.pushMessage) {
+    verbose("Skipping worker health check — session not active");
+    return;
+  }
+
+  const processAlive = await checkWorkerProcessAlive();
+  state.workerHealth.processAlive = processAlive;
+
+  if (!processAlive) {
+    state.workerHealth.consecutiveFailures++;
+    state.workerHealth.discordConnected = false;
+    log(
+      `Worker health: process NOT alive ` +
+        `(failure ${state.workerHealth.consecutiveFailures}/${WORKER_MAX_CONSECUTIVE_FAILURES})`
+    );
+
+    if (state.workerHealth.consecutiveFailures >= WORKER_MAX_CONSECUTIVE_FAILURES) {
+      log("Worker appears dead — triggering session cycle to respawn");
+      state.lastCycleReason = "worker_dead";
+      await cycleSession(state, state.totalInputTokens);
+    }
+    return;
+  }
+
+  // Process is alive — reset failure count
+  state.workerHealth.consecutiveFailures = 0;
+  state.workerHealth.lastHealthyAt = Date.now();
+
+  verbose("Worker health: process alive");
+}
+
+/**
+ * Start periodic worker health monitoring.
+ */
+function startWorkerHealthMonitor(state: MetaState): void {
+  if (state.workerHealthTimer) {
+    clearInterval(state.workerHealthTimer);
+  }
+
+  // Initial check after a delay (give worker time to start)
+  setTimeout(() => checkWorkerHealth(state), 15_000);
+
+  state.workerHealthTimer = setInterval(async () => {
+    try {
+      await checkWorkerHealth(state);
+    } catch (err: any) {
+      log(`Worker health check error: ${err.message || err}`);
+    }
+  }, WORKER_HEALTH_INTERVAL);
+}
+
+/**
+ * Stop worker health monitoring.
+ */
+function stopWorkerHealthMonitor(state: MetaState): void {
+  if (state.workerHealthTimer) {
+    clearInterval(state.workerHealthTimer);
+    state.workerHealthTimer = null;
+  }
+}
+
+// --- Meta-Supervisor Tools ---
+
+/**
+ * Tools owned by the meta-supervisor itself.
+ * These are injected into the Claude session's system prompt so Claude knows about them.
+ * They're triggered by pushing a specific message to the session.
+ */
+
+/**
+ * Trigger a manual session cycle. Called when Claude or the user wants to refresh context.
+ * This is the Phase 3 equivalent of the old "restart" tool — but instead of just restarting
+ * the worker, it cycles the entire Claude session (which also restarts the worker via the
+ * plugin system).
+ */
+async function handleCycleRequest(state: MetaState, reason: string): Promise<void> {
+  if (state.state !== "ACTIVE") {
+    log(`Cannot cycle: state is ${state.state}, not ACTIVE`);
+    return;
+  }
+
+  log(`Manual cycle requested: ${reason}`);
+  state.lastCycleReason = reason;
+  await cycleSession(state, state.totalInputTokens);
+}
+
+/**
+ * Get the current meta-supervisor status including worker health.
+ */
+function getMetaStatus(state: MetaState): string {
+  const uptime = state.sessionStartTime > 0
+    ? Math.round((Date.now() - state.sessionStartTime) / 1000)
+    : 0;
+
+  const lines = [
+    `Meta-Supervisor Status`,
+    `  State: ${state.state}`,
+    `  Session: ${state.sessionId}`,
+    `  Session uptime: ${uptime}s`,
+    `  Turns: ${state.turnCount}/${TURN_THRESHOLD}`,
+    `  Input tokens: ${state.totalInputTokens}/${TOKEN_THRESHOLD}`,
+    `  Cost: $${state.totalCostUsd.toFixed(4)}`,
+    `  Total cycles: ${state.totalCycles}`,
+    `  Last cycle reason: ${state.lastCycleReason || "none"}`,
+    `  Worker health:`,
+    `    Process alive: ${state.workerHealth.processAlive}`,
+    `    Last healthy: ${state.workerHealth.lastHealthyAt ? new Date(state.workerHealth.lastHealthyAt).toISOString() : "never"}`,
+    `    Consecutive failures: ${state.workerHealth.consecutiveFailures}`,
+  ];
+
+  return lines.join("\n");
+}
+
 // --- Helpers ---
 
 function createInitialState(): MetaState {
@@ -792,10 +984,22 @@ function createInitialState(): MetaState {
     closeGenerator: null,
     resultWaiters: [],
     lastAssistantText: null,
+    workerHealth: {
+      processAlive: false,
+      discordConnected: false,
+      uptimeMs: 0,
+      pluginCount: 0,
+      lastHealthyAt: 0,
+      consecutiveFailures: 0,
+    },
+    workerHealthTimer: null,
+    totalCycles: 0,
+    lastCycleReason: null,
   };
 }
 
 async function cleanup(state: MetaState): Promise<void> {
+  stopWorkerHealthMonitor(state);
   if (state.contextCheckTimer) {
     clearInterval(state.contextCheckTimer);
     state.contextCheckTimer = null;
@@ -830,10 +1034,11 @@ async function main(): Promise<void> {
   if (FLAG_TEST_CYCLE) return testCycle();
   if (FLAG_BENCHMARK) return benchmark();
 
-  log("Choomfie Meta-Supervisor starting...");
+  log("Choomfie Meta-Supervisor starting (Phase 3: supervisor collapse)...");
   log(`Plugin directory: ${PLUGIN_DIR}`);
   log(`Data directory: ${DATA_DIR}`);
   log(`Thresholds: ${TOKEN_THRESHOLD} tokens, ${TURN_THRESHOLD} turns`);
+  log(`Worker health: check every ${WORKER_HEALTH_INTERVAL / 1000}s, max ${WORKER_MAX_CONSECUTIVE_FAILURES} failures before recovery`);
   if (FLAG_VERBOSE) log("Verbose logging enabled");
 
   // Acquire PID

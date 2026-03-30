@@ -269,13 +269,20 @@ Don't refactor the current supervisor/worker system yet. Phase 1 wraps the exist
 - `--verbose` flag for debug output
 - Context check fallback (turn-based after 5 failures)
 
-**Phase 3: Refactor if beneficial**
-- If SDK is fast enough and cycling is reliable:
-  - Remove supervisor
-  - Worker becomes standalone MCP server
-  - Meta-supervisor manages both Claude session and worker
+**Phase 3: Supervisor collapse (Option A)** ✅
+- Meta-supervisor adds worker health monitoring
+- Worker stays managed by plugin system (supervisor spawns worker inside Claude session)
+- Meta-supervisor detects worker failures via PID file health checks
+- On worker death: triggers session cycle to respawn everything
+- Session cycle tool replaces manual restart for context refresh
+- Worker restarts on cycle (~3s Discord reconnect, acceptable tradeoff)
+- Full worker-as-sibling architecture (Option B) deferred — only needed if 3s reconnect is unacceptable
 
-Don't refactor prematurely. The current architecture works. Add the meta layer first, prove it works, then simplify.
+**Phase 4 (future): Full sibling architecture**
+- If 3s Discord reconnect on cycle is unacceptable:
+  - Remove supervisor, spawn worker directly from meta-supervisor
+  - Worker survives session cycles (Discord stays connected)
+  - Custom MCP server in meta-supervisor exposes worker tools to Agent SDK
 
 ## Agent SDK Reference
 
