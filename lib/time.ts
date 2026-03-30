@@ -22,7 +22,7 @@ export const MS_PER_DAY = 86_400_000;
  * '2026-03-25 15:28:12'      → '2026-03-25 15:28:12' (no-op)
  */
 export function toSQLiteDatetime(iso: string): string {
-  return iso.replace("T", " ").replace(/\.?\d*Z$/, "").trim();
+  return iso.replace("T", " ").replace(/\.\d+Z?$/, "").replace(/Z$/, "").trim();
 }
 
 /**
