@@ -1,143 +1,169 @@
-# Browser Plugin — Research
+# Browser Plugin — Research (Updated March 2026)
 
-Headless browser plugin for Choomfie. Goal: give the bot browser access for web automation, screenshots, auth, scraping, and testing.
+## Executive Summary
 
-## Top 3 Options
+The landscape has matured. For **social media automation** (Facebook, Reddit, LinkedIn), vanilla Playwright gets detected and blocked — you need stealth capabilities. For **dev/testing**, Playwright MCP or CLI is still king.
 
-### 1. Playwright (Direct) — Pragmatic Choice
+**Recommendation: Two browsers** — clean Playwright for dev/testing, stealth browser for social media.
 
-**What:** Microsoft's browser automation library. Industry standard. Already available as MCP server in our setup.
-**Stars:** ~78k | **License:** Apache-2.0 | **Cost:** Free
+## MCP Browser Servers (Plug Into Claude Code Today)
 
-- TypeScript-native, works with Bun (basic operations confirmed)
-- Screenshots via `page.screenshot()` → Buffer → Discord upload
-- Session persistence via `storageState()` (cookies + localStorage to JSON)
-- Persistent contexts via `launchPersistentContext(userDataDir)` for full profile
-- Anti-bot: basic stealth via `playwright-extra`, new headless mode (full Chrome)
-- **Con:** No AI understanding of pages — relies on selectors or Claude reasoning from screenshots
+### 1. Playwright MCP (Microsoft) — The Baseline
 
-### 2. Stagehand — AI-Native Choice
+**What:** Official Microsoft MCP server. 22 tools.
+**Repo:** github.com/microsoft/playwright-mcp | Free
+**Install:** `npx @playwright/mcp@latest`
 
-**What:** TypeScript library by Browserbase that adds AI actions on top of Playwright.
-**Stars:** ~21.7k | **License:** MIT | **Cost:** Free (+ LLM API cost per AI action)
-**Repo:** github.com/browserbase/stagehand
+- Now supports `--persistent` flag and `--profile=<path>` for session persistence
+- `--storage-state=<file>` loads cookies from JSON
+- Chrome extension "Playwright MCP Bridge" connects to your existing logged-in Chrome
+- Microsoft now also offers **Playwright CLI** (`@playwright/cli`) — 4x fewer tokens than MCP (27K vs 114K per session)
+- **Weakness:** Zero stealth. Facebook/LinkedIn/Instagram will detect and block immediately.
+- **Best for:** Dev/testing, sites that don't have anti-bot
 
-Three APIs:
-- `act("click the login button")` — natural language actions, self-healing selectors
-- `extract("get all product prices")` — structured data extraction with schema
-- `observe("find all interactive elements")` — page understanding
+### 2. BrowserMCP — Uses Your Real Browser
 
-- Built on Playwright — all Playwright APIs still available
-- Can run locally (no Browserbase cloud needed), just needs LLM API key
-- Auto-caching: remembers successful actions, skips LLM on repeat
-- **Con:** Adds LLM cost per AI action, slightly slower
+**What:** Chrome extension + local MCP server. Automates your existing Chrome profile.
+**Site:** browsermcp.io | Free
 
-### 3. Hybrid (Recommended) — Playwright + Stagehand
+- You're already logged into everything — no separate login needed
+- Real browser fingerprint = minimal anti-bot detection
+- Works with Claude Code, Cursor, VS Code
+- **Weakness:** Limited to Chrome extension API. No headless mode. Less programmatic control.
+- **Best for:** Quick tasks on sites you're already logged into
 
-Use Playwright for deterministic operations (navigate, screenshot, known selectors) and Stagehand for AI-powered operations (unknown pages, natural language, extraction).
+### 3. Stealth Browser MCP — The Heavy Hitter
 
-Claude chooses: fast Playwright tools for known workflows, Stagehand AI tools for unfamiliar pages.
+**What:** nodriver + Chrome DevTools Protocol + FastMCP. 90 tools across 11 categories.
+**Repo:** github.com/vibheksoni/stealth-browser-mcp | Free
+**Install:** `uvx stealth-browser-mcp`
+
+- Bypasses Cloudflare, Queue-It, and social media anti-bot (98.7% success rate)
+- AI agents can write custom Python network hooks (intercept/modify traffic)
+- Persistent Chrome sessions with real profiles
+- **Weakness:** Python-based (runs as sidecar MCP server)
+- **Best for:** Facebook/Reddit/LinkedIn automation, scraping protected sites
+
+### 4. Patchright MCP — Stealth Playwright
+
+**What:** Patched Playwright that removes all automation detection signals.
+**Repo:** github.com/dylangroos/patchright-mcp-lite | Free
+
+- navigator.webdriver removed, CDP leaks patched, fingerprint fixed
+- Currently considered undetectable by most anti-bot systems
+- Same Playwright API — drop-in replacement
+- **Weakness:** Chromium-only
+- **Best for:** If you want Playwright-like control with stealth
+
+### 5. Stagehand MCP — AI-Native
+
+**What:** Browserbase's AI browser SDK with act/observe/extract APIs.
+**Repo:** github.com/browserbase/stagehand (v3.2.0, March 2026) | MIT
+
+- v3: complete rewrite, dropped Playwright, CDP-native, 44% faster
+- Action caching cuts token costs, self-healing execution
+- npm MCP server (`stagehand-mcp`) is outdated (v2). Need Browserbase hosted or custom wrapper.
+- **Weakness:** Designed for Browserbase cloud. Local setup is more work. No built-in stealth.
+- **Best for:** AI-native "act/observe/extract" when you don't know the page structure
+
+### 6. Bright Data Social Media MCP — Managed Scraping
+
+**What:** Managed proxy + browser infrastructure with dedicated social media MCP.
+**Site:** brightdata.com | Free tier: 5,000 req/month
+
+- Built-in anti-bot bypass via residential IP rotation
+- Handles infinite scroll, screenshots, 90% accuracy
+- **Weakness:** Not self-hosted. Vendor lock-in beyond free tier.
+- **Best for:** If you want zero-maintenance social media scraping
+
+## AI Browser Agents (Not MCP)
+
+| Agent | Status (March 2026) | Verdict |
+|-------|---------------------|---------|
+| **Anthropic Computer Use** | Research preview (macOS, Pro/Max). Claude controls your desktop. | Game-changing future. Too early for production. |
+| **browser-use (TypeScript)** | v0.6.0, published March 2026. Has MCP SDK dependency. | Very new but promising. 89% WebVoyager score. |
+| **OpenAI Operator** | **Shut down** Aug 2025. Replaced by ChatGPT Agent. | Dead. Skip. |
+| **Fellou** | 1M+ users. Closed-source consumer browser app. | End-user product, no API. Not useful for us. |
+| **Convergence/Proxy** | Acquired by Salesforce. `proxy-lite` open-weights model available. | Research interest only. |
+
+## Session/Auth Management
+
+| Tool | Login Persistence | Stealth | 2FA |
+|------|------------------|---------|-----|
+| **Playwright MCP** | `--persistent` / `--profile` / `--storage-state` | None | Manual first login |
+| **BrowserMCP** | Your real Chrome profile | Native (real browser) | Whatever Chrome has |
+| **Stealth Browser MCP** | Persistent Chrome profiles | nodriver + CDP patches | Manual first login |
+| **Patchright MCP** | Same as Playwright | Anti-detection patches | Manual first login |
+
+## Recommendation for Our Use Cases
+
+### Social Media Automation (Facebook groups, Reddit, LinkedIn)
+
+**Primary: Stealth Browser MCP**
+- 90 tools, anti-bot bypass, persistent sessions
+- Run as sidecar MCP server: `uvx stealth-browser-mcp`
+- Handles Facebook, Reddit, LinkedIn without getting blocked
+
+**Alternative: Patchright MCP**
+- Stays in Playwright/TypeScript ecosystem
+- Undetectable Playwright fork with MCP wrapper
+- Fewer tools but familiar API
+
+**Quick one-off: BrowserMCP**
+- Install Chrome extension, use your already-logged-in browser
+- Zero friction for "just do this one thing on Facebook"
+
+### Dev/Testing Web Apps
+
+**Primary: Playwright CLI** (`@playwright/cli`)
+- 4x fewer tokens than MCP
+- Best for Claude Code (saves snapshots to disk)
+
+**Fallback: Playwright MCP** — already set up, works fine
+
+### Suggested MCP Setup
+
+```json
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest", "--persistent"]
+    },
+    "stealth-browser": {
+      "command": "uvx",
+      "args": ["stealth-browser-mcp"]
+    }
+  }
+}
+```
+
+Two browsers: clean Playwright for dev/testing, stealth for social media.
+
+## What's New in 2026
+
+1. **Playwright CLI** (March 2026) — 4x fewer tokens than MCP for coding agents
+2. **Anthropic Computer Use** (March 24, 2026) — Claude controls your Mac desktop natively
+3. **Stagehand v3** (Feb 2026) — CDP-native, 44% faster, self-healing
+4. **browser-use TypeScript** (March 2026) — Finally a proper TS version with MCP SDK
+5. **Stealth Browser MCP** — 90-tool MCP server with anti-bot bypass
 
 ## Eliminated Options
 
 | Tool | Why Eliminated |
 |------|---------------|
-| Selenium | Legacy, slower, no advantages over Playwright |
-| browser-use (Python) | Python-only, would need subprocess |
-| browser-use (TS port) | 11 stars, stale since Jan 2025 |
-| LaVague | Python-only, stalled since Jan 2025 |
-| Dendrite | Explicitly abandoned |
-| Multion | Cloud-only paid API |
-| Browserbase | Cloud infrastructure, not a local tool |
-| Skyvern | Python server, TS SDK is thin cloud client |
-| Steel | Requires Docker, overkill for single bot |
-| AgentQL | Requires API key, 300 free calls then paid |
+| Selenium | Legacy, slower, no advantages |
+| browser-use Python | Python-only, need subprocess |
+| LaVague | Stalled since Jan 2025 |
+| Dendrite | Abandoned |
+| Multion | Cloud-only paid |
+| OpenAI Operator | Shut down |
+| Fellou | Closed-source consumer product |
 
-## Architecture
+## Implementation Priority
 
-```
-plugins/browser/
-  index.ts          # Plugin entry — registers tools, manages browser lifecycle
-  browser.ts        # Singleton browser manager (launch, persistent context, sessions)
-  tools.ts          # MCP tool definitions:
-                    #   browse_url      — navigate + screenshot (Playwright)
-                    #   click_element   — CSS/XPath selector click (Playwright)
-                    #   fill_form       — fill known fields (Playwright)
-                    #   ai_act          — natural language action (Stagehand)
-                    #   ai_extract      — structured data extraction (Stagehand)
-                    #   ai_observe      — find interactive elements (Stagehand)
-                    #   take_screenshot — capture + upload to Discord (Playwright)
-                    #   save_session    — persist auth cookies (Playwright)
-                    #   load_session    — restore auth cookies (Playwright)
-  sessions.ts       # Session persistence (storageState save/load)
-```
-
-## Session Persistence
-
-Critical for auth across restarts:
-
-1. **storageState()** — Save cookies + localStorage to `~/.claude/plugins/data/choomfie-inline/browser/sessions/{name}.json`
-2. **Persistent context** — Full browser profile in `browser/profiles/{name}/`
-3. **Named sessions** — `save_session("twitter")` / `load_session("twitter")`
-
-## Use Cases
-
-- **Social media auth** — Log into Twitter/LinkedIn/Instagram via browser, persist session. No API keys needed.
-- **Web app testing** — "Check if the login page works" → navigate, fill form, screenshot result
-- **Screenshot capture** — Take screenshots of any URL, upload to Discord
-- **Content scraping** — Read articles, docs, dashboards without APIs
-- **Form automation** — Fill out forms, submit applications
-- **Monitoring** — Check deployment status, dashboard metrics, service health
-
-## Bun Compatibility
-
-- `bun add playwright` works
-- `bunx playwright install chromium` for browser binary
-- Single-page automation (navigate, click, screenshot) works on Bun
-- Test runner with workers can hang (not relevant — we're not running tests)
-- If issues arise, can spawn browser subprocess with Node as fallback
-
-## Packages
-
-```bash
-bun add playwright @browserbasehq/stagehand
-bunx playwright install chromium
-```
-
-## Anti-Bot
-
-- `playwright-extra` + stealth plugin for basic detection bypass
-- New headless mode (full Chrome binary) for better fingerprint
-- For Cloudflare/DataDome: need headed mode or residential proxy (inherent limitation)
-- Stagehand's vision approach can sometimes work better against dynamic anti-bot
-
-## What Top AI Agents Use
-
-Every major AI coding agent builds on Playwright:
-
-| Agent | Browser Tool | Notes |
-|-------|-------------|-------|
-| **Devin** | Built-in Chromium | Full sandbox in cloud VM |
-| **OpenHands** | BrowserGym + Playwright | Screenshots + accessibility tree |
-| **Kilo Code** | Puppeteer-based | Headless browser with screenshots |
-| **Claude Code** | Playwright MCP | What we already have |
-| **Cursor** | None | No browser integration |
-| **SWE-Agent** | None | Terminal only |
-
-**Conclusion:** Playwright is the universal engine. The innovation is in AI abstraction layers on top (browser-use for Python, Stagehand for TypeScript).
-
-## Evaluated & Skipped
-
-- **Agent-Reach** (github.com/Panniantong/Agent-Reach) — Python web content extractor. Strips ads/nav, returns clean text for LLMs. Simpler than what we need — our WebFetch already does this, and Playwright + Readability.js would be strictly better (handles JS-rendered pages).
-- **browser-use** (74k stars) — Most popular AI browser agent, but Python-only. Stagehand is the TS equivalent.
-- **Dia browser** (Browser Company) — AI-native consumer browser, not open source, not for agents.
-- **Arc** — Consumer browser with AI features, not agent-focused.
-
-## Features to Include
-
-1. **Core browser** — launch, navigate, screenshot, session persistence
-2. **Reader mode** — strip page junk (ads, nav, scripts), return clean article text. Use Readability.js or similar extraction on Playwright page content.
-3. **Discord integration** — screenshot upload, embed previews
-4. **Stagehand AI actions** — natural language control for unknown pages
-5. **Social media auth** — browser-based login for socials plugin (bypasses API costs)
-6. **Monitoring/automation** — scheduled checks, alerts
+1. **Add Stealth Browser MCP** — `uvx stealth-browser-mcp` in .mcp.json
+2. **Log into Facebook/Reddit/LinkedIn** — manual first login, sessions persist
+3. **Build automation workflows** — scrape housing groups, post to socials
+4. **Add Playwright CLI** for dev/testing (optional, Playwright MCP works fine)
+5. **Evaluate BrowserMCP** for quick ad-hoc tasks
