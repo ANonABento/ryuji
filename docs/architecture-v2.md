@@ -1,8 +1,30 @@
 # Architecture V2: Meta-Supervisor + Worker
 
-## Status: Planning
+## Status: Planning — Last Updated 2026-03-30
 
-Exploring whether we can collapse the 4-layer architecture into 2 layers.
+## TL;DR
+
+```
+Meta-Supervisor (meta.ts) — always running, manages everything
+  ├→ Claude Session (Agent SDK) — the brain, cycled when context heavy
+  └→ Discord Worker (worker.ts) — hands and feet, talks to Discord
+```
+
+## Role Matrix
+
+| Layer | Process | Lifecycle | Responsibilities | Owns |
+|-------|---------|-----------|-----------------|------|
+| **Meta-Supervisor** | `meta.ts` (Bun) | Immortal (systemd/launchd) | Spawn + cycle Claude sessions. Spawn + restart Discord worker. Route messages between Claude ↔ Worker. Monitor context usage. Handoff summaries. PID guard. Health checks. | Session lifecycle, worker lifecycle, message routing, state persistence |
+| **Claude Session** | Agent SDK subprocess | Disposable (cycled every ~120K tokens) | Process messages. Reason about what to do. Decide which tools to call. Generate responses. Maintain conversation context. Follow persona. | LLM reasoning, tool selection, conversation memory (ephemeral) |
+| **Discord Worker** | `worker.ts` (Bun) | Disposable (restartable) | Discord client connection. Plugin runtime (voice, browser, socials, language-learning). Execute tool calls (reply, react, browse, speak, etc.). Handle interactions (buttons, slash commands, modals). Reminders. | Discord connection, plugin state, tool execution, real-time features |
+
+## What Each Layer Does NOT Do
+
+| Layer | Does NOT |
+|-------|----------|
+| **Meta-Supervisor** | Does NOT reason about messages. Does NOT call tools directly. Does NOT talk to Discord. |
+| **Claude Session** | Does NOT persist across restarts. Does NOT manage Discord. Does NOT survive context overflow. |
+| **Discord Worker** | Does NOT decide what to say. Does NOT manage Claude. Does NOT handle context/sessions. |
 
 ## Current Architecture (V1)
 
@@ -63,6 +85,29 @@ The current supervisor's ONLY job is keeping the MCP pipe alive. If meta-supervi
 - `worker.ts` — same Discord worker, same plugins, same tools. Just different IPC parent.
 - All plugins (voice, browser, socials, language-learning) — unchanged.
 - All tool definitions — unchanged, but registered differently.
+
+## Communication
+
+| From → To | Channel | Data |
+|-----------|---------|------|
+| Worker → Meta | IPC (Bun.spawn) | Discord messages, voice transcripts, interaction events |
+| Meta → Claude | Agent SDK (stdin stream) | User messages, tool results, system prompts |
+| Claude → Meta | Agent SDK (stdout stream) | Responses, tool calls, token usage |
+| Meta → Worker | IPC (Bun.spawn) | Tool calls to execute (reply, browse, etc.) |
+| Worker → Meta | IPC | Tool results (message sent, screenshot path, etc.) |
+
+## Lifecycle Events
+
+| Event | Who Handles | What Happens |
+|-------|-------------|--------------|
+| Bot startup | Meta-Supervisor | Spawns Claude session + Discord worker |
+| Discord message | Worker → Meta → Claude | Routed to Claude for processing |
+| Tool call | Claude → Meta → Worker | Worker executes, returns result |
+| Context full (~120K) | Meta-Supervisor | Drains, generates summary, cycles Claude session |
+| Worker crash | Meta-Supervisor | Respawns worker, Claude session unaffected |
+| Claude session error | Meta-Supervisor | Respawns session with last handoff summary |
+| Code update / restart | Meta-Supervisor | Kills worker, spawns fresh one. Optionally cycles Claude session. |
+| Shutdown | Meta-Supervisor | Graceful shutdown of Claude session + worker |
 
 ## Flow Comparison
 
