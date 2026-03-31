@@ -1,5 +1,5 @@
 /**
- * SRS singleton — breaks circular dependency between index.ts and tools.ts.
+ * SRS singleton — breaks circular dependency between index.ts and tools.
  */
 
 import type { SRSManager } from "./srs.ts";

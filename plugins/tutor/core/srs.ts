@@ -7,17 +7,16 @@
 
 import { FSRS, createEmptyCard, Rating, type Card } from "ts-fsrs";
 import { Database } from "bun:sqlite";
-import { nowUTC, toSQLiteDatetime } from "../../lib/time.ts";
+import { nowUTC, toSQLiteDatetime } from "../../../lib/time.ts";
 
 export interface SRSCard {
   id: number;
   userId: string;
-  front: string; // e.g. "食べる"
-  back: string; // e.g. "to eat (taberu)"
-  reading: string; // e.g. "たべる"
-  deck: string; // e.g. "jlpt-n5"
-  tags: string; // e.g. "verb,ichidan,n5"
-  // FSRS state (serialized JSON)
+  front: string;
+  back: string;
+  reading: string;
+  deck: string;
+  tags: string;
   cardState: string;
   nextReview: string;
   createdAt: string;
@@ -64,7 +63,6 @@ export class SRSManager {
     `);
   }
 
-  /** Add a card to a user's deck */
   addCard(
     userId: string,
     front: string,
@@ -78,19 +76,10 @@ export class SRSManager {
         `INSERT INTO srs_cards (user_id, front, back, reading, deck, tags, card_state)
          VALUES (?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(
-        userId,
-        front,
-        back,
-        reading,
-        deck,
-        tags,
-        this.emptyCardState
-      );
+      .run(userId, front, back, reading, deck, tags, this.emptyCardState);
     return Number(result.lastInsertRowid);
   }
 
-  /** Import a batch of cards (for loading JLPT decks) */
   importDeck(
     userId: string,
     deck: string,
@@ -117,26 +106,20 @@ export class SRSManager {
       }
     });
     tx();
-
     return count;
   }
 
-  /** Get cards due for review */
   getDueCards(userId: string, deck?: string, limit: number = 10): SRSCard[] {
     const now = nowUTC();
     const query = deck
       ? `SELECT * FROM srs_cards WHERE user_id = ? AND deck = ? AND next_review <= ? ORDER BY next_review ASC LIMIT ?`
       : `SELECT * FROM srs_cards WHERE user_id = ? AND next_review <= ? ORDER BY next_review ASC LIMIT ?`;
 
-    const params = deck
-      ? [userId, deck, now, limit]
-      : [userId, now, limit];
-
+    const params = deck ? [userId, deck, now, limit] : [userId, now, limit];
     const rows = this.db.query(query).all(...params) as any[];
     return rows.map(this.rowToCard);
   }
 
-  /** Review a card with a rating */
   reviewCard(
     userId: string,
     cardId: number,
@@ -181,15 +164,12 @@ export class SRSManager {
     return { card, nextReview, interval };
   }
 
-  /** Get deck stats for a user */
   getDeckStats(
     userId: string,
     deck?: string
   ): { total: number; due: number; learned: number } {
     const now = nowUTC();
-    const where = deck
-      ? "user_id = ? AND deck = ?"
-      : "user_id = ?";
+    const where = deck ? "user_id = ? AND deck = ?" : "user_id = ?";
     const params = deck ? [userId, deck] : [userId];
 
     const total = (
@@ -204,7 +184,6 @@ export class SRSManager {
         .get(...params, now) as any
     ).c;
 
-    // "Learned" = reviewed at least once (card_state != empty)
     const learned = (
       this.db
         .query(
@@ -216,7 +195,6 @@ export class SRSManager {
     return { total, due, learned };
   }
 
-  /** Check if a user has a deck loaded */
   hasDeck(userId: string, deck: string): boolean {
     const count = (
       this.db

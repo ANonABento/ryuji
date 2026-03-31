@@ -1,6 +1,6 @@
 # Tutor Plugin — Generalized Teaching Harness
 
-> Status: Research & Design
+> Status: Phase 1 complete (core harness + Japanese migration)
 > Date: 2026-03-31
 
 ## Vision
@@ -138,16 +138,16 @@ interface QuizQuestion {
 
 ## Migration Path
 
-1. Extract SRS engine from `language-learning/srs.ts` → `tutor/core/srs.ts` (no changes needed)
-2. Create TutorModule interface
-3. Wrap existing Japanese code as a TutorModule
-4. Build the tutor plugin shell (module discovery, tool routing)
-5. Migrate language-learning tools to tutor tools
+1. ~~Extract SRS engine from `language-learning/srs.ts` → `tutor/core/srs.ts`~~ ✅
+2. ~~Create TutorModule interface~~ ✅
+3. ~~Wrap existing Japanese code as a TutorModule~~ ✅
+4. ~~Build the tutor plugin shell (module discovery, tool routing)~~ ✅
+5. ~~Migrate language-learning tools to tutor tools~~ ✅
 6. Add new modules incrementally
 
 ## Open Questions
 
-- [ ] Should the language-learning plugin be replaced entirely, or should tutor be a new plugin that supersedes it?
+- [x] ~~Should the language-learning plugin be replaced entirely?~~ Yes — tutor replaces it completely.
 - [ ] How to handle module-specific Discord interactions (e.g. kana conversion only makes sense for Japanese)?
 - [ ] Should modules be able to register their own slash commands?
 - [ ] How to handle cross-module SRS (e.g. user studying both Japanese and math)?

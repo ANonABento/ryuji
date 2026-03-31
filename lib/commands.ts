@@ -433,7 +433,7 @@ registerCommand("plugins", {
         )
     )
     .addStringOption((o) =>
-      o.setName("name").setDescription("Plugin name (e.g. voice, socials, language-learning)")
+      o.setName("name").setDescription("Plugin name (e.g. voice, tutor, socials)")
     )
     .toJSON(),
   handler: async (interaction, ctx) => {

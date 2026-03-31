@@ -2,12 +2,9 @@
  * Japanese dictionary — Jisho API.
  *
  * Free, no API key needed. Returns readings, meanings, JLPT level, parts of speech.
- *
- * Note: unofficial-jisho-api has cheerio ESM compatibility issues with Bun.
- * Using raw Jisho API directly instead.
  */
 
-import type { DictionaryEntry } from "../types.ts";
+import type { DictionaryEntry } from "../../core/types.ts";
 
 const JISHO_API = "https://jisho.org/api/v1/search/words";
 

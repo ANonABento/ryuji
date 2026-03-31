@@ -72,6 +72,27 @@ plugins/                       # Plugin directory (each plugin = subdirectory)
     index.ts                   # Browser plugin entry — tools, instructions, lifecycle
     session.ts                 # Session manager — persistent Playwright contexts
     tools.ts                   # MCP tools: browse, click, type, screenshot, eval, key, close
+  tutor/
+    index.ts                   # Tutor plugin entry — modular teaching harness
+    core/
+      types.ts                 # TutorModule interface
+      srs.ts                   # FSRS spaced repetition engine (SQLite)
+      srs-instance.ts          # SRS singleton
+      session.ts               # Per-user module/level tracking
+    tools/
+      index.ts                 # Tool aggregator
+      srs-tools.ts             # srs_review, srs_rate, srs_stats
+      tutor-tools.ts           # tutor_prompt, quiz, dictionary_lookup, set_level
+      module-tools.ts          # list_modules, switch_module
+    modules/
+      index.ts                 # Module registry
+      japanese/                # Japanese module (JLPT N5-N1)
+        index.ts               # TutorModule implementation
+        dictionary.ts          # Jisho API
+        kana.ts                # Romaji ↔ kana (wanakana)
+        furigana.ts            # Auto-add readings to kanji (kuroshiro)
+        tools.ts               # convert_kana tool
+        data/n5-vocab.json     # 718 JLPT N5 vocabulary cards
   socials/
     index.ts                   # Socials plugin entry — aggregates platform tools
     tools.ts                   # MCP tools for all platforms

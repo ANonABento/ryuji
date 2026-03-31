@@ -1,11 +1,12 @@
 /**
- * Japanese language module.
+ * Japanese tutor module.
  */
 
-import type { LanguageModule, QuizQuestion } from "../types.ts";
+import type { TutorModule, QuizQuestion } from "../../core/types.ts";
 import { lookupJisho } from "./dictionary.ts";
+import { initFurigana } from "./furigana.ts";
+import { japaneseTools } from "./tools.ts";
 
-// Beginner kana quiz data
 const HIRAGANA = [
   ["あ", "a"], ["い", "i"], ["う", "u"], ["え", "e"], ["お", "o"],
   ["か", "ka"], ["き", "ki"], ["く", "ku"], ["け", "ke"], ["こ", "ko"],
@@ -64,19 +65,8 @@ function pickN<T>(arr: T[], n: number): T[] {
   return shuffled.slice(0, n);
 }
 
-export const japaneseModule: LanguageModule = {
-  name: "japanese",
-  displayName: "Japanese",
-  code: "ja",
-  levels: ["N5", "N4", "N3", "N2", "N1"],
-
-  async lookup(query: string) {
-    return lookupJisho(query);
-  },
-
-  buildTutorPrompt(level: string): string {
-    const levelGuides: Record<string, string> = {
-      N5: `Student is a COMPLETE BEGINNER (JLPT N5).
+const LEVEL_GUIDES: Record<string, string> = {
+  N5: `Student is a COMPLETE BEGINNER (JLPT N5).
 - Use only basic vocabulary and grammar
 - Always include furigana for kanji: 食[た]べる
 - Explain everything in English first, then show Japanese
@@ -86,7 +76,7 @@ export const japaneseModule: LanguageModule = {
 - If they write in romaji, gently encourage hiragana but still understand
 - Celebrate small wins, be encouraging`,
 
-      N4: `Student is ELEMENTARY (JLPT N4).
+  N4: `Student is ELEMENTARY (JLPT N4).
 - Use N5+N4 vocabulary
 - Include furigana for N4+ kanji
 - Mix English and Japanese explanations
@@ -94,27 +84,76 @@ export const japaneseModule: LanguageModule = {
 - Grammar: conditional ば/たら, てもいい/てはいけない, ている
 - Introduce casual speech alongside polite`,
 
-      N3: `Student is INTERMEDIATE (JLPT N3).
+  N3: `Student is INTERMEDIATE (JLPT N3).
 - Use up to N3 vocabulary freely
 - Furigana only for uncommon kanji
 - Explain primarily in Japanese with English for complex grammar
 - Focus on: passive, causative, keigo basics, compound sentences
 - Longer conversations, abstract topics`,
 
-      N2: `Student is UPPER-INTERMEDIATE (JLPT N2).
+  N2: `Student is UPPER-INTERMEDIATE (JLPT N2).
 - Natural Japanese, minimal English
 - Complex grammar and expressions
 - Nuance, context, register differences
 - Business Japanese, formal writing`,
 
-      N1: `Student is ADVANCED (JLPT N1).
+  N1: `Student is ADVANCED (JLPT N1).
 - Native-level Japanese
 - Literary expressions, classical grammar references
 - Debate, persuasion, academic topics
 - Only use English if explicitly asked`,
-    };
+};
 
-    return `You are a Japanese language tutor. ${levelGuides[level] || levelGuides.N5}
+const GRAMMAR_QUESTIONS: QuizQuestion[] = [
+  {
+    question: 'Fill in the blank: わたし＿学生です。(I am a student)',
+    options: ["は", "が", "を", "に"],
+    correctIndex: 0,
+    explanation: "は (wa) is the topic marker. わたしは = 'As for me...'",
+  },
+  {
+    question: 'Fill in the blank: 水＿飲みます。(I drink water)',
+    options: ["を", "は", "に", "で"],
+    correctIndex: 0,
+    explanation: "を (wo) marks the direct object. 水を飲む = drink water",
+  },
+  {
+    question: 'Fill in the blank: 学校＿行きます。(I go to school)',
+    options: ["に", "を", "は", "が"],
+    correctIndex: 0,
+    explanation: "に (ni) marks the destination. 学校に行く = go to school",
+  },
+  {
+    question: "How do you say 'I don't eat' in Japanese?",
+    options: ["食べません", "食べます", "食べない", "食べた"],
+    correctIndex: 0,
+    explanation: "食べません is the polite negative form of 食べる (to eat)",
+  },
+  {
+    question: "Which is the correct question form?",
+    options: ["これは何ですか？", "これは何です。", "これは何でか？", "これは何かです？"],
+    correctIndex: 0,
+    explanation: "か at the end of a です/ます sentence makes it a question",
+  },
+];
+
+export const japaneseModule: TutorModule = {
+  name: "japanese",
+  displayName: "Japanese",
+  description: "JLPT-based Japanese language learning with kana, kanji, and grammar",
+  icon: "🇯🇵",
+  levels: ["N5", "N4", "N3", "N2", "N1"],
+  defaultLevel: "N5",
+  quizTypes: ["reading", "vocab", "grammar"],
+
+  tools: japaneseTools,
+
+  async lookup(query: string) {
+    return lookupJisho(query);
+  },
+
+  buildTutorPrompt(level: string): string {
+    return `You are a Japanese language tutor. ${LEVEL_GUIDES[level] || LEVEL_GUIDES.N5}
 
 When the student writes in Japanese, respond with a JSON block:
 \`\`\`json
@@ -135,9 +174,8 @@ If the student writes in English, respond naturally as a tutor — teach, explai
 Always be encouraging and patient. Language learning is hard!`;
   },
 
-  generateQuiz(level: string, type: "reading" | "vocab" | "grammar"): QuizQuestion {
+  generateQuiz(level: string, type: string): QuizQuestion {
     if (type === "reading") {
-      // Kana reading quiz
       const kanaSet = Math.random() > 0.5 ? HIRAGANA : KATAKANA;
       const setName = kanaSet === HIRAGANA ? "hiragana" : "katakana";
       const correct = pick(kanaSet);
@@ -175,42 +213,8 @@ Always be encouraging and patient. Language learning is hard!`;
       };
     }
 
-    // Grammar quiz (N5 basics)
-    const grammarQs: QuizQuestion[] = [
-      {
-        question: 'Fill in the blank: わたし＿学生です。(I am a student)',
-        options: ["は", "が", "を", "に"],
-        correctIndex: 0,
-        explanation: "は (wa) is the topic marker. わたしは = 'As for me...'",
-      },
-      {
-        question: 'Fill in the blank: 水＿飲みます。(I drink water)',
-        options: ["を", "は", "に", "で"],
-        correctIndex: 0,
-        explanation: "を (wo) marks the direct object. 水を飲む = drink water",
-      },
-      {
-        question: 'Fill in the blank: 学校＿行きます。(I go to school)',
-        options: ["に", "を", "は", "が"],
-        correctIndex: 0,
-        explanation: "に (ni) marks the destination. 学校に行く = go to school",
-      },
-      {
-        question: "How do you say 'I don't eat' in Japanese?",
-        options: ["食べません", "食べます", "食べない", "食べた"],
-        correctIndex: 0,
-        explanation: "食べません is the polite negative form of 食べる (to eat)",
-      },
-      {
-        question: "Which is the correct question form?",
-        options: ["これは何ですか？", "これは何です。", "これは何でか？", "これは何かです？"],
-        correctIndex: 0,
-        explanation: "か at the end of a です/ます sentence makes it a question",
-      },
-    ];
-
-    // Shuffle grammar quiz options
-    const q = pick(grammarQs);
+    // Grammar
+    const q = pick(GRAMMAR_QUESTIONS);
     const correctAnswer = q.options[q.correctIndex];
     const shuffled = [...q.options].sort(() => Math.random() - 0.5);
     return {
@@ -218,5 +222,13 @@ Always be encouraging and patient. Language learning is hard!`;
       options: shuffled,
       correctIndex: shuffled.indexOf(correctAnswer),
     };
+  },
+
+  async init() {
+    try {
+      await initFurigana();
+    } catch (e) {
+      console.error(`Japanese module: furigana init failed (non-critical): ${e}`);
+    }
   },
 };

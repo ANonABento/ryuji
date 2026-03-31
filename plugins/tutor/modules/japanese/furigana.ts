@@ -2,8 +2,6 @@
  * Furigana engine — auto-adds readings to kanji text.
  *
  * Uses kuroshiro for morphological analysis + reading generation.
- * Shared utility — language-agnostic wrapper, currently JP only.
- *
  * Output format: 食[た]べ物[もの] (Discord-friendly bracket notation)
  */
 
@@ -36,12 +34,10 @@ export async function initFurigana(): Promise<void> {
 /** Add furigana to Japanese text. Returns bracket notation: 食[た]べる */
 export async function addFurigana(text: string): Promise<string> {
   if (!kuroshiro) await initFurigana();
-  // Kuroshiro returns HTML ruby tags — convert to bracket notation for Discord
   const html = await kuroshiro.convert(text, {
     mode: "furigana",
     to: "hiragana",
   });
-  // <ruby>食<rp>(</rp><rt>た</rt><rp>)</rp></ruby>べる → 食[た]べる
   return html
     .replace(/<ruby>/g, "")
     .replace(/<\/ruby>/g, "")
