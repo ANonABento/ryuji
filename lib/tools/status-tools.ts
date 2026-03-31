@@ -93,7 +93,7 @@ export const statusTools: ToolDef[] = [
         `  Available: ${allPersonas.map((p) => `${p.key}${p.active ? " (active)" : ""}`).join(", ")}`,
         `  How to change: "switch to choomfie" or "switch to takagi"`,
         `  Create new: "create a pirate persona" or "save persona called yoda"`,
-        `  Takes effect: next session restart`,
+        `  Takes effect: auto-restarts on switch`,
         "",
         "## System Prompt",
         `  Location: ~/choomfie/lib/mcp-server.ts (instructions array)`,
@@ -169,7 +169,7 @@ export const statusTools: ToolDef[] = [
         "  System prompt edits — edit ~/choomfie/lib/mcp-server.ts",
         "  Model selection — /model in Claude Code",
         "  Adding new tools — add a file in ~/choomfie/lib/tools/ and register in index.ts",
-        "  Plugin restart — restart Claude Code (or run `choomfie`)",
+        "  Plugin/persona/voice changes — auto-restarts worker (MCP stays alive)",
       ];
 
       return text(lines.filter(Boolean).join("\n"));

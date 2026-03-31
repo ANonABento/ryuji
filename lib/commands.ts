@@ -18,6 +18,7 @@ import {
 import { dirname, join } from "node:path";
 import { VERSION } from "./version.ts";
 import { registerCommand, registerButtonHandler } from "./interactions.ts";
+import { McpProxy } from "./mcp-proxy.ts";
 import { formatDuration, fromSQLiteDatetime } from "./time.ts";
 import { isOwner, requireOwner } from "./handlers/shared.ts";
 import { buildGhArgs, runGh } from "./handlers/github.ts";
@@ -374,8 +375,11 @@ registerCommand("persona", {
         });
         return;
       }
+      if (ctx.mcp instanceof McpProxy) {
+        ctx.mcp.requestRestart(`persona switch: ${switchTo}`);
+      }
       await interaction.reply({
-        content: `Switched to **${persona.name}**. Restart session for full effect.`,
+        content: `Switched to **${persona.name}**. Restarting...`,
       });
     } else {
       const personas = ctx.config.listPersonas();
@@ -456,7 +460,7 @@ registerCommand("plugins", {
         } else if (inConfig && !loadedPlugin) {
           status = "🔴 enabled but failed to load";
         } else if (!inConfig && loadedPlugin) {
-          status = "🟠 disabled (restart to remove)";
+          status = "🟠 disabled (pending restart)";
         } else {
           status = "⚪ disabled";
         }
@@ -498,10 +502,13 @@ registerCommand("plugins", {
         return;
       }
       ctx.config.setEnabledPlugins([...enabled, name]);
+      if (ctx.mcp instanceof McpProxy) {
+        ctx.mcp.requestRestart(`plugin enable: ${name}`);
+      }
       const embed = new EmbedBuilder()
         .setColor(0x57f287)
         .setTitle(`Plugin Enabled: ${name}`)
-        .setDescription("Restart to activate.")
+        .setDescription("Restarting to activate...")
         .setFooter({ text: `Enabled: ${[...enabled, name].join(", ")}` });
       await interaction.reply({ embeds: [embed] });
     } else {
@@ -514,10 +521,13 @@ registerCommand("plugins", {
       }
       const remaining = enabled.filter((p) => p !== name);
       ctx.config.setEnabledPlugins(remaining);
+      if (ctx.mcp instanceof McpProxy) {
+        ctx.mcp.requestRestart(`plugin disable: ${name}`);
+      }
       const embed = new EmbedBuilder()
         .setColor(0xed4245)
         .setTitle(`Plugin Disabled: ${name}`)
-        .setDescription("Restart to deactivate.")
+        .setDescription("Restarting to deactivate...")
         .setFooter({ text: remaining.length ? `Enabled: ${remaining.join(", ")}` : "No plugins enabled" });
       await interaction.reply({ embeds: [embed] });
     }
@@ -633,6 +643,9 @@ registerButtonHandler("voice-setup", async (interaction, parts, ctx) => {
   if (kind !== "stt" && kind !== "tts") return;
 
   ctx.config.setVoiceConfig({ [kind]: provider });
+  if (ctx.mcp instanceof McpProxy) {
+    ctx.mcp.requestRestart(`voice config: ${kind}=${provider}`);
+  }
   const voiceConfig = ctx.config.getVoiceConfig();
 
   const embed = new EmbedBuilder()
@@ -642,7 +655,7 @@ registerButtonHandler("voice-setup", async (interaction, parts, ctx) => {
       { name: "STT", value: `\`${voiceConfig.stt}\``, inline: true },
       { name: "TTS", value: `\`${voiceConfig.tts}\``, inline: true }
     )
-    .setFooter({ text: "Restart to apply changes" });
+    .setFooter({ text: "Restarting to apply..." });
 
   await interaction.update({
     embeds: [embed],

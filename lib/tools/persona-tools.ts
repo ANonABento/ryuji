@@ -4,6 +4,7 @@
 
 import type { ToolDef } from "../types.ts";
 import { text, err } from "../types.ts";
+import { McpProxy } from "../mcp-proxy.ts";
 
 export const personaTools: ToolDef[] = [
   {
@@ -33,8 +34,12 @@ export const personaTools: ToolDef[] = [
           `Persona "${args.key}" not found. Available: ${available}`
         );
       }
+      // Auto-restart so the new persona's system prompt takes effect
+      if (ctx.mcp instanceof McpProxy) {
+        ctx.mcp.requestRestart(`persona switch: ${args.key}`);
+      }
       return text(
-        `Switched to **${persona.name}**. Restart the session for full effect.\nPersonality: ${persona.personality}`
+        `Switched to **${persona.name}**. Restarting to apply new personality...`
       );
     },
   },

@@ -57,4 +57,20 @@ export class McpProxy {
       await handler({ params: msg.params as Record<string, unknown> });
     }
   }
+
+  /**
+   * Request supervisor to restart the worker process.
+   * Used after config changes that require fresh system prompt (persona switch, plugin toggle, etc.).
+   */
+  requestRestart(reason: string) {
+    if (!process.send) {
+      console.error("McpProxy: no IPC channel — cannot request restart");
+      return;
+    }
+    try {
+      process.send({ type: "request_restart", reason });
+    } catch {
+      // Supervisor may have died
+    }
+  }
 }

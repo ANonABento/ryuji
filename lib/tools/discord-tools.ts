@@ -68,7 +68,7 @@ export const discordTools: ToolDef[] = [
     definition: {
       name: "reply",
       description:
-        "Reply to a Discord message. Pass chat_id from the inbound message. Use embeds for structured content (status, lists, summaries); plain text for casual chat. Use keep_typing: true when you plan to do more work and send another message. Use edit_message for progress updates (no push notification). Persona changes via switch_persona take effect on restart.",
+        "Reply to a Discord message. Pass chat_id from the inbound message. Use embeds for structured content (status, lists, summaries); plain text for casual chat. Use keep_typing: true when you plan to do more work and send another message. Use edit_message for progress updates (no push notification).",
       inputSchema: {
         type: "object" as const,
         properties: {

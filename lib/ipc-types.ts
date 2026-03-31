@@ -31,7 +31,12 @@ export interface IpcLog {
   message: string;
 }
 
-export type WorkerMessage = IpcReady | IpcToolResult | IpcNotification | IpcLog;
+export interface IpcRequestRestart {
+  type: "request_restart";
+  reason: string;
+}
+
+export type WorkerMessage = IpcReady | IpcToolResult | IpcNotification | IpcLog | IpcRequestRestart;
 
 // --- Supervisor → Worker ---
 

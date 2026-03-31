@@ -2,32 +2,221 @@
 
 > Subprocess-based architecture for Choomfie.
 
-## Architecture
+## The Problem
+
+Choomfie runs **inside** Claude Code as an MCP plugin. Claude Code talks to it over **stdio** (stdin/stdout). If the bot crashes or you want to reload code, the MCP connection dies — Claude Code loses the plugin and you have to restart your whole session.
+
+The supervisor/worker split solves this: **the process Claude talks to never dies**, even when the Discord bot crashes or restarts.
+
+## The Big Picture
 
 ```
-Claude Code ← MCP stdio → supervisor.ts (immortal, ~200 lines)
-                              ↕ Bun IPC
-                          worker.ts (disposable)
+┌─────────────────────────────────────────────────────────┐
+│                     Claude Code                          │
+│                                                          │
+│  "Hey Choomfie, send a message to Discord"               │
+│                                                          │
+└────────────────────┬────────────────────────────────────┘
+                     │
+                     │  stdio (stdin/stdout)
+                     │  MCP protocol (JSON-RPC)
+                     │
+┌────────────────────▼────────────────────────────────────┐
+│              SUPERVISOR  (supervisor.ts)                  │
+│                                                          │
+│  ✦ IMMORTAL — never restarts                             │
+│  ✦ Owns the MCP server (the stdin/stdout connection)     │
+│  ✦ Owns the "restart" tool                               │
+│  ✦ Routes tool calls down, notifications up              │
+│  ✦ Auto-respawns worker on crash                         │
+│                                                          │
+└────────────────────┬────────────────────────────────────┘
+                     │
+                     │  Bun IPC (process.send / process.on("message"))
+                     │  JSON messages, bidirectional
+                     │
+┌────────────────────▼────────────────────────────────────┐
+│                WORKER  (worker.ts)                        │
+│                                                          │
+│  ✦ DISPOSABLE — can be killed and respawned              │
+│  ✦ Owns Discord connection                               │
+│  ✦ Owns all 49 tools (reply, react, memory, etc.)        │
+│  ✦ Owns plugins (voice, browser, language-learning)      │
+│  ✦ Owns reminders, config, permissions                   │
+│                                                          │
+└────────────────────┬────────────────────────────────────┘
+                     │
+                     │  discord.js WebSocket
+                     │
+┌────────────────────▼────────────────────────────────────┐
+│                   Discord                                │
+└─────────────────────────────────────────────────────────┘
 ```
 
-**Supervisor** (`supervisor.ts`): MCP server, IPC routing, restart tool, PID guard, crash recovery. Never restarts.
-**Worker** (`worker.ts`): Discord client, plugins, reminders, voice, tools, memory. Disposable — killed and respawned on restart.
+## How a Tool Call Flows
 
-## How It Works
+When Claude wants to do something (e.g. send a Discord message):
 
-1. `server.ts` (thin wrapper) imports `supervisor.ts`
-2. Supervisor acquires PID file, spawns worker via `Bun.spawn(["bun", "worker.ts"], { ipc })`
-3. Worker creates AppContext, loads plugins, creates Discord client, builds tool list
-4. Worker waits for Discord to be fully initialized (plugins, reminders, slash commands)
-5. Worker sends `{ type: "ready", tools, instructions }` to supervisor via IPC
-6. Supervisor creates MCP server with real instructions + tools, connects stdio transport
-7. Claude Code calls `initialize` → gets correct persona, security rules, tool list
+```
+Claude Code                Supervisor              Worker               Discord
+    │                          │                      │                     │
+    │  ── MCP tool_call ──►    │                      │                     │
+    │     "reply"              │                      │                     │
+    │                          │  ── IPC tool_call ──►│                     │
+    │                          │     id: "42"         │                     │
+    │                          │     name: "reply"    │                     │
+    │                          │                      │  ── API call ──►    │
+    │                          │                      │     send message    │
+    │                          │                      │                     │
+    │                          │                      │  ◄── success ──     │
+    │                          │  ◄── IPC result ──   │                     │
+    │                          │     id: "42"         │                     │
+    │  ◄── MCP result ──       │                      │                     │
+    │     "Message sent"       │                      │                     │
+```
 
-**Tool call flow:** Claude → MCP → supervisor → IPC → worker → handler → IPC → supervisor → MCP → Claude
+## How a Discord Message Reaches Claude
 
-**Notification flow:** Discord message → worker → IPC notification → supervisor → MCP → Claude
+When someone messages the bot on Discord, it flows in reverse:
 
-**Restart:** Supervisor sends `{ type: "shutdown" }` → worker cleans up + exits → supervisor spawns new worker → waits for ready → sends `tools/list_changed` notification → Claude re-fetches tools. MCP connection never interrupted.
+```
+Discord              Worker                Supervisor           Claude Code
+   │                    │                      │                     │
+   │  ── message ──►    │                      │                     │
+   │    "@bot hi"       │                      │                     │
+   │                    │  ── IPC notify ──►    │                     │
+   │                    │    "new message"      │                     │
+   │                    │                       │  ── MCP notify ──►  │
+   │                    │                       │    "user said hi"   │
+   │                    │                       │                     │
+   │                    │                       │    Claude thinks... │
+   │                    │                       │                     │
+   │                    │                       │  ◄── tool_call ──   │
+   │                    │  ◄── IPC tool_call ── │    "reply: hey!"   │
+   │  ◄── API call ──   │                      │                     │
+   │    send reply      │  ── IPC result ──►    │                     │
+   │                    │                       │  ── MCP result ──►  │
+```
+
+## The Restart Flow
+
+This is where the architecture really pays off:
+
+```
+Claude Code            Supervisor                  Worker (old)      Worker (new)
+    │                      │                           │
+    │  ── "restart" ──►    │                           │
+    │                      │  ── IPC "shutdown" ──►    │
+    │                      │                           │ cleanup...
+    │                      │                           │ discord.destroy()
+    │                      │                           │ plugins.destroy()
+    │                      │                           X (exits)
+    │                      │
+    │                      │  Bun.spawn("worker.ts")          │
+    │                      │  ─────────────────────────────►   │
+    │                      │                                   │ loads config
+    │                      │                                   │ loads plugins
+    │                      │                                   │ connects Discord
+    │                      │                                   │ schedules reminders
+    │                      │  ◄── IPC "ready" (49 tools) ──   │
+    │                      │
+    │                      │  ── MCP "tools/list_changed" ──►  │
+    │  ◄── "Restarted" ── │                                    │
+    │                      │                                    │
+    │  (MCP connection     │                                    │
+    │   never broke!)      │                                    │
+```
+
+The key insight: **Claude Code never knew anything happened.** The stdio pipe stayed open the whole time. It just got a notification that the tool list changed (in case new plugins were enabled) and carried on.
+
+## Crash Recovery
+
+If the worker dies unexpectedly:
+
+```
+Supervisor                           Worker
+    │                                   │
+    │                                   X  (crash! non-zero exit)
+    │
+    │  crashCount++ (1/5)
+    │  wait 1 second...
+    │
+    │  Bun.spawn("worker.ts")            │ (new worker)
+    │  ──────────────────────────────►    │
+    │                                     │ boots up...
+    │  ◄── IPC "ready" ──                │
+    │
+    │  (If it crashes again: 2s, 4s, 8s, 15s backoff)
+    │  (After 5 crashes in 60s: gives up)
+```
+
+## Startup Sequence
+
+```
+server.ts
+  │
+  └─► import "./supervisor.ts"
+        │
+        ├─ 1. Acquire PID file (kill old instance if running)
+        ├─ 2. Bun.spawn("worker.ts") with IPC
+        │       │
+        │       ├─ createContext() — env, config, memory, access list
+        │       ├─ loadPlugins() — voice, browser, language-learning
+        │       ├─ McpProxy() — fake MCP server for IPC forwarding
+        │       ├─ createDiscordClient() — sets up event handlers
+        │       ├─ discord.login() — connects to Discord gateway
+        │       ├─ await ClientReady — plugins init, reminders load, commands deploy
+        │       └─ process.send({ type: "ready", tools, instructions })
+        │
+        ├─ 3. Wait for worker "ready" (up to 30s)
+        ├─ 4. Create MCP server with real tools + instructions
+        └─ 5. Connect stdio transport — Claude Code can now talk to us
+```
+
+## IPC Protocol
+
+The supervisor and worker talk using typed JSON messages over Bun's built-in IPC:
+
+```
+        Worker → Supervisor                Supervisor → Worker
+    ┌──────────────────────┐          ┌──────────────────────┐
+    │ ready                │          │ tool_call            │
+    │   tools: [...]       │          │   id: "42"           │
+    │   instructions: "..."│          │   name: "reply"      │
+    ├──────────────────────┤          │   args: {...}        │
+    │ tool_result          │          ├──────────────────────┤
+    │   id: "42"           │          │ permission_request   │
+    │   result: {...}      │          │   request_id: "..."  │
+    ├──────────────────────┤          │   tool_name: "..."   │
+    │ notification         │          ├──────────────────────┤
+    │   method: "..."      │          │ shutdown             │
+    │   params: {...}      │          │   (no payload)       │
+    ├──────────────────────┤          └──────────────────────┘
+    │ log                  │
+    │   message: "..."     │
+    └──────────────────────┘
+```
+
+Only 4 message types in each direction. Simple and explicit.
+
+## The McpProxy Trick
+
+The worker doesn't have a real MCP server — the supervisor owns that. But the worker's code (discord.ts, permissions.ts, plugins) was written to call `ctx.mcp.notification()`.
+
+The `McpProxy` class solves this by **duck-typing** the MCP Server interface:
+
+```
+Worker code:                           What actually happens:
+─────────────                          ──────────────────────
+ctx.mcp.notification({                 process.send({
+  method: "notifications/message",       type: "notification",
+  params: { text: "hello" }              method: "notifications/message",
+})                                       params: { text: "hello" }
+                                       })
+                                       → IPC → Supervisor → real MCP → Claude
+```
+
+Existing code doesn't need to know it's in a child process. It just calls `ctx.mcp` like before.
 
 ## File Layout
 
@@ -39,22 +228,16 @@ Claude Code ← MCP stdio → supervisor.ts (immortal, ~200 lines)
 | `lib/ipc-types.ts` | Shared IPC message types |
 | `lib/mcp-proxy.ts` | Duck-type MCP Server for worker (`notification()` + `setNotificationHandler()`) |
 | `lib/mcp-server.ts` | `buildInstructions()` + `createMcpServer()` (used by worker + boot test) |
-| `lib/tools/system-tools.ts` | Empty (restart moved to supervisor) |
 
-## IPC Protocol
+## PID File Guard
 
-```typescript
-// Supervisor → Worker
-{ type: "tool_call", id: string, name: string, args: object }
-{ type: "permission_request", method: string, params: object }
-{ type: "shutdown" }
+Only one supervisor can run at a time:
 
-// Worker → Supervisor
-{ type: "ready", tools: IpcToolDef[], instructions: string }
-{ type: "tool_result", id: string, result: ToolResult }
-{ type: "notification", method: string, params: object }
-{ type: "log", level: string, message: string }
-```
+1. Check `~/.claude/plugins/data/choomfie-inline/choomfie.pid`
+2. If PID exists → check if it's actually a choomfie process (via `ps`)
+3. If yes → SIGTERM it, wait 500ms
+4. Write own PID to file
+5. On shutdown → delete PID file
 
 ## Key Design Decisions
 
@@ -100,33 +283,130 @@ When the worker sends `ready` (initial or after restart), supervisor sends a `no
 | Tool call | 2min |
 | Graceful shutdown wait | 5s |
 
+## Summary
+
+| Concept | What | Why |
+|---------|------|-----|
+| **Supervisor** | Immortal process, owns MCP stdio | Claude Code connection survives restarts |
+| **Worker** | Disposable process, owns Discord + tools | Can be killed/restarted freely |
+| **IPC** | Bun's built-in `process.send` | Fast, typed JSON, no sockets |
+| **McpProxy** | Fake MCP server in worker | Existing code works unchanged |
+| **PID guard** | Single-instance lock file | No duplicate bots |
+| **Crash recovery** | Auto-respawn with backoff | Self-healing (up to 5 crashes/min) |
+| **Restart tool** | Supervisor-owned, kills+respawns worker | Hot reload without dropping MCP |
+
 ---
+
+## Phase 2: Worker-Requested Restart (Auto-Restart)
+
+The worker currently has no way to ask the supervisor to restart it. Several operations update config but tell users "restart for full effect" — this phase adds a `request_restart` IPC message so the worker can trigger its own restart.
+
+### IPC Addition
+
+```
+Worker → Supervisor:
+  { type: "request_restart", reason: "persona switch: takagi" }
+```
+
+Supervisor handles it identically to the `restart` tool — graceful shutdown, respawn, wait for ready, send `tools/list_changed`.
+
+### Auto-Restart Triggers
+
+| Trigger | Where | Current Behavior | After |
+|---------|-------|-----------------|-------|
+| **Persona switch** (MCP tool) | `lib/tools/persona-tools.ts` | Updates config, returns "restart for full effect" | Auto-restarts, new persona loads in system prompt |
+| **Persona switch** (slash command) | `lib/commands.ts` `/persona switch` | Updates config, says "restart for full effect" | Auto-restarts |
+| **Plugin enable/disable** (slash command) | `lib/commands.ts` `/plugins` | Updates config, says "restart to activate/deactivate" | Auto-restarts, plugin loads/unloads |
+| **Voice config change** (setup wizard buttons) | `lib/commands.ts` voice-setup handler | Updates config, says "restart to apply changes" | Auto-restarts, new STT/TTS providers initialize |
+| **Code update / hot reload** | N/A (manual restart today) | Owner calls `restart` tool manually | Could auto-detect file changes (future — watchmode) |
+
+### Implementation
+
+1. **`lib/ipc-types.ts`** — Add `IpcRequestRestart` type:
+   ```typescript
+   export interface IpcRequestRestart {
+     type: "request_restart";
+     reason: string;
+   }
+   ```
+   Add to `WorkerMessage` union.
+
+2. **`lib/mcp-proxy.ts`** or **`lib/types.ts`** — Expose restart request on AppContext:
+   ```typescript
+   // Option A: method on McpProxy
+   ctx.mcp.requestRestart("persona switch: takagi")
+
+   // Option B: method on AppContext directly
+   ctx.requestRestart("persona switch: takagi")
+   ```
+   Both just call `process.send({ type: "request_restart", reason })`.
+
+3. **`supervisor.ts`** — Handle `request_restart` in the worker message handler:
+   - Extract the restart logic from `handleSupervisorTool("restart")` into a shared `restartWorker(reason)` function
+   - Call it from both the `restart` tool handler and the `request_restart` IPC handler
+   - Note: the tool_call that triggered the persona switch is still pending — need to either:
+     - (a) Return the tool result first, then restart (small delay)
+     - (b) Let the restart kill the worker, supervisor resolves pending tool call with "restarting..."
+
+4. **`lib/tools/persona-tools.ts`** — After `switchPersona()`, call `ctx.requestRestart()`:
+   ```typescript
+   handler: async (args, ctx) => {
+     const persona = ctx.config.switchPersona(args.key as string);
+     if (!persona) return err(...);
+     ctx.requestRestart(`persona switch: ${args.key}`);
+     return text(`Switched to **${persona.name}**. Restarting...`);
+   },
+   ```
+
+5. **`lib/commands.ts`** — Same pattern for `/persona switch`, `/plugins enable|disable`, voice-setup buttons:
+   ```typescript
+   ctx.requestRestart(`plugin ${action}: ${name}`);
+   ```
+
+### Timing Consideration
+
+The tricky part: when a tool triggers restart, the tool result needs to reach Claude Code before the worker dies. Flow:
+
+```
+Worker: switchPersona() → send tool_result via IPC → send request_restart via IPC
+Supervisor: receives tool_result → forwards to Claude via MCP → receives request_restart → begins restart
+```
+
+Since IPC messages are ordered (same channel), the tool result will always arrive at the supervisor before the restart request. The supervisor should forward the tool result to Claude, **then** begin the restart sequence. Small `setTimeout(0)` or `queueMicrotask()` may be needed to ensure the MCP response flushes before killing the worker.
+
+### What This Replaces
+
+After implementation, remove all "restart for full effect" / "restart to apply" messages from:
+- `lib/tools/persona-tools.ts` (switch_persona)
+- `lib/tools/discord-tools.ts` (reply tool description mentioning persona restart)
+- `lib/commands.ts` (/persona switch, /plugins enable/disable, voice-setup buttons)
+- `lib/tools/status-tools.ts` (status display mentioning restart)
 
 ## Future Phases
 
-### Phase 2: Voice Auto-Rejoin
+### Phase 3: Voice Auto-Rejoin
 - Supervisor tracks active voice channels (join_voice / leave_voice via IPC)
 - On worker respawn, send saved voice state → worker auto-joins
 
-### Phase 3: Restart Handoff (basic compaction)
+### Phase 4: Restart Handoff (basic compaction)
 - Supervisor tracks last 10 messages (user full, bot truncated to ~500 chars)
 - On restart: save handoff to memory/file
 - On new session: inject handoff as context
 
-### Phase 4: Idle Compaction (LLM-powered)
+### Phase 5: Idle Compaction (LLM-powered)
 - Track message count since last compaction
 - On idle (5 min + 50+ messages): ask Claude to triage via MCP notification
 - 3 buckets: store to memory / compact to summary / toss
 
-### Phase 5: Graceful Shutdown with Compaction
+### Phase 6: Graceful Shutdown with Compaction
 - Supervisor detects stdin close → sends compact request → timeout (10s) → skip if slow
 - Cancel on new session (PID guard kills old supervisor)
 
-### Phase 6: Multi-Bot (choomfie-sim)
+### Phase 7: Multi-Bot (choomfie-sim)
 - Supervisor manages worker pool (one per bot/persona)
 - Each worker = different Discord token
 - Claude sees messages from all bots, tagged with source
 
-### Phase 7: Multi-Brain
+### Phase 8: Multi-Brain
 - One bot, multiple Claude connections
 - Route by channel, topic, or load

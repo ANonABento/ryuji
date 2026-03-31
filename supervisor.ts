@@ -173,6 +173,17 @@ function handleWorkerMessage(msg: WorkerMessage) {
         }
         break;
 
+      case "request_restart":
+        // Worker requested its own restart (e.g. after persona switch, plugin toggle).
+        // Delay briefly so the tool_result IPC message (sent after requestRestart in the handler)
+        // has time to arrive and be forwarded to Claude before we kill the worker.
+        setTimeout(() => {
+          restartWorker(msg.reason).catch((e) => {
+            console.error(`Supervisor: worker-requested restart failed: ${e}`);
+          });
+        }, 100);
+        break;
+
       case "log":
         console.error(`Worker: ${msg.message}`);
         break;
@@ -228,45 +239,52 @@ const SUPERVISOR_TOOLS: IpcToolDef[] = [
   },
 ];
 
+/** Shared restart logic — used by both the restart tool and worker-requested restarts. */
+async function restartWorker(reason: string): Promise<{ timedOut: boolean }> {
+  console.error(`Supervisor: restarting worker — ${reason}`);
+  intentionalRestart = true;
+
+  // Graceful shutdown (even if not ready yet — worker may be mid-startup)
+  if (worker) {
+    try { worker.send({ type: "shutdown" }); } catch {}
+    // Wait up to 5s for graceful exit
+    const exitPromise = worker.exited;
+    const timeout = new Promise((r) => setTimeout(r, 5000));
+    await Promise.race([exitPromise, timeout]);
+    // Kill if still alive
+    try { worker.kill(); } catch {}
+  }
+
+  // Spawn fresh worker (reset crash count — intentional restart = clean slate)
+  intentionalRestart = false;
+  crashCount = 0;
+  worker = spawnWorker();
+
+  // Wait for ready
+  const timedOut = await new Promise<boolean>((resolve) => {
+    const readyTimer = setTimeout(() => {
+      clearInterval(readyPoll);
+      resolve(true);
+    }, WORKER_READY_TIMEOUT);
+    const readyPoll = setInterval(() => {
+      if (workerReady) {
+        clearInterval(readyPoll);
+        clearTimeout(readyTimer);
+        resolve(false);
+      }
+    }, 100);
+  });
+
+  return { timedOut };
+}
+
 async function handleSupervisorTool(
   name: string,
   args: Record<string, unknown>
 ): Promise<any> {
   if (name === "restart") {
     const reason = (args.reason as string) || "manual restart";
-    console.error(`Supervisor: restarting worker — ${reason}`);
-    intentionalRestart = true;
-
-    // Graceful shutdown (even if not ready yet — worker may be mid-startup)
-    if (worker) {
-      try { worker.send({ type: "shutdown" }); } catch {}
-      // Wait up to 5s for graceful exit
-      const exitPromise = worker.exited;
-      const timeout = new Promise((r) => setTimeout(r, 5000));
-      await Promise.race([exitPromise, timeout]);
-      // Kill if still alive
-      try { worker.kill(); } catch {}
-    }
-
-    // Spawn fresh worker (reset crash count — manual restart = clean slate)
-    intentionalRestart = false;
-    crashCount = 0;
-    worker = spawnWorker();
-
-    // Wait for ready
-    const timedOut = await new Promise<boolean>((resolve) => {
-      const readyTimer = setTimeout(() => {
-        clearInterval(readyPoll);
-        resolve(true);
-      }, WORKER_READY_TIMEOUT);
-      const readyPoll = setInterval(() => {
-        if (workerReady) {
-          clearInterval(readyPoll);
-          clearTimeout(readyTimer);
-          resolve(false);
-        }
-      }, 100);
-    });
+    const { timedOut } = await restartWorker(reason);
 
     if (timedOut) {
       return {
