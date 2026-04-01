@@ -305,8 +305,13 @@ The worker currently has no way to ask the supervisor to restart it. Several ope
 
 ```
 Worker → Supervisor:
-  { type: "request_restart", reason: "persona switch: takagi" }
+  { type: "request_restart", reason: "persona switch: takagi", chat_id?: "123..." }
+
+Supervisor → Worker (after restart completes):
+  { type: "restart_confirmation", reason: "persona switch: takagi", chat_id: "123..." }
 ```
+
+The optional `chat_id` enables restart confirmation: after the new worker boots, the supervisor tells it to send a "✓ Restarted" message to the channel. This is used by slash commands (which bypass Claude). MCP tool restarts don't need it — Claude sees the tool result and handles follow-up itself.
 
 Supervisor handles it identically to the `restart` tool — graceful shutdown, respawn, wait for ready, send `tools/list_changed`.
 

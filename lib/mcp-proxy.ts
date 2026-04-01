@@ -61,14 +61,15 @@ export class McpProxy {
   /**
    * Request supervisor to restart the worker process.
    * Used after config changes that require fresh system prompt (persona switch, plugin toggle, etc.).
+   * Pass chat_id to get a confirmation message sent to that channel after restart completes.
    */
-  requestRestart(reason: string) {
+  requestRestart(reason: string, chat_id?: string) {
     if (!process.send) {
       console.error("McpProxy: no IPC channel — cannot request restart");
       return;
     }
     try {
-      process.send({ type: "request_restart", reason });
+      process.send({ type: "request_restart", reason, chat_id });
     } catch {
       // Supervisor may have died
     }

@@ -177,10 +177,22 @@ function handleWorkerMessage(msg: WorkerMessage) {
         // Worker requested its own restart (e.g. after persona switch, plugin toggle).
         // Delay briefly so the tool_result IPC message (sent after requestRestart in the handler)
         // has time to arrive and be forwarded to Claude before we kill the worker.
-        setTimeout(() => {
-          restartWorker(msg.reason).catch((e) => {
+        setTimeout(async () => {
+          try {
+            const { timedOut } = await restartWorker(msg.reason);
+            // Send confirmation to Discord via the new worker
+            if (msg.chat_id && worker && workerReady && !timedOut) {
+              try {
+                worker.send({
+                  type: "restart_confirmation",
+                  reason: msg.reason,
+                  chat_id: msg.chat_id,
+                });
+              } catch {}
+            }
+          } catch (e) {
             console.error(`Supervisor: worker-requested restart failed: ${e}`);
-          });
+          }
         }, 100);
         break;
 

@@ -376,7 +376,7 @@ registerCommand("persona", {
         return;
       }
       if (ctx.mcp instanceof McpProxy) {
-        ctx.mcp.requestRestart(`persona switch: ${switchTo}`);
+        ctx.mcp.requestRestart(`persona switch: ${switchTo}`, interaction.channelId);
       }
       await interaction.reply({
         content: `Switched to **${persona.name}**. Restarting...`,
@@ -503,7 +503,7 @@ registerCommand("plugins", {
       }
       ctx.config.setEnabledPlugins([...enabled, name]);
       if (ctx.mcp instanceof McpProxy) {
-        ctx.mcp.requestRestart(`plugin enable: ${name}`);
+        ctx.mcp.requestRestart(`plugin enable: ${name}`, interaction.channelId);
       }
       const embed = new EmbedBuilder()
         .setColor(0x57f287)
@@ -522,7 +522,7 @@ registerCommand("plugins", {
       const remaining = enabled.filter((p) => p !== name);
       ctx.config.setEnabledPlugins(remaining);
       if (ctx.mcp instanceof McpProxy) {
-        ctx.mcp.requestRestart(`plugin disable: ${name}`);
+        ctx.mcp.requestRestart(`plugin disable: ${name}`, interaction.channelId);
       }
       const embed = new EmbedBuilder()
         .setColor(0xed4245)
@@ -644,7 +644,7 @@ registerButtonHandler("voice-setup", async (interaction, parts, ctx) => {
 
   ctx.config.setVoiceConfig({ [kind]: provider });
   if (ctx.mcp instanceof McpProxy) {
-    ctx.mcp.requestRestart(`voice config: ${kind}=${provider}`);
+    ctx.mcp.requestRestart(`voice config: ${kind}=${provider}`, interaction.channelId);
   }
   const voiceConfig = ctx.config.getVoiceConfig();
 

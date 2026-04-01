@@ -34,6 +34,8 @@ export interface IpcLog {
 export interface IpcRequestRestart {
   type: "request_restart";
   reason: string;
+  /** Channel to send confirmation after restart completes */
+  chat_id?: string;
 }
 
 export type WorkerMessage = IpcReady | IpcToolResult | IpcNotification | IpcLog | IpcRequestRestart;
@@ -57,7 +59,13 @@ export interface IpcShutdown {
   type: "shutdown";
 }
 
-export type SupervisorMessage = IpcToolCall | IpcPermissionRequest | IpcShutdown;
+export interface IpcRestartConfirmation {
+  type: "restart_confirmation";
+  reason: string;
+  chat_id: string;
+}
+
+export type SupervisorMessage = IpcToolCall | IpcPermissionRequest | IpcShutdown | IpcRestartConfirmation;
 
 // --- Shared ---
 

@@ -75,6 +75,14 @@ process.on("message", async (msg: SupervisorMessage) => {
       }
     }
     try { process.send?.({ type: "tool_result", id: msg.id, result }); } catch {}
+  } else if (msg.type === "restart_confirmation") {
+    // Send confirmation to Discord after a worker-requested restart completed
+    try {
+      const ch = await ctx.discord.channels.fetch(msg.chat_id);
+      if (ch?.isTextBased() && "send" in ch) {
+        (ch as any).send(`✓ Restarted (${msg.reason})`);
+      }
+    } catch {}
   } else if (msg.type === "permission_request") {
     await mcpProxy.handlePermissionRequest(msg);
   } else if (msg.type === "shutdown") {
