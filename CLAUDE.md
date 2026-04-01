@@ -219,7 +219,7 @@ Modal forms triggered from slash commands, defined in `lib/handlers/modals.ts`:
 - `lib/handlers/github.ts` — `buildGhArgs()` + `runGh()` (used by MCP tool + slash command)
 - `lib/version.ts` — `VERSION` constant from package.json (used by mcp-server, commands, status-tools)
 
-## Tools (32)
+## Tools (35)
 
 Discord: reply (with embeds), react, edit_message, fetch_messages, search_messages, create_thread, create_poll, pin_message, unpin_message
 Memory: save_memory, search_memory, list_memories, delete_memory, save_conversation_summary, memory_stats
@@ -227,7 +227,7 @@ Personas: switch_persona, save_persona, list_personas, delete_persona
 Reminders: set_reminder, list_reminders, cancel_reminder, snooze_reminder, ack_reminder
 Access: allow_user, remove_user, list_allowed_users (owner only)
 Lessons: lesson_status
-LinkedIn: linkedin_auth, linkedin_post, linkedin_delete, linkedin_comments, linkedin_comment, linkedin_react, linkedin_status
+LinkedIn: linkedin_auth, linkedin_post, linkedin_post_image, linkedin_post_images, linkedin_post_link, linkedin_delete, linkedin_comments, linkedin_comment, linkedin_react, linkedin_status
 GitHub: check_github
 Status: choomfie_status
 System: restart (owner only, supervisor-owned — kills worker, spawns fresh one, reloads all code)

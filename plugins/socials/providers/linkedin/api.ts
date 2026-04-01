@@ -471,6 +471,227 @@ export class LinkedInClient {
   }
 
   /**
+   * Upload an image to LinkedIn and return its URN.
+   * Accepts a URL (fetched) or a local file path (read from disk).
+   */
+  async uploadImage(source: string): Promise<string> {
+    const token = await this.ensureToken();
+    const personUrn = await this.ensurePersonUrn();
+
+    // Step 1: Initialize upload
+    const initResp = await fetch(
+      `${LINKEDIN_REST_BASE}/images?action=initializeUpload`,
+      {
+        method: "POST",
+        headers: this.restHeaders(token),
+        body: JSON.stringify({
+          initializeUploadRequest: { owner: personUrn },
+        }),
+      }
+    );
+
+    if (!initResp.ok) {
+      const body = await initResp.text();
+      throw new Error(`Image upload init failed (${initResp.status}): ${body}`);
+    }
+
+    const initData = (await initResp.json()) as {
+      value: { uploadUrl: string; image: string };
+    };
+    const { uploadUrl, image: imageUrn } = initData.value;
+
+    // Step 2: Get image bytes
+    let imageBytes: ArrayBuffer;
+    if (source.startsWith("http://") || source.startsWith("https://")) {
+      const imgResp = await fetch(source);
+      if (!imgResp.ok) throw new Error(`Failed to fetch image from ${source}`);
+      imageBytes = await imgResp.arrayBuffer();
+    } else {
+      // Local file path
+      const file = Bun.file(source);
+      if (!(await file.exists())) throw new Error(`Image file not found: ${source}`);
+      imageBytes = await file.arrayBuffer();
+    }
+
+    // Step 3: Upload binary
+    const uploadResp = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}` },
+      body: imageBytes,
+    });
+
+    if (!uploadResp.ok) {
+      const body = await uploadResp.text();
+      throw new Error(`Image upload failed (${uploadResp.status}): ${body}`);
+    }
+
+    return imageUrn;
+  }
+
+  /**
+   * Create a post with a single image.
+   */
+  async postWithImage(
+    text: string,
+    imageSource: string,
+    altText?: string
+  ): Promise<LinkedInPostResult> {
+    const token = await this.ensureToken();
+    const personUrn = await this.ensurePersonUrn();
+
+    const imageUrn = await this.uploadImage(imageSource);
+
+    const body = {
+      author: personUrn,
+      commentary: text,
+      visibility: "PUBLIC",
+      distribution: {
+        feedDistribution: "MAIN_FEED",
+        targetEntities: [],
+        thirdPartyDistributionChannels: [],
+      },
+      content: {
+        media: {
+          id: imageUrn,
+          ...(altText ? { altText } : {}),
+        },
+      },
+      lifecycleState: "PUBLISHED",
+      isReshareDisabledByAuthor: false,
+    };
+
+    const resp = await fetch(`${LINKEDIN_REST_BASE}/posts`, {
+      method: "POST",
+      headers: this.restHeaders(token),
+      body: JSON.stringify(body),
+    });
+
+    if (!resp.ok) {
+      const respBody = await resp.text();
+      throw new Error(`LinkedIn image post failed (${resp.status}): ${respBody}`);
+    }
+
+    const postUrn =
+      resp.headers.get("x-restli-id") || resp.headers.get("X-RestLi-Id") || "";
+    const postUrl = postUrn
+      ? `https://www.linkedin.com/feed/update/${postUrn}/`
+      : undefined;
+
+    return { id: postUrn, url: postUrl };
+  }
+
+  /**
+   * Create a post with multiple images (2-20).
+   */
+  async postWithImages(
+    text: string,
+    imageSources: string[],
+    altTexts?: string[]
+  ): Promise<LinkedInPostResult> {
+    if (imageSources.length < 2 || imageSources.length > 20) {
+      throw new Error("Multi-image posts require 2-20 images.");
+    }
+
+    const token = await this.ensureToken();
+    const personUrn = await this.ensurePersonUrn();
+
+    // Upload all images in parallel
+    const imageUrns = await Promise.all(
+      imageSources.map((src) => this.uploadImage(src))
+    );
+
+    const images = imageUrns.map((urn, i) => ({
+      id: urn,
+      ...(altTexts?.[i] ? { altText: altTexts[i] } : {}),
+    }));
+
+    const body = {
+      author: personUrn,
+      commentary: text,
+      visibility: "PUBLIC",
+      distribution: {
+        feedDistribution: "MAIN_FEED",
+        targetEntities: [],
+        thirdPartyDistributionChannels: [],
+      },
+      content: {
+        multiImage: { images },
+      },
+      lifecycleState: "PUBLISHED",
+      isReshareDisabledByAuthor: false,
+    };
+
+    const resp = await fetch(`${LINKEDIN_REST_BASE}/posts`, {
+      method: "POST",
+      headers: this.restHeaders(token),
+      body: JSON.stringify(body),
+    });
+
+    if (!resp.ok) {
+      const respBody = await resp.text();
+      throw new Error(`LinkedIn multi-image post failed (${resp.status}): ${respBody}`);
+    }
+
+    const postUrn =
+      resp.headers.get("x-restli-id") || resp.headers.get("X-RestLi-Id") || "";
+    const postUrl = postUrn
+      ? `https://www.linkedin.com/feed/update/${postUrn}/`
+      : undefined;
+
+    return { id: postUrn, url: postUrl };
+  }
+
+  /**
+   * Create an article/link post with metadata.
+   */
+  async postWithLink(
+    text: string,
+    url: string,
+    title?: string,
+    description?: string
+  ): Promise<LinkedInPostResult> {
+    const token = await this.ensureToken();
+    const personUrn = await this.ensurePersonUrn();
+
+    const article: Record<string, string> = { source: url };
+    if (title) article.title = title;
+    if (description) article.description = description;
+
+    const body = {
+      author: personUrn,
+      commentary: text,
+      visibility: "PUBLIC",
+      distribution: {
+        feedDistribution: "MAIN_FEED",
+        targetEntities: [],
+        thirdPartyDistributionChannels: [],
+      },
+      content: { article },
+      lifecycleState: "PUBLISHED",
+      isReshareDisabledByAuthor: false,
+    };
+
+    const resp = await fetch(`${LINKEDIN_REST_BASE}/posts`, {
+      method: "POST",
+      headers: this.restHeaders(token),
+      body: JSON.stringify(body),
+    });
+
+    if (!resp.ok) {
+      const respBody = await resp.text();
+      throw new Error(`LinkedIn link post failed (${resp.status}): ${respBody}`);
+    }
+
+    const postUrn =
+      resp.headers.get("x-restli-id") || resp.headers.get("X-RestLi-Id") || "";
+    const postUrl = postUrn
+      ? `https://www.linkedin.com/feed/update/${postUrn}/`
+      : undefined;
+
+    return { id: postUrn, url: postUrl };
+  }
+
+  /**
    * Delete a post by its URN.
    */
   async deletePost(postUrn: string): Promise<void> {

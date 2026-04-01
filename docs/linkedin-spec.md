@@ -8,12 +8,15 @@ Working:
 - OAuth 2.0 (standard 3-legged, no PKCE — LinkedIn rejects PKCE for "Share on LinkedIn")
 - Token refresh with 5-min buffer before expiry
 - Text posts via Posts API (`/rest/posts`, LinkedIn-Version: 202603)
+- Image posts (single image, URL or local file)
+- Multi-image posts (2-20 images, parallel upload)
+- Link/article posts with metadata (title, description)
 - Delete posts
 - Read comments on own posts
 - Comment on posts
 - React to posts (like/celebrate/support/love/insightful/funny)
 - Profile fetch via OpenID userinfo
-- 7 MCP tools: `linkedin_auth`, `linkedin_post`, `linkedin_delete`, `linkedin_comments`, `linkedin_comment`, `linkedin_react`, `linkedin_status`
+- 10 MCP tools: `linkedin_auth`, `linkedin_post`, `linkedin_post_image`, `linkedin_post_images`, `linkedin_post_link`, `linkedin_delete`, `linkedin_comments`, `linkedin_comment`, `linkedin_react`, `linkedin_status`
 
 Scopes: `openid`, `profile`, `w_member_social`
 

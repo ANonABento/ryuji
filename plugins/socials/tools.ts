@@ -581,6 +581,137 @@ export const socialsTools: ToolDef[] = [
   },
   {
     definition: {
+      name: "linkedin_post_image",
+      description:
+        "Post to LinkedIn with an image. Accepts a URL or local file path for the image. Owner only.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          text: {
+            type: "string",
+            description: "Post text (up to 3000 characters).",
+          },
+          image: {
+            type: "string",
+            description: "Image URL (https://...) or local file path.",
+          },
+          alt_text: {
+            type: "string",
+            description: "Alt text for accessibility (optional).",
+          },
+        },
+        required: ["text", "image"],
+      },
+    },
+    handler: async (args, ctx) => {
+      try {
+        const client = getLinkedInClient(ctx);
+        const postText = args.text as string;
+        if (postText.length > 3000) {
+          return err("LinkedIn posts are limited to 3000 characters.");
+        }
+        const result = await client.postWithImage(
+          postText,
+          args.image as string,
+          args.alt_text as string | undefined
+        );
+        const urlLine = result.url ? `\nURL: ${result.url}` : "";
+        return text(`Posted to LinkedIn with image.\nPost ID: ${result.id}${urlLine}`);
+      } catch (e: any) {
+        return err(`LinkedIn image post failed: ${e.message}`);
+      }
+    },
+  },
+  {
+    definition: {
+      name: "linkedin_post_images",
+      description:
+        "Post to LinkedIn with multiple images (2-20). Accepts URLs or local file paths. Owner only.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          text: {
+            type: "string",
+            description: "Post text (up to 3000 characters).",
+          },
+          images: {
+            type: "array",
+            items: { type: "string" },
+            description: "Array of image URLs or local file paths (2-20 images).",
+          },
+        },
+        required: ["text", "images"],
+      },
+    },
+    handler: async (args, ctx) => {
+      try {
+        const client = getLinkedInClient(ctx);
+        const postText = args.text as string;
+        const images = args.images as string[];
+        if (postText.length > 3000) {
+          return err("LinkedIn posts are limited to 3000 characters.");
+        }
+        if (images.length < 2 || images.length > 20) {
+          return err("Multi-image posts require 2-20 images.");
+        }
+        const result = await client.postWithImages(postText, images);
+        const urlLine = result.url ? `\nURL: ${result.url}` : "";
+        return text(`Posted to LinkedIn with ${images.length} images.\nPost ID: ${result.id}${urlLine}`);
+      } catch (e: any) {
+        return err(`LinkedIn multi-image post failed: ${e.message}`);
+      }
+    },
+  },
+  {
+    definition: {
+      name: "linkedin_post_link",
+      description:
+        "Post to LinkedIn with a link/article card. Includes URL with optional title and description. Owner only.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          text: {
+            type: "string",
+            description: "Post text (up to 3000 characters).",
+          },
+          url: {
+            type: "string",
+            description: "URL to share.",
+          },
+          title: {
+            type: "string",
+            description: "Link title (optional, for the article card).",
+          },
+          description: {
+            type: "string",
+            description: "Link description (optional, for the article card).",
+          },
+        },
+        required: ["text", "url"],
+      },
+    },
+    handler: async (args, ctx) => {
+      try {
+        const client = getLinkedInClient(ctx);
+        const postText = args.text as string;
+        if (postText.length > 3000) {
+          return err("LinkedIn posts are limited to 3000 characters.");
+        }
+        const result = await client.postWithLink(
+          postText,
+          args.url as string,
+          args.title as string | undefined,
+          args.description as string | undefined
+        );
+        const urlLine = result.url ? `\nURL: ${result.url}` : "";
+        return text(`Posted to LinkedIn with link.\nPost ID: ${result.id}${urlLine}`);
+      } catch (e: any) {
+        return err(`LinkedIn link post failed: ${e.message}`);
+      }
+    },
+  },
+  {
+    definition: {
       name: "linkedin_delete",
       description:
         "Delete a LinkedIn post by its URN (e.g. urn:li:share:123456). Owner only.",
