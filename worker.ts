@@ -80,7 +80,7 @@ process.on("message", async (msg: SupervisorMessage) => {
     try {
       const ch = await ctx.discord.channels.fetch(msg.chat_id);
       if (ch?.isTextBased() && "send" in ch) {
-        (ch as any).send(`✓ Restarted (${msg.reason})`);
+        await (ch as any).send(`✓ Restarted (${msg.reason})`);
       }
     } catch {}
   } else if (msg.type === "permission_request") {
