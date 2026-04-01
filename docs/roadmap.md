@@ -32,7 +32,6 @@
 - [x] Image support — download and read inbound attachments
 - [x] DM mode — private conversations, is_dm flag in meta
 - [x] `/choomfie:status` — config overview skill
-- [ ] `browse_url` — fetch and summarize web pages
 - [x] `search_messages` — search by user, keyword, with pagination
 - [x] Mention/reply trigger — only responds when @mentioned or replied to
 - [x] Conversation mode — channel-wide engagement with 2 min idle timeout after @mention
@@ -48,7 +47,7 @@
 - [ ] Mood/tone adaptation based on conversation
 - [ ] Avatar/presence management
 
-## Phase 4.5: Polish & Command Gaps
+## Phase 4.5: Polish & Command Gaps (Done)
 
 - [x] `/reminders` — embed format (consistency with /status)
 - [x] `/memory` — search/list memories from Discord
@@ -59,93 +58,122 @@
 - [x] `/status` — rich embed format
 - [x] Time parser — lenient input (no "in" required, seconds support)
 
-## Phase 4.6: Quality of Life
+## Phase 5: Supervisor Architecture (Done)
+
+- [x] Supervisor/worker split — immortal MCP server + disposable worker
+- [x] IPC messaging (tool calls, notifications, restart)
+- [x] Hot-reload via worker restart (persona, plugin, voice config changes)
+- [x] Crash recovery with exponential backoff (max 5 crashes/60s)
+- [x] PID guard (single-instance)
+- [x] Restart confirmation feedback to Discord
+
+## Phase 6: Voice Plugin (Done)
+
+- [x] Discord voice channel integration (`@discordjs/voice` + `@discordjs/opus`)
+- [x] Kokoro TTS — local neural TTS via Python/ONNX (53 voices, 8 languages)
+- [x] Edge TTS — free Microsoft API fallback
+- [x] ElevenLabs TTS/STT — paid API option
+- [x] whisper-cpp STT — local speech-to-text
+- [x] Groq STT — free cloud STT fallback
+- [x] Silero VAD — neural voice activity detection with adaptive endpointing
+- [x] Streaming TTS — sentence splitting + one-ahead pipelining
+- [x] Interruption handling — barge-in detection, generation ID invalidation
+- [x] Multi-speaker support — per-speaker VAD pipelines (max 4 concurrent)
+- [x] `/voice` setup wizard with auto-detection and interactive buttons
+- [x] Provider auto-detection (best available STT/TTS)
+
+## Phase 7: Browser Plugin (Done)
+
+- [x] Playwright integration — headless browsing
+- [x] Persistent sessions (named, multi-tab)
+- [x] MCP tools: browse, click, type, screenshot, eval, key, close
+- [x] Accessibility tree navigation with element refs
+
+## Phase 8: Tutor Plugin (Done)
+
+- [x] Modular teaching harness (TutorModule interface)
+- [x] Japanese module — JLPT N5-N1 levels
+- [x] Dictionary lookup (Jisho API)
+- [x] Romaji ↔ kana conversion (wanakana)
+- [x] Auto-furigana for kanji (kuroshiro)
+- [x] Quiz generation
+- [x] FSRS spaced repetition engine (SQLite)
+- [x] 718 JLPT N5 vocabulary cards (auto-import)
+- [x] SRS tools: review, rate, stats
+- [x] Per-user module/level session tracking
+- [x] Structured lessons with exercises (`/lesson`, `/progress`)
+
+## Phase 9: Socials Plugin (Done)
+
+- [x] YouTube — search, info, transcript (via yt-dlp)
+- [x] YouTube — OAuth commenting (YouTube Data API v3)
+- [x] Reddit — search, posts, comments (JSON scraper + OAuth API)
+- [x] Reddit — post, comment (OAuth write)
+- [x] LinkedIn — OAuth 2.0 + PKCE auth flow
+- [x] LinkedIn — post to personal profile
+- [x] LinkedIn — status check
+- [ ] LinkedIn — config setup (client ID + secret needed)
+
+## Phase 10: Google Integration
+
+> See [google-integration-spec.md](google-integration-spec.md) for full spec
+
+### 10a: Birthday Index
+- [ ] SQLite birthday table (name, MM-DD, optional year/notes)
+- [ ] MCP tools: birthday_add, birthday_remove, birthday_list, birthday_upcoming
+- [ ] Daily birthday check → owner DM notification
+- [ ] `/birthdays` slash command with embed
+- [ ] Google Sheets mirror (optional, needs 10b)
+
+### 10b: Google Auth (gogcli)
+- [ ] Install gogcli + OAuth setup
+- [ ] `lib/google/auth.ts` — auth check, account helpers
+- [ ] `lib/google/sheets.ts` — read/write via gogcli
+
+### 10c: Memory Backup to Sheets
+- [ ] Export core + archival memories to Google Sheet
+- [ ] Debounced sync on memory changes (max once per 5 min)
+- [ ] memory_sync + memory_backup_status tools
+
+### 10d: Extended Google Services (Future)
+- [ ] Calendar — daily briefing, birthday events, availability check
+- [ ] Gmail — unread count, important email alerts
+- [ ] Drive — nightly DB backup, file sharing
+- [ ] Contacts — birthday import
+- [ ] Tasks/Keep — todo sync
+
+## Phase 11: Quality of Life
 
 - [ ] Scheduled messages — "send X in channel Y at 3pm"
 - [ ] Daily digest — morning summary of reminders, pending PRs, etc.
 - [ ] Per-server personas — different personality per server
-- [ ] Message bookmarks — react with 🔖 to save to memory
+- [ ] Message bookmarks — react with bookmark to save to memory
 - [ ] Todo lists — lightweight task tracking with Discord buttons
 - [ ] Custom auto-reactions — react to specific keywords/users
 - [ ] Quote database — save and recall funny quotes
 
-## Phase 4.7: Extended GitHub
+## Phase 12: Extended GitHub
 
 - [ ] Create issues from Discord
 - [ ] Comment on PRs from Discord
 - [ ] Merge PRs from Discord
 - [ ] Webhook endpoint — external services push notifications through bot
 
-## Phase 5: MCP Integrations
-
-> See [mcp-integrations.md](mcp-integrations.md) for full research
-
-- [ ] Image generation — generate images from text prompts, send as Discord attachments
-  - [ ] MCPollinations (zero config, free) — quick win
-  - [ ] Together AI Flux (free tier, higher quality) — recommended
-  - [ ] OpenAI GPT Image (premium quality, paid)
-- [ ] YouTube — search, transcripts, audio extraction
-  - [ ] yt-dlp MCP (search + transcripts + audio download, no API key)
-  - [ ] YouTube Data API server (richer metadata, free API key)
-- [ ] Google Workspace — calendar, gmail, drive, docs via gogcli
-  - [ ] Install gogcli (`brew install gogcli`)
-  - [ ] OAuth setup + multi-account
-  - [ ] CLAUDE.md skill reference for command syntax
-- [ ] Weather — current conditions + forecasts
-  - [ ] Open-Meteo MCP (free, no API key) — quick win
-- [ ] Notion — page/database management
-  - [ ] Official Notion MCP server or remote MCP
-
-## Phase 6: More Channels
+## Phase 13: More Channels
 
 - [ ] Telegram channel (separate plugin or unified server)
 - [ ] Slack channel
 - [ ] Webhook channel (generic HTTP inbound)
 - [ ] Web UI channel
 
-## Phase 7: Voice
-
-> See [voice-implementation.md](voice-implementation.md) for full implementation guide
-> See [mcp-integrations.md](mcp-integrations.md) § Voice for MCP server options
-
-- [ ] Discord voice channel integration (`@discordjs/voice` + `@discordjs/opus` + `ffmpeg`)
-- [ ] Text-to-speech (TTS) for voice output
-  - [ ] OpenAI TTS MCP (recommended — $15/1M chars)
-  - [ ] Kokoro local TTS (free, 54 voices)
-  - [ ] ElevenLabs MCP (premium — voice cloning)
-- [ ] Discord voice messages (OGG/Opus, flags: 8192)
-- [ ] Speech-to-text (STT) for voice input
-  - [ ] local-stt-mcp (whisper.cpp, free, Apple Silicon optimized)
-  - [ ] OpenAI Whisper API ($0.006/min)
-- [ ] Wake word detection
-- [ ] Voice activity detection (VAD)
-
-## Phase 8: Autonomy
+## Phase 14: Autonomy
 
 - [ ] Background tasks — agent works while you're away
 - [ ] Cron scheduling via Claude Code's `/schedule` feature
 - [ ] Proactive messages — agent notices patterns and reaches out
 - [ ] Learning loop — agent creates memories from repeated patterns
 
-## Phase 9: Language Learning (Japanese Tutor)
-
-> See [language-learning.md](language-learning.md) for full feature plan
-
-- [ ] Text tutor — AI conversation with structured corrections (grammar, particles, formality)
-- [ ] Dictionary lookup — Jisho API integration (`/jisho <word>`)
-- [ ] JLPT level setting — adjusts all content difficulty
-- [ ] Kana/kanji quizzes — daily drills with Discord buttons
-- [ ] Immersion mode — bot only responds in Japanese
-- [ ] SRS vocabulary — SM-2 algorithm, pre-built JLPT N5-N1 decks, daily review DMs
-- [ ] Progress tracking — streaks, accuracy, JLPT readiness stats
-- [ ] Voice conversation — speak Japanese in VC, bot transcribes + responds via VOICEVOX
-- [ ] Pronunciation scoring — Azure Pronunciation Assessment or DIY
-- [ ] Listening comprehension — bot speaks, user transcribes
-- [ ] Shadowing practice — repeat after bot, compare
-- [ ] Pitch accent drills — F0 contour analysis (stretch goal)
-- [ ] WaniKani sync — import existing SRS progress
-
-## Phase 10: Simulation (Dead Internet Theory)
+## Phase 15: Simulation (Dead Internet Theory)
 
 - [ ] choomfie-sim — individual persona bots that simulate real people
   - [ ] Each clone is a separate Discord bot with its own Choomfie instance
@@ -163,7 +191,13 @@
   - [ ] Active — user participates alongside clones
   - [ ] Scenario — seed a topic and watch clones react
 
-## Testing & CI (v0.5 / v1.0)
+## Smart Memory (Ongoing)
+
+- [ ] Cross-session recall — auto-search archival when context seems relevant
+- [ ] Vector embeddings for semantic archival search
+- [ ] Memory decay — auto-archive stale core memories
+
+## Testing & CI
 
 > See [testing.md](testing.md) for full strategy
 
@@ -171,7 +205,7 @@
 - [ ] E2E tests — MCP tool round-trips over stdio
 - [ ] E2E tests — Discord message flow (test bot + test server)
 - [ ] Unit tests — reminders, memory, conversation, time, config
-- [ ] Plugin tests — voice, language-learning, socials
+- [ ] Plugin tests — voice, tutor, socials, browser
 - [ ] CI pipeline — run tests + type-check + lint on PRs
 - [ ] Merge gates — block PR on test/lint failure
 

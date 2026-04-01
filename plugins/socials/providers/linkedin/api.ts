@@ -1,13 +1,16 @@
 /**
  * LinkedIn API provider — personal profile posting via "Share on LinkedIn" product.
  *
- * OAuth 2.0 with PKCE for authorization.
+ * Standard 3-legged OAuth 2.0 (no PKCE — LinkedIn rejects PKCE with `invalid_client`
+ * for the "Share on LinkedIn" product, even with correct credentials).
+ * Callback server runs on fixed port 9876 — must match redirect URL in LinkedIn app config.
+ * Auth link must be opened on the same machine running the bot (localhost callback).
  * Tokens stored as JSON file in the plugin data directory.
  * Uses raw fetch against LinkedIn REST API (no library needed).
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
-import { randomBytes, createHash } from "node:crypto";
+import { randomBytes } from "node:crypto";
 
 // --- Constants ---
 
@@ -45,7 +48,6 @@ export interface LinkedInPostResult {
 }
 
 interface PendingAuth {
-  codeVerifier: string;
   state: string;
   resolve: (code: string) => void;
   reject: (err: Error) => void;
@@ -190,11 +192,6 @@ export class LinkedInClient {
     // Clean up any pending auth
     this.cleanupPendingAuth();
 
-    // Generate PKCE challenge
-    const codeVerifier = randomBytes(32).toString("base64url");
-    const codeChallenge = createHash("sha256")
-      .update(codeVerifier)
-      .digest("base64url");
     const state = randomBytes(16).toString("hex");
 
     // Create a promise that resolves when we get the callback
@@ -206,15 +203,14 @@ export class LinkedInClient {
     });
 
     this.pendingAuth = {
-      codeVerifier,
       state,
       resolve: resolveAuth!,
       reject: rejectAuth!,
     };
 
-    // Start temporary HTTP server
+    // Start temporary HTTP server — fixed port so it matches LinkedIn's registered redirect URL
     const server = Bun.serve({
-      port: 0, // Random available port
+      port: 9876,
       fetch: async (req) => {
         const url = new URL(req.url);
 
@@ -242,8 +238,6 @@ export class LinkedInClient {
       redirect_uri: redirectUri,
       state,
       scope: SCOPES.join(" "),
-      code_challenge: codeChallenge,
-      code_challenge_method: "S256",
     });
 
     const authUrl = `${LINKEDIN_AUTH_URL}?${params.toString()}`;
@@ -318,13 +312,13 @@ export class LinkedInClient {
   ): Promise<void> {
     if (!this.pendingAuth) throw new Error("No pending auth flow");
 
+    // Standard 3-legged OAuth (no PKCE) — client_secret in body
     const params = new URLSearchParams({
       grant_type: "authorization_code",
       code,
       redirect_uri: redirectUri,
       client_id: this.clientId,
       client_secret: this.clientSecret,
-      code_verifier: this.pendingAuth.codeVerifier,
     });
 
     const resp = await fetch(LINKEDIN_TOKEN_URL, {

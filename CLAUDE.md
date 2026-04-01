@@ -109,7 +109,7 @@ plugins/                       # Plugin directory (each plugin = subdirectory)
     providers/
       types.ts                 # Shared interfaces (VideoResult, RedditPost, etc.)
       index.ts                 # Provider factory
-      linkedin/api.ts          # LinkedIn OAuth + posting (personal profile)
+      linkedin/api.ts          # LinkedIn OAuth + posting (standard 3-legged, no PKCE)
       reddit/api.ts            # Reddit OAuth + full read/write
       youtube/api.ts           # YouTube Data API comments + yt-dlp reads
 scripts/
