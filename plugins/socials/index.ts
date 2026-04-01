@@ -10,7 +10,7 @@
  */
 
 import type { Plugin } from "../../lib/types.ts";
-import { socialsTools, destroyLinkedInClient } from "./tools.ts";
+import { socialsTools, destroyLinkedInClient, getLinkedInMonitor } from "./tools.ts";
 import {
   initRedditProvider,
   destroyRedditClient,
@@ -60,7 +60,10 @@ const socialsPlugin: Plugin = {
     "- `linkedin_comments` — read comments on a post",
     "- `linkedin_comment` — comment on a post (owner only)",
     "- `linkedin_react` — react to a post (like/celebrate/support/love/insightful/funny)",
+    "- `linkedin_monitor` — view tracked posts and check for new comments",
     "- `linkedin_status` — check if LinkedIn is connected and token status",
+    "",
+    "LinkedIn auto-tracks posts you create and polls for new comments every 5 minutes. New comments are forwarded to Discord automatically.",
     "",
     "LinkedIn setup: create an app at developer.linkedin.com, enable 'Share on LinkedIn' + 'Sign In with LinkedIn using OpenID Connect' products, add redirect URL `http://localhost:9876/callback` in Auth tab, add client ID/secret to config.json under socials.linkedin.",
     "LinkedIn auth link must be opened on the same machine running Choomfie (localhost callback). Uses standard OAuth, not PKCE.",
@@ -83,6 +86,29 @@ const socialsPlugin: Plugin = {
     initYouTubeProvider({ DATA_DIR: ctx.DATA_DIR, config: ctx.config });
     // Initialize Reddit OAuth client from config (if configured)
     initRedditProvider({ DATA_DIR: ctx.DATA_DIR, config: ctx.config });
+
+    // Start LinkedIn comment monitor (if configured)
+    const monitor = getLinkedInMonitor({ DATA_DIR: ctx.DATA_DIR, config: ctx.config });
+    if (monitor) {
+      monitor.onComments((comments) => {
+        // Forward new comments as MCP notification
+        for (const comment of comments) {
+          const msg =
+            `💬 **New LinkedIn comment** on your post "${comment.postText}..."\n` +
+            `**${comment.authorName}:** ${comment.text}`;
+          try {
+            ctx.mcp?.sendNotification?.({
+              method: "notifications/message",
+              params: { content: msg },
+            });
+          } catch {
+            // MCP proxy may not support notifications — log to stderr
+            console.error(`[LinkedIn Monitor] ${msg}`);
+          }
+        }
+      });
+      monitor.startPolling();
+    }
   },
 
   async destroy() {

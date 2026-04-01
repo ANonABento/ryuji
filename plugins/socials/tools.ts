@@ -6,6 +6,8 @@ import type { ToolDef } from "../../lib/types.ts";
 import { text, err } from "../../lib/types.ts";
 import { getYouTubeProvider, getRedditProvider, getRedditClient, getYouTubeCommentClient } from "./providers/index.ts";
 import { LinkedInClient } from "./providers/linkedin/api.ts";
+import { LinkedInMonitor } from "./providers/linkedin/monitor.ts";
+import type { NewComment } from "./providers/linkedin/monitor.ts";
 import type { RedditClient } from "./providers/reddit/api.ts";
 import type { YouTubeCommentClient } from "./providers/youtube/api.ts";
 
@@ -14,6 +16,7 @@ const reddit = getRedditProvider();
 
 /** LinkedIn client — lazily initialized when first tool is called (needs ctx.DATA_DIR + config) */
 let linkedInClient: LinkedInClient | null = null;
+let linkedInMonitor: LinkedInMonitor | null = null;
 
 function getLinkedInClient(ctx: { DATA_DIR: string; config: any }): LinkedInClient {
   if (linkedInClient) return linkedInClient;
@@ -36,8 +39,22 @@ function getLinkedInClient(ctx: { DATA_DIR: string; config: any }): LinkedInClie
   return linkedInClient;
 }
 
-/** Called on plugin destroy to clean up LinkedIn client */
+/** Get or create the LinkedIn monitor (shares the LinkedIn client). */
+export function getLinkedInMonitor(ctx: { DATA_DIR: string; config: any }): LinkedInMonitor | null {
+  if (linkedInMonitor) return linkedInMonitor;
+  try {
+    const client = getLinkedInClient(ctx);
+    linkedInMonitor = new LinkedInMonitor(`${ctx.DATA_DIR}/choomfie.db`, client);
+    return linkedInMonitor;
+  } catch {
+    return null;
+  }
+}
+
+/** Called on plugin destroy to clean up LinkedIn client + monitor */
 export function destroyLinkedInClient(): void {
+  linkedInMonitor?.destroy();
+  linkedInMonitor = null;
   linkedInClient?.destroy();
   linkedInClient = null;
 }
@@ -572,6 +589,13 @@ export const socialsTools: ToolDef[] = [
         }
 
         const result = await client.post(postText);
+
+        // Auto-track for comment monitoring
+        const monitor = getLinkedInMonitor(ctx);
+        if (monitor && result.id) {
+          monitor.trackPost(result.id, postText);
+        }
+
         const urlLine = result.url ? `\nURL: ${result.url}` : "";
         return text(`Posted to LinkedIn successfully.\nPost ID: ${result.id}${urlLine}`);
       } catch (e: any) {
@@ -615,6 +639,8 @@ export const socialsTools: ToolDef[] = [
           args.image as string,
           args.alt_text as string | undefined
         );
+        const monitor = getLinkedInMonitor(ctx);
+        if (monitor && result.id) monitor.trackPost(result.id, postText);
         const urlLine = result.url ? `\nURL: ${result.url}` : "";
         return text(`Posted to LinkedIn with image.\nPost ID: ${result.id}${urlLine}`);
       } catch (e: any) {
@@ -655,6 +681,8 @@ export const socialsTools: ToolDef[] = [
           return err("Multi-image posts require 2-20 images.");
         }
         const result = await client.postWithImages(postText, images);
+        const monitor = getLinkedInMonitor(ctx);
+        if (monitor && result.id) monitor.trackPost(result.id, postText);
         const urlLine = result.url ? `\nURL: ${result.url}` : "";
         return text(`Posted to LinkedIn with ${images.length} images.\nPost ID: ${result.id}${urlLine}`);
       } catch (e: any) {
@@ -703,6 +731,8 @@ export const socialsTools: ToolDef[] = [
           args.title as string | undefined,
           args.description as string | undefined
         );
+        const monitor = getLinkedInMonitor(ctx);
+        if (monitor && result.id) monitor.trackPost(result.id, postText);
         const urlLine = result.url ? `\nURL: ${result.url}` : "";
         return text(`Posted to LinkedIn with link.\nPost ID: ${result.id}${urlLine}`);
       } catch (e: any) {
@@ -730,6 +760,8 @@ export const socialsTools: ToolDef[] = [
       try {
         const client = getLinkedInClient(ctx);
         await client.deletePost(args.post_urn as string);
+        const monitor = getLinkedInMonitor(ctx);
+        if (monitor) monitor.untrackPost(args.post_urn as string);
         return text(`Deleted LinkedIn post: ${args.post_urn}`);
       } catch (e: any) {
         return err(`LinkedIn delete failed: ${e.message}`);
@@ -834,6 +866,61 @@ export const socialsTools: ToolDef[] = [
         return text(`Reacted to post with ${reaction}.`);
       } catch (e: any) {
         return err(`LinkedIn react failed: ${e.message}`);
+      }
+    },
+  },
+  {
+    definition: {
+      name: "linkedin_monitor",
+      description:
+        "View tracked LinkedIn posts and their comment counts. Posts are auto-tracked when created. " +
+        "Use action='check' to manually poll for new comments now.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          action: {
+            type: "string",
+            enum: ["list", "check"],
+            description: "Action: 'list' shows tracked posts (default), 'check' polls for new comments now.",
+          },
+        },
+      },
+    },
+    handler: async (args, ctx) => {
+      try {
+        const monitor = getLinkedInMonitor(ctx);
+        if (!monitor) return err("LinkedIn not configured or monitor unavailable.");
+
+        const action = (args.action as string) || "list";
+
+        if (action === "check") {
+          const newComments = await monitor.pollOnce();
+          if (newComments.length === 0) {
+            return text("No new comments found on tracked posts.");
+          }
+          const formatted = newComments
+            .map(
+              (c) => `**${c.authorName}** on "${c.postText}...":\n  ${c.text}`
+            )
+            .join("\n\n");
+          return text(`Found ${newComments.length} new comment(s):\n\n${formatted}`);
+        }
+
+        // Default: list tracked posts
+        const posts = monitor.getTrackedPosts();
+        if (posts.length === 0) {
+          return text("No LinkedIn posts being tracked. Posts are auto-tracked when you create them.");
+        }
+
+        const formatted = posts
+          .map(
+            (p, i) =>
+              `**${i + 1}.** ${p.text}...\n  URN: \`${p.postUrn}\`\n  Comments: ${p.commentCount} · Last checked: ${p.lastChecked || "never"}`
+          )
+          .join("\n\n");
+        return text(`**Tracked LinkedIn posts (${posts.length}):**\n\n${formatted}`);
+      } catch (e: any) {
+        return err(`LinkedIn monitor failed: ${e.message}`);
       }
     },
   },

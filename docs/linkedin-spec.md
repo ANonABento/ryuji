@@ -16,7 +16,9 @@ Working:
 - Comment on posts
 - React to posts (like/celebrate/support/love/insightful/funny)
 - Profile fetch via OpenID userinfo
-- 10 MCP tools: `linkedin_auth`, `linkedin_post`, `linkedin_post_image`, `linkedin_post_images`, `linkedin_post_link`, `linkedin_delete`, `linkedin_comments`, `linkedin_comment`, `linkedin_react`, `linkedin_status`
+- Comment monitoring with auto-polling (every 5 min, forwards to Discord)
+- Auto-track posts for monitoring when created
+- 11 MCP tools: `linkedin_auth`, `linkedin_post`, `linkedin_post_image`, `linkedin_post_images`, `linkedin_post_link`, `linkedin_delete`, `linkedin_comments`, `linkedin_comment`, `linkedin_react`, `linkedin_monitor`, `linkedin_status`
 
 Scopes: `openid`, `profile`, `w_member_social`
 
