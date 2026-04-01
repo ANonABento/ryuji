@@ -7,18 +7,19 @@
 Working:
 - OAuth 2.0 (standard 3-legged, no PKCE — LinkedIn rejects PKCE for "Share on LinkedIn")
 - Token refresh with 5-min buffer before expiry
-- Text posts via `ugcPosts` API (deprecated — needs migration)
+- Text posts via Posts API (`/rest/posts`, LinkedIn-Version: 202603)
+- Delete posts
+- Read comments on own posts
+- Comment on posts
+- React to posts (like/celebrate/support/love/insightful/funny)
 - Profile fetch via OpenID userinfo
-- 3 MCP tools: `linkedin_auth`, `linkedin_post`, `linkedin_status`
+- 7 MCP tools: `linkedin_auth`, `linkedin_post`, `linkedin_delete`, `linkedin_comments`, `linkedin_comment`, `linkedin_react`, `linkedin_status`
 
 Scopes: `openid`, `profile`, `w_member_social`
 
-## API Migration (Priority)
+## API Migration — DONE
 
-**Current (deprecated):** `POST /v2/ugcPosts` with `LinkedIn-Version: 202401`
-**Target:** `POST /rest/posts` with latest versioned API
-
-The ugcPosts endpoint is legacy and will be removed. The new Posts API has a flatter payload structure and requires manual article metadata (no auto link preview).
+Migrated from deprecated `POST /v2/ugcPosts` (LinkedIn-Version: 202401) to `POST /rest/posts` (LinkedIn-Version: 202603). The new Posts API has a flatter payload structure.
 
 ### Payload Comparison
 

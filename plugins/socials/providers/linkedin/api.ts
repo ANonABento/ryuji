@@ -18,7 +18,7 @@ const LINKEDIN_AUTH_URL = "https://www.linkedin.com/oauth/v2/authorization";
 const LINKEDIN_TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken";
 const LINKEDIN_API_BASE = "https://api.linkedin.com/v2";
 const LINKEDIN_REST_BASE = "https://api.linkedin.com/rest";
-const LINKEDIN_VERSION = "202401";
+const LINKEDIN_VERSION = "202603";
 const SCOPES = ["openid", "profile", "w_member_social"];
 
 // Token refresh buffer — refresh 5 minutes before expiry
@@ -184,8 +184,8 @@ export class LinkedInClient {
   // --- OAuth Flow ---
 
   /**
-   * Start OAuth 2.0 + PKCE flow.
-   * Spins up a temporary HTTP server on a random port to catch the callback.
+   * Start OAuth 2.0 flow (standard 3-legged, no PKCE).
+   * Spins up a temporary HTTP server on port 9876 to catch the callback.
    * Returns the authorization URL for the user to visit.
    */
   async startAuth(): Promise<{ authUrl: string; port: number }> {
@@ -408,44 +408,50 @@ export class LinkedInClient {
     };
   }
 
+  /** Common headers for LinkedIn REST API calls. */
+  private restHeaders(token: string): Record<string, string> {
+    return {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "X-Restli-Protocol-Version": "2.0.0",
+      "LinkedIn-Version": LINKEDIN_VERSION,
+    };
+  }
+
+  /** Ensure we have the person URN, fetching profile if needed. */
+  private async ensurePersonUrn(): Promise<string> {
+    if (this.tokens?.personUrn) return this.tokens.personUrn;
+    const profile = await this.getProfile();
+    this.tokens!.personUrn = `urn:li:person:${profile.sub}`;
+    this.tokens!.name = profile.name;
+    this.saveTokens();
+    return this.tokens!.personUrn;
+  }
+
   /**
    * Create a text post on the authenticated user's personal profile.
+   * Uses the Posts API (/rest/posts) — replacement for deprecated ugcPosts.
    */
   async post(text: string): Promise<LinkedInPostResult> {
     const token = await this.ensureToken();
-
-    // Ensure we have the person URN
-    if (!this.tokens?.personUrn) {
-      const profile = await this.getProfile();
-      this.tokens!.personUrn = `urn:li:person:${profile.sub}`;
-      this.tokens!.name = profile.name;
-      this.saveTokens();
-    }
+    const personUrn = await this.ensurePersonUrn();
 
     const body = {
-      author: this.tokens!.personUrn,
+      author: personUrn,
+      commentary: text,
+      visibility: "PUBLIC",
+      distribution: {
+        feedDistribution: "MAIN_FEED",
+        targetEntities: [],
+        thirdPartyDistributionChannels: [],
+      },
       lifecycleState: "PUBLISHED",
-      specificContent: {
-        "com.linkedin.ugc.ShareContent": {
-          shareCommentary: {
-            text,
-          },
-          shareMediaCategory: "NONE",
-        },
-      },
-      visibility: {
-        "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC",
-      },
+      isReshareDisabledByAuthor: false,
     };
 
-    const resp = await fetch(`${LINKEDIN_API_BASE}/ugcPosts`, {
+    const resp = await fetch(`${LINKEDIN_REST_BASE}/posts`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        "X-Restli-Protocol-Version": "2.0.0",
-        "LinkedIn-Version": LINKEDIN_VERSION,
-      },
+      headers: this.restHeaders(token),
       body: JSON.stringify(body),
     });
 
@@ -454,22 +460,141 @@ export class LinkedInClient {
       throw new Error(`LinkedIn post failed (${resp.status}): ${respBody}`);
     }
 
-    // The post ID comes from the X-RestLi-Id header or response body
-    const postId =
+    const postUrn =
       resp.headers.get("x-restli-id") || resp.headers.get("X-RestLi-Id") || "";
 
-    // Construct the post URL
-    // UGC post IDs look like "urn:li:share:12345" — extract the numeric part
-    const shareId = postId.split(":").pop() || "";
-    const profileName = this.tokens?.name?.replace(/\s+/g, "-").toLowerCase();
-    const postUrl = shareId
-      ? `https://www.linkedin.com/feed/update/${postId}/`
+    const postUrl = postUrn
+      ? `https://www.linkedin.com/feed/update/${postUrn}/`
       : undefined;
 
-    return {
-      id: postId,
-      url: postUrl,
+    return { id: postUrn, url: postUrl };
+  }
+
+  /**
+   * Delete a post by its URN.
+   */
+  async deletePost(postUrn: string): Promise<void> {
+    const token = await this.ensureToken();
+    const encodedUrn = encodeURIComponent(postUrn);
+
+    const resp = await fetch(`${LINKEDIN_REST_BASE}/posts/${encodedUrn}`, {
+      method: "DELETE",
+      headers: {
+        ...this.restHeaders(token),
+        "X-RestLi-Method": "DELETE",
+      },
+    });
+
+    if (!resp.ok) {
+      const respBody = await resp.text();
+      throw new Error(`LinkedIn delete failed (${resp.status}): ${respBody}`);
+    }
+  }
+
+  /**
+   * Get comments on a post by its URN.
+   */
+  async getComments(postUrn: string): Promise<Array<{
+    commentUrn: string;
+    authorName: string;
+    text: string;
+    createdAt: number;
+  }>> {
+    const token = await this.ensureToken();
+    const encodedUrn = encodeURIComponent(postUrn);
+
+    const resp = await fetch(
+      `${LINKEDIN_REST_BASE}/socialActions/${encodedUrn}/comments?count=20`,
+      { headers: this.restHeaders(token) }
+    );
+
+    if (!resp.ok) {
+      const respBody = await resp.text();
+      throw new Error(`LinkedIn comments fetch failed (${resp.status}): ${respBody}`);
+    }
+
+    const data = await resp.json() as {
+      elements?: Array<{
+        $URN?: string;
+        actor?: string;
+        message?: { text?: string };
+        created?: { time?: number };
+        "actor~"?: { localizedFirstName?: string; localizedLastName?: string };
+      }>;
     };
+
+    return (data.elements || []).map((c) => ({
+      commentUrn: c.$URN || "",
+      authorName: c["actor~"]
+        ? `${c["actor~"].localizedFirstName || ""} ${c["actor~"].localizedLastName || ""}`.trim()
+        : c.actor || "Unknown",
+      text: c.message?.text || "",
+      createdAt: c.created?.time || 0,
+    }));
+  }
+
+  /**
+   * Post a comment on a LinkedIn post.
+   */
+  async commentOnPost(postUrn: string, commentText: string): Promise<string> {
+    const token = await this.ensureToken();
+    const personUrn = await this.ensurePersonUrn();
+    const encodedUrn = encodeURIComponent(postUrn);
+
+    const body = {
+      actor: personUrn,
+      message: { text: commentText },
+    };
+
+    const resp = await fetch(
+      `${LINKEDIN_REST_BASE}/socialActions/${encodedUrn}/comments`,
+      {
+        method: "POST",
+        headers: this.restHeaders(token),
+        body: JSON.stringify(body),
+      }
+    );
+
+    if (!resp.ok) {
+      const respBody = await resp.text();
+      throw new Error(`LinkedIn comment failed (${resp.status}): ${respBody}`);
+    }
+
+    const commentUrn =
+      resp.headers.get("x-restli-id") || resp.headers.get("X-RestLi-Id") || "";
+    return commentUrn;
+  }
+
+  /**
+   * React to a post (LIKE by default).
+   */
+  async reactToPost(
+    postUrn: string,
+    reaction: "LIKE" | "CELEBRATE" | "SUPPORT" | "LOVE" | "INSIGHTFUL" | "FUNNY" = "LIKE"
+  ): Promise<void> {
+    const token = await this.ensureToken();
+    const personUrn = await this.ensurePersonUrn();
+    const encodedUrn = encodeURIComponent(postUrn);
+
+    const body = {
+      root: postUrn,
+      reactionType: reaction,
+      actor: personUrn,
+    };
+
+    const resp = await fetch(
+      `${LINKEDIN_REST_BASE}/socialActions/${encodedUrn}/likes`,
+      {
+        method: "POST",
+        headers: this.restHeaders(token),
+        body: JSON.stringify(body),
+      }
+    );
+
+    if (!resp.ok) {
+      const respBody = await resp.text();
+      throw new Error(`LinkedIn react failed (${resp.status}): ${respBody}`);
+    }
   }
 
   /**

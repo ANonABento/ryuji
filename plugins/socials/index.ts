@@ -4,7 +4,7 @@
  * Provider pattern with auto-fallback:
  *   YouTube: yt-dlp (primary) → YouTube Data API (fallback)
  *   Reddit: OAuth API client (primary) → JSON scraper (fallback)
- *   LinkedIn: OAuth 2.0 + PKCE, raw fetch against REST API
+ *   LinkedIn: OAuth 2.0 (standard 3-legged), Posts API (/rest/posts)
  *
  * Future: Twitter/X, Bluesky
  */
@@ -53,6 +53,10 @@ const socialsPlugin: Plugin = {
     "**LinkedIn:**",
     "- `linkedin_auth` — connect a LinkedIn account (OAuth, owner only)",
     "- `linkedin_post` — post text to the connected LinkedIn profile",
+    "- `linkedin_delete` — delete a post by URN (owner only)",
+    "- `linkedin_comments` — read comments on a post",
+    "- `linkedin_comment` — comment on a post (owner only)",
+    "- `linkedin_react` — react to a post (like/celebrate/support/love/insightful/funny)",
     "- `linkedin_status` — check if LinkedIn is connected and token status",
     "",
     "LinkedIn setup: create an app at developer.linkedin.com, enable 'Share on LinkedIn' + 'Sign In with LinkedIn using OpenID Connect' products, add redirect URL `http://localhost:9876/callback` in Auth tab, add client ID/secret to config.json under socials.linkedin.",
