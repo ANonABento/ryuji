@@ -23,6 +23,7 @@ export interface TrackedPost {
   postedAt: string;
   lastChecked: string | null;
   commentCount: number;
+  likeCount: number;
 }
 
 export interface NewComment {
@@ -54,9 +55,13 @@ export class LinkedInMonitor {
         text TEXT NOT NULL,
         posted_at TEXT NOT NULL DEFAULT (datetime('now')),
         last_checked TEXT,
-        comment_count INTEGER DEFAULT 0
+        comment_count INTEGER DEFAULT 0,
+        like_count INTEGER DEFAULT 0
       )
     `);
+    // Add like_count column if missing (migration for existing DBs)
+    try { this.db.run("ALTER TABLE linkedin_posts ADD COLUMN like_count INTEGER DEFAULT 0"); } catch {}
+
     this.db.run(`
       CREATE TABLE IF NOT EXISTS linkedin_seen_comments (
         comment_urn TEXT PRIMARY KEY,
@@ -102,7 +107,7 @@ export class LinkedInMonitor {
    */
   getTrackedPosts(): TrackedPost[] {
     return this.db.query(
-      "SELECT post_urn as postUrn, text, posted_at as postedAt, last_checked as lastChecked, comment_count as commentCount FROM linkedin_posts ORDER BY posted_at DESC"
+      "SELECT post_urn as postUrn, text, posted_at as postedAt, last_checked as lastChecked, comment_count as commentCount, like_count as likeCount FROM linkedin_posts ORDER BY posted_at DESC"
     ).all() as TrackedPost[];
   }
 
@@ -175,10 +180,16 @@ export class LinkedInMonitor {
           }
         }
 
+        // Fetch like count
+        let likeCount = post.likeCount;
+        try {
+          likeCount = await this.client.getLikeCount(post.postUrn);
+        } catch {}
+
         // Update post stats
         this.db.run(
-          "UPDATE linkedin_posts SET last_checked = datetime('now'), comment_count = ? WHERE post_urn = ?",
-          [comments.length, post.postUrn]
+          "UPDATE linkedin_posts SET last_checked = datetime('now'), comment_count = ?, like_count = ? WHERE post_urn = ?",
+          [comments.length, likeCount, post.postUrn]
         );
 
         allNew.push(...newComments);

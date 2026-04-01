@@ -21,7 +21,9 @@ Working:
 - Post scheduling with queue management (SQLite + setTimeout)
 - First-comment automation (auto-posts comment after scheduled post)
 - Notification callbacks for posted/failed scheduled posts
-- 13 MCP tools: `linkedin_auth`, `linkedin_post`, `linkedin_post_image`, `linkedin_post_images`, `linkedin_post_link`, `linkedin_delete`, `linkedin_comments`, `linkedin_comment`, `linkedin_react`, `linkedin_schedule`, `linkedin_queue`, `linkedin_monitor`, `linkedin_status`
+- Engagement analytics (likes, comments, top posts)
+- Like count tracking during comment polls
+- 14 MCP tools: `linkedin_auth`, `linkedin_post`, `linkedin_post_image`, `linkedin_post_images`, `linkedin_post_link`, `linkedin_delete`, `linkedin_comments`, `linkedin_comment`, `linkedin_react`, `linkedin_schedule`, `linkedin_queue`, `linkedin_monitor`, `linkedin_analytics`, `linkedin_status`
 
 Scopes: `openid`, `profile`, `w_member_social`
 

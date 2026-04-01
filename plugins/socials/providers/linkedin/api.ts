@@ -819,6 +819,24 @@ export class LinkedInClient {
   }
 
   /**
+   * Get the like/reaction count for a post.
+   */
+  async getLikeCount(postUrn: string): Promise<number> {
+    const token = await this.ensureToken();
+    const encodedUrn = encodeURIComponent(postUrn);
+
+    const resp = await fetch(
+      `${LINKEDIN_REST_BASE}/socialActions/${encodedUrn}/likes?count=0`,
+      { headers: this.restHeaders(token) }
+    );
+
+    if (!resp.ok) return 0;
+
+    const data = await resp.json() as { paging?: { total?: number } };
+    return data.paging?.total || 0;
+  }
+
+  /**
    * Cleanup — stop any pending auth server.
    */
   destroy(): void {

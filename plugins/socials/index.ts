@@ -63,6 +63,7 @@ const socialsPlugin: Plugin = {
     "- `linkedin_schedule` — schedule a post for later (supports first-comment automation)",
     "- `linkedin_queue` — view/manage scheduled post queue",
     "- `linkedin_monitor` — view tracked posts and check for new comments",
+    "- `linkedin_analytics` — engagement analytics (likes, comments, top posts)",
     "- `linkedin_status` — check if LinkedIn is connected and token status",
     "",
     "LinkedIn auto-tracks posts you create and polls for new comments every 5 minutes. New comments are forwarded to Discord automatically.",

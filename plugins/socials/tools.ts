@@ -1076,12 +1076,57 @@ export const socialsTools: ToolDef[] = [
         const formatted = posts
           .map(
             (p, i) =>
-              `**${i + 1}.** ${p.text}...\n  URN: \`${p.postUrn}\`\n  Comments: ${p.commentCount} · Last checked: ${p.lastChecked || "never"}`
+              `**${i + 1}.** ${p.text}...\n  URN: \`${p.postUrn}\`\n  Likes: ${p.likeCount} · Comments: ${p.commentCount} · Last checked: ${p.lastChecked || "never"}`
           )
           .join("\n\n");
         return text(`**Tracked LinkedIn posts (${posts.length}):**\n\n${formatted}`);
       } catch (e: any) {
         return err(`LinkedIn monitor failed: ${e.message}`);
+      }
+    },
+  },
+  {
+    definition: {
+      name: "linkedin_analytics",
+      description:
+        "Show engagement analytics for your LinkedIn posts — likes, comments, and top performing content.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {},
+      },
+    },
+    handler: async (_args, ctx) => {
+      try {
+        const monitor = getLinkedInMonitor(ctx);
+        if (!monitor) return err("LinkedIn not configured.");
+
+        const posts = monitor.getTrackedPosts();
+        if (posts.length === 0) {
+          return text("No tracked posts yet. Post something first!");
+        }
+
+        const totalLikes = posts.reduce((sum, p) => sum + p.likeCount, 0);
+        const totalComments = posts.reduce((sum, p) => sum + p.commentCount, 0);
+        const sorted = [...posts].sort((a, b) => (b.likeCount + b.commentCount) - (a.likeCount + a.commentCount));
+        const topPost = sorted[0];
+
+        let output = `**LinkedIn Analytics (${posts.length} posts tracked)**\n\n`;
+        output += `Total: **${totalLikes}** likes · **${totalComments}** comments\n`;
+        output += `Avg per post: **${(totalLikes / posts.length).toFixed(1)}** likes · **${(totalComments / posts.length).toFixed(1)}** comments\n\n`;
+
+        if (topPost) {
+          output += `**Top post:** "${topPost.text}..."\n`;
+          output += `  ${topPost.likeCount} likes · ${topPost.commentCount} comments\n\n`;
+        }
+
+        output += `**All posts:**\n`;
+        for (const p of sorted) {
+          output += `- ${p.likeCount} likes · ${p.commentCount} comments — "${p.text.slice(0, 60)}..."\n`;
+        }
+
+        return text(output);
+      } catch (e: any) {
+        return err(`LinkedIn analytics failed: ${e.message}`);
       }
     },
   },
