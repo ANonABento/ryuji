@@ -84,6 +84,13 @@ plugins/                       # Plugin directory (each plugin = subdirectory)
       srs-tools.ts             # srs_review, srs_rate, srs_stats
       tutor-tools.ts           # tutor_prompt, quiz, dictionary_lookup, set_level
       module-tools.ts          # list_modules, switch_module
+      lesson-tools.ts          # lesson_status
+    core/
+      lesson-types.ts          # Lesson, Exercise, Unit types
+      lesson-db.ts             # SQLite lesson progress persistence
+      lesson-db-instance.ts    # LessonDB singleton
+      lesson-engine.ts         # Lesson runner: scoring, progression, SRS integration
+    lesson-interactions.ts     # /lesson, /progress commands + button handlers
     modules/
       index.ts                 # Module registry
       japanese/                # Japanese module (JLPT N5-N1)
@@ -93,6 +100,9 @@ plugins/                       # Plugin directory (each plugin = subdirectory)
         furigana.ts            # Auto-add readings to kanji (kuroshiro)
         tools.ts               # convert_kana tool
         data/n5-vocab.json     # 718 JLPT N5 vocabulary cards
+        lessons/
+          index.ts             # Lesson registry + unit definitions
+          unit-1-hiragana.ts   # 10 hiragana lessons with exercises
   socials/
     index.ts                   # Socials plugin entry — aggregates platform tools
     tools.ts                   # MCP tools for all platforms
@@ -187,6 +197,8 @@ Defined in `lib/commands.ts`, deployed via `scripts/deploy-commands.ts`:
 - `/newpersona` — opens a modal form to create a persona (key, name, personality)
 - `/plugins [action] [name]` — list, enable, or disable plugins (owner only, restart needed)
 - `/voice` — voice provider setup wizard with auto-detection and interactive buttons (owner only)
+- `/lesson` — start or continue a structured lesson (button-driven, no Claude roundtrip)
+- `/progress` — show learning progress with unit bars and completion stats (ephemeral)
 - `/help` — show all commands and capabilities
 
 Commands auto-deploy on startup when definitions change (hash-based check). Manual: `bun scripts/deploy-commands.ts` or `--global` for global deploy.
@@ -207,13 +219,14 @@ Modal forms triggered from slash commands, defined in `lib/handlers/modals.ts`:
 - `lib/handlers/github.ts` — `buildGhArgs()` + `runGh()` (used by MCP tool + slash command)
 - `lib/version.ts` — `VERSION` constant from package.json (used by mcp-server, commands, status-tools)
 
-## Tools (27)
+## Tools (28)
 
 Discord: reply (with embeds), react, edit_message, fetch_messages, search_messages, create_thread, create_poll, pin_message, unpin_message
 Memory: save_memory, search_memory, list_memories, delete_memory, save_conversation_summary, memory_stats
 Personas: switch_persona, save_persona, list_personas, delete_persona
 Reminders: set_reminder, list_reminders, cancel_reminder, snooze_reminder, ack_reminder
 Access: allow_user, remove_user, list_allowed_users (owner only)
+Lessons: lesson_status
 GitHub: check_github
 Status: choomfie_status
 System: restart (owner only, supervisor-owned — kills worker, spawns fresh one, reloads all code)

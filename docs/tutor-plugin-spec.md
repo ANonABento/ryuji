@@ -1,7 +1,7 @@
 # Tutor Plugin — Generalized Teaching Harness
 
-> Status: Phase 1 complete (core harness + Japanese migration)
-> Date: 2026-03-31
+> Status: Phase 1 complete, Phase 2 specced (structured lesson system)
+> Date: 2026-03-31 (Phase 1), 2026-04-01 (Phase 2 spec)
 
 ## Vision
 
@@ -366,3 +366,398 @@ Research shows interleaving produces better long-term retention than blocking by
 - Per-user multi-deck already works — just need module-aware deck naming
 - The plugin system's `userTools` whitelist means we control which tools non-owners can use
 - Session persistence (currently TODO in language-learning) should be built into tutor from the start
+
+---
+
+# Phase 2: Structured Lesson System
+
+> Status: Specced
+> Date: 2026-04-01
+
+## Problem
+
+The Phase 1 tutor has SRS flashcards, quizzes, and conversational tutoring — but these all assume the student has **already learned** the material. For absolute beginners starting from zero, there's no guided introduction of new concepts. Research consistently shows that beginners need explicit, structured instruction before SRS or conversation can be effective.
+
+**The gap:** Learn → Practice → Retain. Phase 1 has Practice (quizzes) and Retain (SRS). Phase 2 adds **Learn** (structured lessons).
+
+## Design Decisions
+
+Finalized through discussion:
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Input method | Buttons + typing mix | Button-heavy for early/kana lessons, gradually introduce typing for production |
+| Entry point | Slash commands (`/lesson`, `/progress`) | Bypasses Claude roundtrip → instant feedback (<100ms). Chat stays for freeform tutoring |
+| Lesson length | 3-5 min (~12 exercises) | Short sessions, high frequency. Users can chain multiple. Duolingo validated this. |
+| Multi-user | Yes, works in servers + DMs | Progress keyed by user ID (already how tutor works) |
+| Progression | Strictly linear | Must complete Unit N before Unit N+1. Simpler to build, correct for Japanese. |
+| Feedback style | Simple for kana, explanatory for grammar | "Incorrect → answer" for drills, "Incorrect → here's WHY" for grammar |
+| Content authoring | Static → template → LLM (layered) | Kana = static JSON, vocab = template from word lists, grammar = Claude-generated + cached |
+
+## Design Principles
+
+1. **Structured progression** — each lesson teaches ONE concept with explanation + examples + exercises
+2. **Mastery-gated** — must score 80%+ to unlock the next lesson (prevents overwhelm)
+3. **Exercise variety** — multiple choice, fill-in-blank, production, error correction (not just flashcards)
+4. **Prereq-aware** — lessons have dependencies; can't learn て-form before ます-form
+5. **SRS integration** — lesson completion feeds new items into the SRS queue automatically
+6. **Discord-native** — slash commands for lessons, buttons for exercises, embeds for content
+7. **Snappy** — lesson flow handled entirely by Discord interactions, no Claude in the loop
+
+## Architecture
+
+```
+plugins/tutor/
+├── core/
+│   ├── srs.ts                      # (existing) FSRS engine
+│   ├── session.ts                  # (extend) Add lesson progress tracking
+│   ├── types.ts                    # (extend) Lesson types
+│   ├── lesson-engine.ts            # NEW — lesson runner: present, score, progress
+│   └── exercise-engine.ts          # NEW — exercise presentation + scoring
+├── tools/
+│   ├── lesson-tools.ts             # NEW — start_lesson, continue_lesson, lesson_status
+│   └── ...                         # (existing tools unchanged)
+└── modules/
+    └── japanese/
+        ├── lessons/                # NEW — lesson data files
+        │   ├── index.ts            # Lesson registry + ordering
+        │   ├── unit-1-hiragana/    # Lessons 1.1-1.10
+        │   ├── unit-2-katakana/    # Lessons 2.1-2.10
+        │   ├── unit-3-phrases/     # Lessons 3.1-3.6
+        │   ├── unit-4-grammar/     # Lessons 4.1-4.8
+        │   └── ...
+        └── data/
+            ├── n5-vocab.json       # (existing)
+            ├── grammar-points.json # NEW — structured grammar DB
+            └── sentences.json      # NEW — graded example sentences
+```
+
+## Japanese Curriculum (N5)
+
+The lesson sequence follows the standard Japanese pedagogy order that every serious program agrees on:
+
+### Unit 1: Hiragana (10 lessons)
+| Lesson | Content | Exercises |
+|--------|---------|-----------|
+| 1.1 | Vowels: あいうえお | Recognition (show kana → pick romaji), production (romaji → type kana) |
+| 1.2 | K-row: かきくけこ | Same + mixed review with vowels |
+| 1.3 | S-row: さしすせそ | Same + reading kana words |
+| 1.4 | T-row: たちつてと | Same |
+| 1.5 | N-row: なにぬねの | Same |
+| 1.6 | H-row: はひふへほ | Same |
+| 1.7 | M-row: まみむめも | Same |
+| 1.8 | Y/R/W-row: やゆよ, らりるれろ, わをん | Same |
+| 1.9 | Dakuten + combo: が, ざ, きゃ, しゅ, etc. | Same |
+| 1.10 | Review + reading practice | Read full kana words and simple sentences |
+
+### Unit 2: Katakana (6 lessons)
+Same structure as hiragana but compressed (students already understand the system).
+
+### Unit 3: First Words & Phrases (6 lessons)
+| Lesson | Content |
+|--------|---------|
+| 3.1 | Greetings: こんにちは, おはよう, ありがとう, すみません |
+| 3.2 | Self-introduction: [name]です, はじめまして |
+| 3.3 | Numbers 1-100 |
+| 3.4 | Basic nouns (food, animals, objects) |
+| 3.5 | Demonstratives: これ, それ, あれ, この, その, あの |
+| 3.6 | Yes/No: はい/いいえ, そうです/ちがいます |
+
+### Unit 4: Basic Grammar (8 lessons)
+| Lesson | Content |
+|--------|---------|
+| 4.1 | XはYです (X is Y) — topic marker は + copula です |
+| 4.2 | Questions with か, question words (なに, どこ, だれ, いつ) |
+| 4.3 | Negation: じゃないです, ではありません |
+| 4.4 | Particles: を (object), に (direction/time), で (location/means) |
+| 4.5 | Verb ます-form (polite present/future) |
+| 4.6 | Verb ました (polite past), ませんでした (polite past negative) |
+| 4.7 | Adjectives: い-adj and な-adj + conjugation |
+| 4.8 | Existence: いる/ある + に particle |
+
+### Unit 5: Building Sentences (6 lessons)
+| Lesson | Content |
+|--------|---------|
+| 5.1 | Connecting sentences: そして, でも, から |
+| 5.2 | て-form introduction |
+| 5.3 | て-form applications: ている, てください |
+| 5.4 | Wanting: ～たい, ～がほしい |
+| 5.5 | Comparison: より, のほうが, いちばん |
+| 5.6 | Review + guided conversation using all learned material |
+
+## Lesson Data Format
+
+Each lesson is a JSON file:
+
+```json
+{
+  "id": "1.1",
+  "unit": "hiragana",
+  "title": "Vowels: あいうえお",
+  "prerequisites": [],
+  "introduction": {
+    "text": "Japanese has 5 vowel sounds that are the foundation of the entire writing system.",
+    "items": [
+      {
+        "char": "あ",
+        "reading": "a",
+        "mnemonic": "Looks like someone going 'Ahhh!' at the dentist",
+        "audio_hint": "Like 'a' in 'father'"
+      }
+    ]
+  },
+  "exercises": [
+    {
+      "type": "recognition",
+      "prompt": "What sound does あ make?",
+      "answer": "a",
+      "distractors": ["i", "u", "e", "o"]
+    },
+    {
+      "type": "production",
+      "prompt": "Type the hiragana for 'a'",
+      "answer": "あ",
+      "accept": ["あ", "a"]
+    },
+    {
+      "type": "cloze",
+      "prompt": "___いうえお",
+      "answer": "あ",
+      "hint": "The first vowel"
+    }
+  ],
+  "srs_items": [
+    { "front": "あ", "back": "a (ah)" },
+    { "front": "い", "back": "i (ee)" }
+  ],
+  "skills_taught": ["hiragana_a", "hiragana_i", "hiragana_u", "hiragana_e", "hiragana_o"]
+}
+```
+
+## Exercise Types
+
+| Type | Discord Implementation | Scoring |
+|------|----------------------|---------|
+| **Recognition** (see JP → pick meaning) | Embed + 4-5 buttons | Correct/incorrect |
+| **Production** (see meaning → type JP) | Embed prompt, user types answer | Fuzzy match (romaji accepted for kana) |
+| **Cloze** (fill the blank) | Embed with `___`, user types or picks from buttons | Exact match |
+| **Sentence build** (arrange words) | Numbered word list, user types order | Order match |
+| **Error correction** (find the mistake) | Embed with wrong sentence, user identifies error | Match target |
+| **Multiple choice** (general) | Embed + buttons | Correct/incorrect |
+| **Matching** (term → definition) | Sequential: show term, pick from buttons | Per-pair scoring |
+
+### Discord Button Constraints
+
+- Max 5 buttons per row, max 5 rows = 25 buttons total
+- Buttons support custom emoji (useful for kana)
+- Button interactions must be responded to within 3 seconds (use deferReply for slow ops)
+- Buttons expire after 15 minutes by default (set custom timeout per exercise)
+
+## Lesson Engine
+
+### Core Flow
+
+```
+User: "start a lesson" or "continue learning"
+  → lesson-engine checks user progress
+  → finds next available lesson (prereqs met, not completed)
+  → presents lesson introduction (embed)
+  → runs exercises sequentially (embed + buttons/text input)
+  → scores each exercise, tracks correct/total
+  → if score >= 80%: mark complete, unlock next, add SRS items
+  → if score < 80%: encourage retry, highlight weak areas
+  → show summary embed with score + what was learned
+```
+
+### State Machine
+
+```
+IDLE → INTRO → EXERCISE_1 → EXERCISE_2 → ... → SUMMARY → IDLE
+                    ↓                                ↑
+                 (timeout)  ────────────────────────→┘
+```
+
+- Lesson state persisted in SQLite (survives bot restart)
+- Timeout after 10 min inactivity → save progress, can resume later
+- Each exercise waits for user response (button click or text message)
+
+### New MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `start_lesson` | Start the next available lesson (or specific lesson by ID) |
+| `continue_lesson` | Resume an in-progress lesson |
+| `lesson_status` | Show current progress: units, lessons, completion %, next available |
+| `lesson_review` | Re-do a completed lesson for extra practice |
+
+### New Slash Commands
+
+| Command | Description |
+|---------|-------------|
+| `/lesson` | Start or continue a lesson (button-driven, no Claude roundtrip) |
+| `/progress` | Show learning progress embed (ephemeral) |
+
+### Progress Visualization (`/progress`)
+
+```
+📚 Japanese — N5 Course
+
+Unit 1: Hiragana  [██████████████████] 100%  ✓
+Unit 2: Katakana  [████████──────────]  40%
+Unit 3: Phrases   [🔒 locked]
+Unit 4: Grammar   [🔒 locked]
+Unit 5: Sentences [🔒 locked]
+
+🔥 Streak: 5 days | 📖 12/36 lessons | 📝 47/718 words learned
+Next lesson: 2.5 — Y/R/W-row (やゆよ, らりるれろ, わをん)
+```
+
+Progress bars use unicode blocks: `█` for complete, `─` for remaining. Ephemeral embed so it doesn't clutter chat.
+
+### Feedback Examples
+
+**Kana drill (simple):**
+> ❌ That's **u** — the correct answer is **a** (あ)
+
+**Grammar exercise (explanatory):**
+> ❌ Close! You used **が** but this sentence needs **は**.
+> は marks the **topic** (what we're talking about). が marks the **subject** (who does the action).
+> わたし**は**学生です = "As for me, I am a student"
+
+## Database Schema
+
+```sql
+-- Lesson progress per user
+CREATE TABLE lesson_progress (
+  user_id TEXT NOT NULL,
+  module TEXT NOT NULL,       -- "japanese"
+  lesson_id TEXT NOT NULL,    -- "1.1"
+  status TEXT DEFAULT 'locked', -- locked/available/in_progress/completed
+  score REAL,                 -- 0.0-1.0 (best attempt)
+  attempts INTEGER DEFAULT 0,
+  current_exercise INTEGER,   -- index into exercises array (for resume)
+  exercise_results TEXT,      -- JSON array of per-exercise results
+  started_at TEXT,
+  completed_at TEXT,
+  PRIMARY KEY (user_id, module, lesson_id)
+);
+
+-- Skills/knowledge tracking per user
+CREATE TABLE user_skills (
+  user_id TEXT NOT NULL,
+  module TEXT NOT NULL,
+  skill TEXT NOT NULL,         -- "hiragana_a", "particle_wa", "verb_masu"
+  level INTEGER DEFAULT 0,    -- 0-5 mastery level
+  last_practiced TEXT,
+  PRIMARY KEY (user_id, module, skill)
+);
+```
+
+## Data Sources
+
+### Already Have
+| Data | Source | Status |
+|------|--------|--------|
+| N5 vocabulary (718 cards) | Bundled JSON | ✅ In use |
+| Kana conversion | wanakana npm | ✅ In use |
+| Furigana generation | kuroshiro + kuromoji | ✅ In use |
+| Dictionary | Jisho API | ✅ In use |
+
+### Need to Add
+| Data | Source | License | Purpose |
+|------|--------|---------|---------|
+| Grammar points | Hanabira.org JSON | MIT/CC | Structured grammar DB with JLPT levels |
+| Kanji data | kanji-data npm | MIT | 13k+ kanji with readings, JLPT level, strokes |
+| Example sentences | tatoeba-json | CC BY 2.0 | Graded sentence corpus |
+| Stroke order SVGs | KanjiVG | CC BY-SA 3.0 | Visual kana/kanji teaching |
+| Offline dictionary | jmdict-simplified | CC BY-SA 4.0 | Remove Jisho API dependency |
+
+### Exercise Content Generation
+
+**Hybrid approach:**
+1. **Static exercises** for kana lessons (finite, deterministic — recognition/production of specific characters)
+2. **Template + data** for vocab/grammar exercises (pick random word from JLPT list, generate cloze/MC from it)
+3. **Claude-generated** for complex exercises (sentence building, error correction, contextual dialogues) — generated at runtime, cached in SQLite for reuse
+
+## TutorModule Interface Extensions
+
+```typescript
+interface TutorModule {
+  // ... existing interface ...
+
+  // Phase 2 additions
+  getLessons?(): LessonInfo[];           // Available lessons with prereqs
+  getLesson?(id: string): Lesson;       // Full lesson data
+  getCurriculum?(): Unit[];             // Unit structure for progress display
+  scoreExercise?(exercise: Exercise, answer: string): ExerciseResult;
+}
+
+interface Lesson {
+  id: string;
+  unit: string;
+  title: string;
+  prerequisites: string[];              // lesson IDs
+  introduction: LessonIntro;
+  exercises: Exercise[];
+  srsItems?: SRSItem[];                 // Auto-add to SRS on completion
+  skillsTaught: string[];
+}
+
+interface Exercise {
+  type: "recognition" | "production" | "cloze" | "sentence_build" |
+        "error_correction" | "multiple_choice" | "matching";
+  prompt: string;
+  answer: string;
+  distractors?: string[];               // For MC/recognition
+  accept?: string[];                    // Alternative accepted answers
+  hint?: string;
+  explanation?: string;                 // Shown after answering
+}
+
+interface ExerciseResult {
+  correct: boolean;
+  feedback: string;                     // "Correct!" or explanation
+  score: number;                        // 0.0-1.0
+}
+```
+
+## Implementation Priority
+
+### Phase 2a: Core Lesson Engine (MVP)
+1. Lesson data format + loader
+2. Lesson engine (present intro → run exercises → score → progress)
+3. `lesson_progress` + `user_skills` SQLite tables
+4. `start_lesson` / `continue_lesson` / `lesson_status` tools
+5. Hiragana lessons (Unit 1) — static exercises, no LLM generation needed
+6. `/lesson` and `/progress` slash commands with button interactions
+
+### Phase 2b: Full Japanese N5 Curriculum
+7. Katakana lessons (Unit 2)
+8. Phrases + vocabulary lessons (Unit 3) — template-based exercises
+9. Grammar lessons (Units 4-5) — Claude-generated exercises with caching
+10. Grammar points data from Hanabira.org
+11. Graded example sentences from Tatoeba
+
+### Phase 2c: Polish & Engagement
+12. Progress visualization (embeds with progress bars, unit map)
+13. Streak tracking + daily lesson reminders (leverage existing reminder system)
+14. Kanji data integration (kanji-data npm)
+15. Stroke order images for kana/kanji lessons
+16. Lesson review/redo functionality
+
+## What Stays the Same
+
+- SRS engine (FSRS) — unchanged, lessons feed items into it
+- Conversational tutoring — still available, now constrained to learned material
+- Quizzes — still available for ad-hoc practice
+- Dictionary — unchanged
+- Kana converter — unchanged
+- Module system — lessons are a new capability modules can opt into
+
+## Success Metrics
+
+- A user starting from zero can complete Unit 1 (hiragana) and read basic kana words
+- Lesson completion feeds SRS → user sees those items in reviews
+- 80% mastery gate prevents progression without understanding
+- Exercise variety keeps engagement higher than flashcard-only
+- Discord buttons make exercises feel interactive, not like homework
