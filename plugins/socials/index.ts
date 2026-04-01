@@ -10,7 +10,7 @@
  */
 
 import type { Plugin } from "../../lib/types.ts";
-import { socialsTools, destroyLinkedInClient, getLinkedInMonitor } from "./tools.ts";
+import { socialsTools, destroyLinkedInClient, getLinkedInMonitor, getLinkedInScheduler } from "./tools.ts";
 import {
   initRedditProvider,
   destroyRedditClient,
@@ -60,6 +60,8 @@ const socialsPlugin: Plugin = {
     "- `linkedin_comments` — read comments on a post",
     "- `linkedin_comment` — comment on a post (owner only)",
     "- `linkedin_react` — react to a post (like/celebrate/support/love/insightful/funny)",
+    "- `linkedin_schedule` — schedule a post for later (supports first-comment automation)",
+    "- `linkedin_queue` — view/manage scheduled post queue",
     "- `linkedin_monitor` — view tracked posts and check for new comments",
     "- `linkedin_status` — check if LinkedIn is connected and token status",
     "",
@@ -108,6 +110,38 @@ const socialsPlugin: Plugin = {
         }
       });
       monitor.startPolling();
+    }
+
+    // Start LinkedIn scheduler (if configured)
+    const scheduler = getLinkedInScheduler({ DATA_DIR: ctx.DATA_DIR, config: ctx.config });
+    if (scheduler) {
+      scheduler.onPosted((post, result) => {
+        const msg =
+          `📬 **Scheduled LinkedIn post published!**\n` +
+          `"${post.text.slice(0, 100)}..."\n` +
+          (result.url ? `URL: ${result.url}` : `URN: ${result.id}`);
+        try {
+          ctx.mcp?.sendNotification?.({
+            method: "notifications/message",
+            params: { content: msg },
+          });
+        } catch {
+          console.error(`[LinkedIn Scheduler] ${msg}`);
+        }
+      });
+      scheduler.onFailed((post, error) => {
+        const msg =
+          `❌ **Scheduled LinkedIn post failed!**\n` +
+          `Post #${post.id}: "${post.text.slice(0, 80)}..."\nError: ${error}`;
+        try {
+          ctx.mcp?.sendNotification?.({
+            method: "notifications/message",
+            params: { content: msg },
+          });
+        } catch {
+          console.error(`[LinkedIn Scheduler] ${msg}`);
+        }
+      });
     }
   },
 

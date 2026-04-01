@@ -7,6 +7,7 @@ import { text, err } from "../../lib/types.ts";
 import { getYouTubeProvider, getRedditProvider, getRedditClient, getYouTubeCommentClient } from "./providers/index.ts";
 import { LinkedInClient } from "./providers/linkedin/api.ts";
 import { LinkedInMonitor } from "./providers/linkedin/monitor.ts";
+import { LinkedInScheduler } from "./providers/linkedin/scheduler.ts";
 import type { NewComment } from "./providers/linkedin/monitor.ts";
 import type { RedditClient } from "./providers/reddit/api.ts";
 import type { YouTubeCommentClient } from "./providers/youtube/api.ts";
@@ -17,6 +18,7 @@ const reddit = getRedditProvider();
 /** LinkedIn client — lazily initialized when first tool is called (needs ctx.DATA_DIR + config) */
 let linkedInClient: LinkedInClient | null = null;
 let linkedInMonitor: LinkedInMonitor | null = null;
+let linkedInScheduler: LinkedInScheduler | null = null;
 
 function getLinkedInClient(ctx: { DATA_DIR: string; config: any }): LinkedInClient {
   if (linkedInClient) return linkedInClient;
@@ -51,8 +53,23 @@ export function getLinkedInMonitor(ctx: { DATA_DIR: string; config: any }): Link
   }
 }
 
-/** Called on plugin destroy to clean up LinkedIn client + monitor */
+/** Get or create the LinkedIn scheduler. */
+export function getLinkedInScheduler(ctx: { DATA_DIR: string; config: any }): LinkedInScheduler | null {
+  if (linkedInScheduler) return linkedInScheduler;
+  try {
+    const client = getLinkedInClient(ctx);
+    const monitor = getLinkedInMonitor(ctx);
+    linkedInScheduler = new LinkedInScheduler(`${ctx.DATA_DIR}/choomfie.db`, client, monitor);
+    return linkedInScheduler;
+  } catch {
+    return null;
+  }
+}
+
+/** Called on plugin destroy to clean up LinkedIn client + monitor + scheduler */
 export function destroyLinkedInClient(): void {
+  linkedInScheduler?.destroy();
+  linkedInScheduler = null;
   linkedInMonitor?.destroy();
   linkedInMonitor = null;
   linkedInClient?.destroy();
@@ -866,6 +883,150 @@ export const socialsTools: ToolDef[] = [
         return text(`Reacted to post with ${reaction}.`);
       } catch (e: any) {
         return err(`LinkedIn react failed: ${e.message}`);
+      }
+    },
+  },
+  {
+    definition: {
+      name: "linkedin_schedule",
+      description:
+        "Schedule a LinkedIn post for later. Supports text, image, and link posts. " +
+        "Use time like '2h', '30m', '3d', or a date like '2026-04-02 09:00'. " +
+        "Optionally add a first_comment that auto-posts after the main post. Owner only.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          text: {
+            type: "string",
+            description: "Post text (up to 3000 characters).",
+          },
+          time: {
+            type: "string",
+            description: "When to post: relative ('2h', '30m', '3d') or absolute ('2026-04-02 09:00').",
+          },
+          image: {
+            type: "string",
+            description: "Image URL or file path (optional, makes it an image post).",
+          },
+          url: {
+            type: "string",
+            description: "Link URL (optional, makes it a link/article post).",
+          },
+          link_title: {
+            type: "string",
+            description: "Link title for article card (optional).",
+          },
+          link_description: {
+            type: "string",
+            description: "Link description for article card (optional).",
+          },
+          first_comment: {
+            type: "string",
+            description: "Auto-post this comment after the main post (optional, good for CTAs).",
+          },
+        },
+        required: ["text", "time"],
+      },
+    },
+    handler: async (args, ctx) => {
+      try {
+        const scheduler = getLinkedInScheduler(ctx);
+        if (!scheduler) return err("LinkedIn not configured.");
+
+        const postText = args.text as string;
+        if (postText.length > 3000) {
+          return err("LinkedIn posts are limited to 3000 characters.");
+        }
+
+        const timeStr = args.time as string;
+        let scheduledAt: string;
+
+        // Try parsing as relative time
+        const { parseNaturalTime, dateToSQLite } = await import("../../lib/time.ts");
+        const parsed = parseNaturalTime(timeStr);
+        if (parsed) {
+          scheduledAt = dateToSQLite(parsed);
+        } else if (/^\d{4}-\d{2}-\d{2}/.test(timeStr)) {
+          // Absolute datetime
+          scheduledAt = timeStr.replace("T", " ").replace(/Z$/, "").trim();
+        } else {
+          return err(`Couldn't parse time "${timeStr}". Use '2h', '30m', '3d', or '2026-04-02 09:00'.`);
+        }
+
+        const mediaType = args.image ? "image" : args.url ? "link" : "text";
+        const post = scheduler.schedule({
+          text: postText,
+          scheduledAt,
+          mediaType: mediaType as "text" | "image" | "link",
+          imageUrl: args.image as string | undefined,
+          linkUrl: args.url as string | undefined,
+          linkTitle: args.link_title as string | undefined,
+          linkDescription: args.link_description as string | undefined,
+          firstComment: args.first_comment as string | undefined,
+        });
+
+        return text(
+          `Scheduled LinkedIn post #${post.id} for ${post.scheduledAt} UTC.\n` +
+          `Type: ${mediaType}` +
+          (post.firstComment ? `\nFirst comment: "${post.firstComment}"` : "")
+        );
+      } catch (e: any) {
+        return err(`LinkedIn schedule failed: ${e.message}`);
+      }
+    },
+  },
+  {
+    definition: {
+      name: "linkedin_queue",
+      description:
+        "View or manage the LinkedIn post queue. Shows pending scheduled posts by default.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          action: {
+            type: "string",
+            enum: ["list", "cancel", "all"],
+            description: "Action: 'list' (default, pending only), 'all' (include posted/cancelled), 'cancel' (cancel a post by ID).",
+          },
+          id: {
+            type: "number",
+            description: "Post ID to cancel (required for action='cancel').",
+          },
+        },
+      },
+    },
+    handler: async (args, ctx) => {
+      try {
+        const scheduler = getLinkedInScheduler(ctx);
+        if (!scheduler) return err("LinkedIn not configured.");
+
+        const action = (args.action as string) || "list";
+
+        if (action === "cancel") {
+          const id = args.id as number;
+          if (!id) return err("Provide an ID to cancel.");
+          const cancelled = scheduler.cancel(id);
+          return cancelled
+            ? text(`Cancelled scheduled post #${id}.`)
+            : err(`Post #${id} not found or already posted/cancelled.`);
+        }
+
+        const posts = scheduler.getQueue(action === "all");
+        if (posts.length === 0) {
+          return text("No scheduled LinkedIn posts.");
+        }
+
+        const formatted = posts
+          .map(
+            (p) =>
+              `**#${p.id}** [${p.status}] ${p.scheduledAt} UTC\n  ${p.mediaType} · "${p.text.slice(0, 80)}..."` +
+              (p.postUrn ? `\n  URN: ${p.postUrn}` : "") +
+              (p.error ? `\n  Error: ${p.error}` : "")
+          )
+          .join("\n\n");
+        return text(`**LinkedIn Queue (${posts.length}):**\n\n${formatted}`);
+      } catch (e: any) {
+        return err(`LinkedIn queue failed: ${e.message}`);
       }
     },
   },

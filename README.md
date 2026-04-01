@@ -151,7 +151,7 @@ Configure via `/voice` slash command in Discord.
 3. Add client ID/secret to config.json under `socials.linkedin`
 4. Run `linkedin_auth` (open the link on the same machine running the bot)
 
-## Tools (36)
+## Tools (38)
 
 | Category | Tools |
 |----------|-------|
