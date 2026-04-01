@@ -279,8 +279,10 @@ reminders: id, user_id, chat_id, message, due_at, fired, created_at,
 - Typing indicator: state machine in `lib/typing.ts` (IDLE ↔ TYPING). Shows typing while Claude thinks, stops on reply. Use `keep_typing: true` on the reply tool to keep typing active between multi-message workflows. Safety timeout: 2 min. Skipped for conversation_mode.
 - Allowlist: loaded at startup from access.json. Use `allow_user`/`remove_user` tools to modify in-memory + persist to file (no restart needed). Manual file edits require restart.
 - @mentions stripped from message before forwarding to Claude
-- Personas stored in config.json, switchable from Discord
+- Personas stored in config.json, switchable from Discord (auto-restarts worker)
 - search_messages paginates up to 1000 messages for user/keyword filtering
+- **Hot-reload boundary:** Worker code (tools, plugins, Discord) is hot-reloadable via worker restart. Supervisor code (IPC types, MCP server) requires full session restart (exit + re-run `choomfie`)
+- Auto-restart triggers: persona switch, plugin enable/disable, voice config change — all send `request_restart` IPC → supervisor restarts worker → sends confirmation to Discord channel
 
 ## Config (config.json)
 

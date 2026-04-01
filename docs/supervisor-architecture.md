@@ -265,6 +265,14 @@ Supervisor waits for worker `ready` before creating the MCP server. This ensures
 ### Tool list synchronization
 When the worker sends `ready` (initial or after restart), supervisor sends a `notifications/tools/list_changed` notification to Claude Code, which re-fetches the tool list. Also patches `_instructions` on the MCP Server instance for any future re-initialization.
 
+## Hot-Reload Boundaries
+
+**Worker code (hot-reloadable):** Any change to worker.ts, lib/, plugins/, tools is picked up on worker restart (via `restart` tool or `request_restart` IPC). No session restart needed.
+
+**Supervisor code (NOT hot-reloadable):** Changes to supervisor.ts, ipc-types.ts (new message types), or the MCP server setup require a full session restart (exit + re-run `choomfie`). The supervisor is the immortal process — it never restarts itself.
+
+**Rule of thumb:** If you're adding new IPC message types or changing supervisor logic, you need a fresh session. If you're changing tool handlers, plugins, Discord code, or persona logic, a worker restart is enough.
+
 ## Error Handling
 
 - All `worker.send()` calls in supervisor wrapped in try-catch
