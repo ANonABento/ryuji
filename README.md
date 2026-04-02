@@ -175,7 +175,7 @@ install.sh                         # Installer (deps, Discord token, choomfie co
 packages/                          # Core infrastructure
   shared/                          # @choomfie/shared — types, utils, time, paths
   core/                            # @choomfie/core — MCP server, Discord bridge, memory
-    server.ts, supervisor.ts, worker.ts, meta.ts
+    server.ts, supervisor.ts, worker.ts, daemon.ts
     lib/                           # Discord, memory, reminders, tools, config, permissions
     skills/                        # Claude Code slash command skills
     scripts/                       # deploy-commands.ts

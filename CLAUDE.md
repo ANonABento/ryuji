@@ -29,7 +29,7 @@ packages/
     version.ts                     # VERSION
   core/                            # @choomfie/core — Discord bridge, memory, etc.
     package.json
-    server.ts, supervisor.ts, worker.ts, meta.ts
+    server.ts, supervisor.ts, worker.ts, daemon.ts
     lib/
       types.ts                     # AppContext (extends PluginContext), re-exports shared
       interactions.ts              # handleInteraction() + safeHandle() + re-exports shared registries

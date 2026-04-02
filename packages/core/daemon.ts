@@ -1,25 +1,20 @@
 #!/usr/bin/env bun
 /**
- * Choomfie Meta-Supervisor — manages Claude Code sessions via the Agent SDK.
+ * Choomfie Daemon — autonomous mode entry point.
  *
- * Phase 3: The meta-supervisor is the top-level entry point. It manages:
- *   1. Claude Code sessions (Agent SDK) — cycled when context gets heavy
- *   2. Worker health monitoring — detects plugin worker issues, triggers recovery
- *
- * The worker is still spawned BY the Claude session (via the plugin system),
- * but meta-supervisor monitors its health and can trigger session cycles to
- * recover from worker failures.
+ * Manages Claude Code sessions via the Agent SDK, cycling them when context
+ * gets heavy. Monitors worker health and triggers recovery on failure.
  *
  * Architecture:
- *   meta.ts (always running)
+ *   daemon.ts (always running)
  *     └→ Claude Session (Agent SDK, loads Choomfie as plugin)
  *          └→ supervisor.ts (MCP stdio) → worker.ts (Discord)
  *
  * Usage:
- *   bun meta.ts                 # Normal operation
- *   bun meta.ts --test-cycle    # Test session cycling
- *   bun meta.ts --benchmark     # Measure latency
- *   bun meta.ts --verbose       # Debug output
+ *   choomfie --daemon            # Normal operation
+ *   bun daemon.ts --test-cycle   # Test session cycling
+ *   bun daemon.ts --benchmark    # Measure latency
+ *   bun daemon.ts --verbose      # Debug output
  */
 
 import {
@@ -119,12 +114,12 @@ type MetaState = {
 let currentSessionId = "boot";
 
 function log(msg: string) {
-  console.error(`[meta:${currentSessionId}] ${new Date().toISOString()} ${msg}`);
+  console.error(`[daemon:${currentSessionId}] ${new Date().toISOString()} ${msg}`);
 }
 
 function verbose(msg: string) {
   if (FLAG_VERBOSE) {
-    console.error(`[meta:${currentSessionId}:debug] ${new Date().toISOString()} ${msg}`);
+    console.error(`[daemon:${currentSessionId}:debug] ${new Date().toISOString()} ${msg}`);
   }
 }
 
@@ -143,8 +138,8 @@ async function acquirePid(): Promise<void> {
         });
         const command = (await new Response(proc.stdout).text()).trim();
         await proc.exited;
-        if (command && (command.includes("meta.ts") || command.includes("choomfie"))) {
-          log(`Killing old meta-supervisor (PID ${oldPid})`);
+        if (command && (command.includes("daemon.ts") || command.includes("choomfie"))) {
+          log(`Killing old daemon (PID ${oldPid})`);
           process.kill(oldPid, "SIGTERM");
           await new Promise((r) => setTimeout(r, 500));
         }
@@ -234,13 +229,13 @@ function buildSystemPromptAppend(handoffSummary?: string): string {
   const parts: string[] = [];
 
   parts.push(
-    "You are running under the Choomfie meta-supervisor (Phase 3). " +
+    "You are running under the Choomfie daemon (Phase 3). " +
       "Your session will be automatically cycled when context gets heavy. " +
-      "The meta-supervisor monitors worker health and will cycle this session " +
+      "The daemon monitors worker health and will cycle this session " +
       "if the Discord worker becomes unresponsive.\n\n" +
       "If asked for a handoff summary, provide a concise summary of the current conversation state, " +
       "active tasks, important context, and any pending work.\n\n" +
-      "The meta-supervisor manages session cycling. The existing 'restart' tool in Choomfie " +
+      "The daemon manages session cycling. The existing 'restart' tool in Choomfie " +
       "still works for restarting just the Discord worker. A full session cycle (which also " +
       "restarts the worker) happens automatically when context thresholds are reached or " +
       "when the worker is detected as unhealthy."
@@ -905,10 +900,10 @@ function stopWorkerHealthMonitor(state: MetaState): void {
   }
 }
 
-// --- Meta-Supervisor Tools ---
+// --- Daemon Tools ---
 
 /**
- * Tools owned by the meta-supervisor itself.
+ * Tools owned by the daemon itself.
  * These are injected into the Claude session's system prompt so Claude knows about them.
  * They're triggered by pushing a specific message to the session.
  */
@@ -931,7 +926,7 @@ async function handleCycleRequest(state: MetaState, reason: string): Promise<voi
 }
 
 /**
- * Get the current meta-supervisor status including worker health.
+ * Get the current daemon status including worker health.
  */
 function getMetaStatus(state: MetaState): string {
   const uptime = state.sessionStartTime > 0
@@ -939,7 +934,7 @@ function getMetaStatus(state: MetaState): string {
     : 0;
 
   const lines = [
-    `Meta-Supervisor Status`,
+    `Daemon Status`,
     `  State: ${state.state}`,
     `  Session: ${state.sessionId}`,
     `  Session uptime: ${uptime}s`,
@@ -1024,7 +1019,7 @@ async function main(): Promise<void> {
   if (FLAG_TEST_CYCLE) return testCycle();
   if (FLAG_BENCHMARK) return benchmark();
 
-  log("Choomfie Meta-Supervisor starting (Phase 3: supervisor collapse)...");
+  log("Choomfie daemon starting...");
   log(`Plugin directory: ${PLUGIN_DIR}`);
   log(`Data directory: ${DATA_DIR}`);
   log(`Thresholds: ${TOKEN_THRESHOLD} tokens, ${TURN_THRESHOLD} turns`);
@@ -1051,7 +1046,7 @@ async function main(): Promise<void> {
   // Start first session
   await startSession(state, lastSummary);
 
-  log("Meta-supervisor running. Press Ctrl+C to stop.");
+  log("Daemon running. Press Ctrl+C to stop.");
 
   // Keep process alive
   await new Promise(() => {});

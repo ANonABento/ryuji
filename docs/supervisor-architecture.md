@@ -227,7 +227,7 @@ All core files live under `packages/core/`:
 | `server.ts` | Thin wrapper: `import "./supervisor.ts"` |
 | `supervisor.ts` | Immortal process: MCP, IPC, restart, PID |
 | `worker.ts` | Disposable process: Discord, plugins, tools |
-| `meta.ts` | Meta-supervisor for Agent SDK session cycling |
+| `daemon.ts` | Autonomous mode — Agent SDK session cycling |
 | `lib/ipc-types.ts` | Shared IPC message types |
 | `lib/mcp-proxy.ts` | Duck-type MCP Server for worker (`notification()` + `setNotificationHandler()`) |
 | `lib/mcp-server.ts` | `buildInstructions()` + `createMcpServer()` (used by worker + boot test) |

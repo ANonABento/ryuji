@@ -95,7 +95,7 @@ choomfie --tmux     # background — same as above, survives terminal close
 choomfie --daemon   # autonomous — Discord-only, Claude sessions auto-cycle
 ```
 
-**Daemon mode** runs the meta-supervisor (`meta.ts`) which uses the Agent SDK to spawn Claude Code sessions programmatically. When context gets heavy (~120k tokens or 80 turns), it captures a handoff summary and cycles to a fresh session automatically. No human in the loop — Discord is the only interface.
+**Daemon mode** runs `daemon.ts` which uses the Agent SDK to spawn Claude Code sessions programmatically. When context gets heavy (~120k tokens or 80 turns), it captures a handoff summary and cycles to a fresh session automatically. No human in the loop — Discord is the only interface.
 
 Combine flags for always-on daemon: `choomfie --daemon --tmux` or `choomfie --daemon --always-on` (also prevents macOS sleep).
 

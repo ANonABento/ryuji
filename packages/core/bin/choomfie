@@ -34,7 +34,7 @@ done
 
 # Build the inner command
 if [ "$USE_DAEMON" = true ]; then
-  INNER_CMD="cd '$CHOOMFIE_DIR' && exec bun packages/core/meta.ts ${EXTRA_ARGS[*]:-}"
+  INNER_CMD="cd '$CHOOMFIE_DIR' && exec bun packages/core/daemon.ts ${EXTRA_ARGS[*]:-}"
 else
   INNER_CMD="cd '$CHOOMFIE_DIR' && exec claude --plugin-dir '$CHOOMFIE_DIR' --dangerously-load-development-channels server:choomfie"
 fi
@@ -71,7 +71,7 @@ if [ "$USE_TMUX" = true ]; then
 else
   cd "$CHOOMFIE_DIR"
   if [ "$USE_DAEMON" = true ]; then
-    exec bun packages/core/meta.ts "${EXTRA_ARGS[@]:-}"
+    exec bun packages/core/daemon.ts "${EXTRA_ARGS[@]:-}"
   else
     exec claude --plugin-dir "$CHOOMFIE_DIR" --dangerously-load-development-channels server:choomfie
   fi

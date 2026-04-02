@@ -1,11 +1,11 @@
-# Architecture V2: Meta-Supervisor + Worker
+# Architecture V2: Daemon Mode
 
 ## Status: Planning — Last Updated 2026-03-30
 
 ## TL;DR
 
 ```
-Meta-Supervisor (meta.ts) — always running, manages everything
+Daemon (daemon.ts) — always running, manages everything
   ├→ Claude Session (Agent SDK) — the brain, cycled when context heavy
   └→ Discord Worker (worker.ts) — hands and feet, talks to Discord
 ```
@@ -14,7 +14,7 @@ Meta-Supervisor (meta.ts) — always running, manages everything
 
 | Layer | Process | Lifecycle | Responsibilities | Owns |
 |-------|---------|-----------|-----------------|------|
-| **Meta-Supervisor** | `meta.ts` (Bun) | Immortal (systemd/launchd) | Spawn + cycle Claude sessions. Spawn + restart Discord worker. Route messages between Claude ↔ Worker. Monitor context usage. Handoff summaries. PID guard. Health checks. | Session lifecycle, worker lifecycle, message routing, state persistence |
+| **Daemon** | `daemon.ts` (Bun) | Immortal (systemd/launchd) | Spawn + cycle Claude sessions. Spawn + restart Discord worker. Route messages between Claude ↔ Worker. Monitor context usage. Handoff summaries. PID guard. Health checks. | Session lifecycle, worker lifecycle, message routing, state persistence |
 | **Claude Session** | Agent SDK subprocess | Disposable (cycled every ~120K tokens) | Process messages. Reason about what to do. Decide which tools to call. Generate responses. Maintain conversation context. Follow persona. | LLM reasoning, tool selection, conversation memory (ephemeral) |
 | **Discord Worker** | `worker.ts` (Bun) | Disposable (restartable) | Discord client connection. Plugin runtime (voice, browser, socials, language-learning). Execute tool calls (reply, react, browse, speak, etc.). Handle interactions (buttons, slash commands, modals). Reminders. | Discord connection, plugin state, tool execution, real-time features |
 
@@ -22,7 +22,7 @@ Meta-Supervisor (meta.ts) — always running, manages everything
 
 | Layer | Does NOT |
 |-------|----------|
-| **Meta-Supervisor** | Does NOT reason about messages. Does NOT call tools directly. Does NOT talk to Discord. |
+| **Daemon** | Does NOT reason about messages. Does NOT call tools directly. Does NOT talk to Discord. |
 | **Claude Session** | Does NOT persist across restarts. Does NOT manage Discord. Does NOT survive context overflow. |
 | **Discord Worker** | Does NOT decide what to say. Does NOT manage Claude. Does NOT handle context/sessions. |
 
@@ -44,20 +44,20 @@ Claude Code (terminal session, manages context)
 ## Proposed Architecture (V2)
 
 ```
-Meta-Supervisor (packages/core/meta.ts — immortal, always running)
+Daemon (packages/core/daemon.ts — immortal, always running)
   ├→ Claude Session (Agent SDK — managed, cycled when context heavy)
   │    └→ Choomfie tools registered via plugin or direct
   └→ Discord Worker (packages/core/worker.ts — disposable, Discord + plugins)
-       └→ IPC back to Meta-Supervisor
+       └→ IPC back to Daemon
 ```
 
 ### Key Insight
 
-The current supervisor's ONLY job is keeping the MCP pipe alive. If meta-supervisor manages Claude sessions via the Agent SDK, there IS no MCP pipe to keep alive — the SDK handles the Claude connection internally. The MCP layer becomes unnecessary.
+The current supervisor's ONLY job is keeping the MCP pipe alive. If daemon manages Claude sessions via the Agent SDK, there IS no MCP pipe to keep alive — the SDK handles the Claude connection internally. The MCP layer becomes unnecessary.
 
 ### What Each Layer Does
 
-**Meta-Supervisor (meta.ts):**
+**Daemon (daemon.ts):**
 - Always running (spawned by systemd, launchd, or a shell script)
 - Spawns + manages Claude sessions via Agent SDK
 - Spawns + manages Discord worker via Bun.spawn + IPC
@@ -70,9 +70,9 @@ The current supervisor's ONLY job is keeping the MCP pipe alive. If meta-supervi
 **Discord Worker (worker.ts):**
 - Owns Discord client, plugins, interactions
 - Executes tool calls (reply, react, browse, voice, etc.)
-- Reports events (messages, voice transcripts) back to meta-supervisor via IPC
-- Disposable — meta-supervisor can kill and respawn for code reload
-- Same as current worker, but IPC goes to meta-supervisor instead of MCP supervisor
+- Reports events (messages, voice transcripts) back to daemon via IPC
+- Disposable — daemon can kill and respawn for code reload
+- Same as current worker, but IPC goes to daemon instead of MCP supervisor
 
 ### What We Remove
 
@@ -100,14 +100,14 @@ The current supervisor's ONLY job is keeping the MCP pipe alive. If meta-supervi
 
 | Event | Who Handles | What Happens |
 |-------|-------------|--------------|
-| Bot startup | Meta-Supervisor | Spawns Claude session + Discord worker |
+| Bot startup | Daemon | Spawns Claude session + Discord worker |
 | Discord message | Worker → Meta → Claude | Routed to Claude for processing |
 | Tool call | Claude → Meta → Worker | Worker executes, returns result |
-| Context full (~120K) | Meta-Supervisor | Drains, generates summary, cycles Claude session |
-| Worker crash | Meta-Supervisor | Respawns worker, Claude session unaffected |
-| Claude session error | Meta-Supervisor | Respawns session with last handoff summary |
-| Code update / restart | Meta-Supervisor | Kills worker, spawns fresh one. Optionally cycles Claude session. |
-| Shutdown | Meta-Supervisor | Graceful shutdown of Claude session + worker |
+| Context full (~120K) | Daemon | Drains, generates summary, cycles Claude session |
+| Worker crash | Daemon | Respawns worker, Claude session unaffected |
+| Claude session error | Daemon | Respawns session with last handoff summary |
+| Code update / restart | Daemon | Kills worker, spawns fresh one. Optionally cycles Claude session. |
+| Shutdown | Daemon | Graceful shutdown of Claude session + worker |
 
 ## Flow Comparison
 
@@ -132,13 +132,13 @@ Discord message
 ```
 Discord message
   → Worker receives via discord.js
-  → Worker sends IPC to Meta-Supervisor
-  → Meta-Supervisor feeds message to Claude session (Agent SDK)
+  → Worker sends IPC to Daemon
+  → Daemon feeds message to Claude session (Agent SDK)
   → Claude processes, returns tool call in stream
-  → Meta-Supervisor sends IPC tool_call to Worker
+  → Daemon sends IPC tool_call to Worker
   → Worker executes reply via discord.js
-  → Worker sends IPC tool_result to Meta-Supervisor
-  → Meta-Supervisor feeds result back to Claude session
+  → Worker sends IPC tool_result to Daemon
+  → Daemon feeds result back to Claude session
 ```
 **Hops: 6** (eliminates MCP protocol overhead)
 
@@ -178,7 +178,7 @@ query({
     mcpServers: {
       choomfie: {
         command: "bun",
-        args: ["server.ts"], // existing supervisor, but now spawned BY meta-supervisor
+        args: ["server.ts"], // existing supervisor, but now spawned BY daemon
       }
     }
   }
@@ -189,7 +189,7 @@ This way:
 - Meta-supervisor spawns Claude session
 - Claude session spawns supervisor as MCP server
 - Supervisor spawns worker as before
-- But meta-supervisor controls session lifecycle
+- But daemon controls session lifecycle
 
 **Downside:** We're back to 4 layers. But session cycling is managed.
 
@@ -198,7 +198,7 @@ This way:
 Make the worker ALSO be the MCP server. Remove the supervisor entirely:
 
 ```typescript
-// meta.ts
+// daemon.ts
 query({
   prompt: messageGenerator,
   options: {
@@ -220,7 +220,7 @@ query({
 
 **On restart:** Meta-supervisor cycles the Claude session (which restarts the MCP server, which restarts the worker). Fresh context + fresh code.
 
-**Downside:** Worker restarts also restart the MCP connection and Claude session. But if meta-supervisor handles cycling anyway, this is fine — the whole point is that sessions are disposable.
+**Downside:** Worker restarts also restart the MCP connection and Claude session. But if daemon handles cycling anyway, this is fine — the whole point is that sessions are disposable.
 
 ## Design Decisions
 
@@ -228,19 +228,19 @@ query({
 Meta-supervisor spawns BOTH Claude session and worker directly. They're siblings, not nested. This means cycling Claude does NOT kill the worker — Discord stays connected.
 
 ```
-Meta-Supervisor
+Daemon
   ├→ Claude Session (can be cycled independently)
   └→ Worker (stays alive during session cycles)
 ```
 
 ### Message bus over direct IPC
-Instead of point-to-point routing, use a simple event emitter inside meta-supervisor. Worker publishes events ("discord_message", "voice_transcript"), meta-supervisor subscribes and routes to Claude. Makes it easy to add consumers later (logging, analytics, parallel sessions).
+Instead of point-to-point routing, use a simple event emitter inside daemon. Worker publishes events ("discord_message", "voice_transcript"), daemon subscribes and routes to Claude. Makes it easy to add consumers later (logging, analytics, parallel sessions).
 
 ### Model routing at the meta level
 Meta-supervisor sees every message before Claude. Could route simple messages (reactions, short replies) to Haiku and complex ones to Opus via SDK's `setModel()`. Not for Phase 1, but the architecture supports it naturally.
 
 ### No fallback during session cycling
-Session swap takes ~12s. During this time, Discord messages queue in meta-supervisor and replay when the new session is ready. No special "degradation mode" needed — the queue handles it.
+Session swap takes ~12s. During this time, Discord messages queue in daemon and replay when the new session is ready. No special "degradation mode" needed — the queue handles it.
 
 ### Keep supervisor in Phase 1
 Don't refactor the current supervisor/worker system yet. Phase 1 wraps the existing architecture. Prove session cycling works first. Collapse later.
@@ -250,17 +250,17 @@ Don't refactor the current supervisor/worker system yet. Phase 1 wraps the exist
 1. **Can the Agent SDK load plugins that register MCP tools?** If yes, Option A is simplest.
 2. **What's the latency of Agent SDK tool calls vs MCP?** If SDK adds overhead per tool call, it could affect voice responsiveness.
 3. **Does the Discord bot stay connected during session cycling?** If the worker is spawned by Claude session (Option C/D), cycling kills the worker too. Need the worker to be independent.
-4. **Do we need code reloading?** If the meta-supervisor always cycles Claude sessions (which respawn the worker), the current "restart tool" becomes a "cycle session" tool.
+4. **Do we need code reloading?** If the daemon always cycles Claude sessions (which respawn the worker), the current "restart tool" becomes a "cycle session" tool.
 
 ## Recommended Path Forward
 
 **Phase 1: Meta-supervisor wrapper (don't refactor yet)**
-- Build `meta.ts` using Agent SDK
+- Build `daemon.ts` using Agent SDK
 - Spawn current architecture as-is (supervisor as MCP plugin)
 - Add session monitoring + cycling
 - Validate everything works
 
-**Phase 2: Harden meta-supervisor** ✅
+**Phase 2: Harden daemon** ✅
 - Fixed handoff summary capture (proper result-based extraction)
 - Typed state (removed `as any` hacks)
 - Error recovery with exponential backoff
@@ -280,9 +280,9 @@ Don't refactor the current supervisor/worker system yet. Phase 1 wraps the exist
 
 **Phase 4 (future): Full sibling architecture**
 - If 3s Discord reconnect on cycle is unacceptable:
-  - Remove supervisor, spawn worker directly from meta-supervisor
+  - Remove supervisor, spawn worker directly from daemon
   - Worker survives session cycles (Discord stays connected)
-  - Custom MCP server in meta-supervisor exposes worker tools to Agent SDK
+  - Custom MCP server in daemon exposes worker tools to Agent SDK
 
 ## Agent SDK Reference
 

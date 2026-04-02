@@ -14,7 +14,7 @@
     "test": "bun test",
     "test:all": "bun test packages/*/test/ test/",
     "deploy-commands": "bun packages/core/scripts/deploy-commands.ts",
-    "meta": "bun packages/core/meta.ts"
+    "daemon": "bun packages/core/daemon.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.87",
