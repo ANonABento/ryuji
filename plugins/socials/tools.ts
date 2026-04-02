@@ -759,6 +759,120 @@ export const socialsTools: ToolDef[] = [
   },
   {
     definition: {
+      name: "linkedin_edit",
+      description:
+        "Edit the text of an existing LinkedIn post. Only the post text can be changed. Owner only.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          post_urn: {
+            type: "string",
+            description: "The post URN to edit.",
+          },
+          text: {
+            type: "string",
+            description: "New post text (up to 3000 characters).",
+          },
+        },
+        required: ["post_urn", "text"],
+      },
+    },
+    handler: async (args, ctx) => {
+      try {
+        const client = getLinkedInClient(ctx);
+        const newText = args.text as string;
+        if (newText.length > 3000) {
+          return err("LinkedIn posts are limited to 3000 characters.");
+        }
+        await client.editPost(args.post_urn as string, newText);
+        return text(`Edited LinkedIn post: ${args.post_urn}`);
+      } catch (e: any) {
+        return err(`LinkedIn edit failed: ${e.message}`);
+      }
+    },
+  },
+  {
+    definition: {
+      name: "linkedin_poll",
+      description:
+        "Create a poll on LinkedIn. 2-4 options, duration 1/3/7/14 days. Owner only.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          text: {
+            type: "string",
+            description: "Poll question / post text.",
+          },
+          options: {
+            type: "array",
+            items: { type: "string" },
+            description: "Poll options (2-4 choices).",
+          },
+          duration: {
+            type: "number",
+            enum: [1, 3, 7, 14],
+            description: "Duration in days (default: 3).",
+          },
+        },
+        required: ["text", "options"],
+      },
+    },
+    handler: async (args, ctx) => {
+      try {
+        const client = getLinkedInClient(ctx);
+        const options = args.options as string[];
+        if (options.length < 2 || options.length > 4) {
+          return err("Polls require 2-4 options.");
+        }
+        const duration = (args.duration as number || 3) as 1 | 3 | 7 | 14;
+        const result = await client.postPoll(args.text as string, options, duration);
+
+        const monitor = getLinkedInMonitor(ctx);
+        if (monitor && result.id) monitor.trackPost(result.id, args.text as string);
+
+        const urlLine = result.url ? `\nURL: ${result.url}` : "";
+        return text(`Poll created on LinkedIn.\nPost ID: ${result.id}${urlLine}`);
+      } catch (e: any) {
+        return err(`LinkedIn poll failed: ${e.message}`);
+      }
+    },
+  },
+  {
+    definition: {
+      name: "linkedin_repost",
+      description:
+        "Repost/share someone else's LinkedIn post. Optionally add your own commentary. Owner only.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          post_urn: {
+            type: "string",
+            description: "URN of the post to repost.",
+          },
+          commentary: {
+            type: "string",
+            description: "Your commentary to add (optional, for a reshare with text).",
+          },
+        },
+        required: ["post_urn"],
+      },
+    },
+    handler: async (args, ctx) => {
+      try {
+        const client = getLinkedInClient(ctx);
+        const result = await client.repost(
+          args.post_urn as string,
+          args.commentary as string | undefined
+        );
+        const urlLine = result.url ? `\nURL: ${result.url}` : "";
+        return text(`Reposted on LinkedIn.\nPost ID: ${result.id}${urlLine}`);
+      } catch (e: any) {
+        return err(`LinkedIn repost failed: ${e.message}`);
+      }
+    },
+  },
+  {
+    definition: {
       name: "linkedin_delete",
       description:
         "Delete a LinkedIn post by its URN (e.g. urn:li:share:123456). Owner only.",

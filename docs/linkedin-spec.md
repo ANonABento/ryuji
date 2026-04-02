@@ -23,7 +23,10 @@ Working:
 - Notification callbacks for posted/failed scheduled posts
 - Engagement analytics (likes, comments, top posts)
 - Like count tracking during comment polls
-- 14 MCP tools: `linkedin_auth`, `linkedin_post`, `linkedin_post_image`, `linkedin_post_images`, `linkedin_post_link`, `linkedin_delete`, `linkedin_comments`, `linkedin_comment`, `linkedin_react`, `linkedin_schedule`, `linkedin_queue`, `linkedin_monitor`, `linkedin_analytics`, `linkedin_status`
+- Edit post text (PARTIAL_UPDATE)
+- Polls (2-4 options, 1/3/7/14 day duration)
+- Repost/reshare with optional commentary
+- 17 MCP tools: `linkedin_auth`, `linkedin_post`, `linkedin_post_image`, `linkedin_post_images`, `linkedin_post_link`, `linkedin_edit`, `linkedin_poll`, `linkedin_repost`, `linkedin_delete`, `linkedin_comments`, `linkedin_comment`, `linkedin_react`, `linkedin_schedule`, `linkedin_queue`, `linkedin_monitor`, `linkedin_analytics`, `linkedin_status`
 
 Scopes: `openid`, `profile`, `w_member_social`
 

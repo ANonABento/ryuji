@@ -713,6 +713,151 @@ export class LinkedInClient {
   }
 
   /**
+   * Edit a post's text. Only the commentary can be updated.
+   */
+  async editPost(postUrn: string, newText: string): Promise<void> {
+    const token = await this.ensureToken();
+    const encodedUrn = encodeURIComponent(postUrn);
+
+    const body = {
+      patch: {
+        $set: { commentary: newText },
+      },
+    };
+
+    const resp = await fetch(`${LINKEDIN_REST_BASE}/posts/${encodedUrn}`, {
+      method: "POST",
+      headers: {
+        ...this.restHeaders(token),
+        "X-RestLi-Method": "PARTIAL_UPDATE",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!resp.ok) {
+      const respBody = await resp.text();
+      throw new Error(`LinkedIn edit failed (${resp.status}): ${respBody}`);
+    }
+  }
+
+  /**
+   * Create a poll post.
+   */
+  async postPoll(
+    text: string,
+    options: string[],
+    durationDays: 1 | 3 | 7 | 14 = 3
+  ): Promise<LinkedInPostResult> {
+    if (options.length < 2 || options.length > 4) {
+      throw new Error("Polls require 2-4 options.");
+    }
+
+    const token = await this.ensureToken();
+    const personUrn = await this.ensurePersonUrn();
+
+    // Duration mapping
+    const durationMap: Record<number, string> = {
+      1: "ONE_DAY",
+      3: "THREE_DAYS",
+      7: "SEVEN_DAYS",
+      14: "FOURTEEN_DAYS",
+    };
+
+    const body = {
+      author: personUrn,
+      commentary: text,
+      visibility: "PUBLIC",
+      distribution: {
+        feedDistribution: "MAIN_FEED",
+        targetEntities: [],
+        thirdPartyDistributionChannels: [],
+      },
+      content: {
+        poll: {
+          question: text,
+          options: options.map((o) => ({ text: o })),
+          settings: {
+            duration: durationMap[durationDays] || "THREE_DAYS",
+          },
+        },
+      },
+      lifecycleState: "PUBLISHED",
+      isReshareDisabledByAuthor: false,
+    };
+
+    const resp = await fetch(`${LINKEDIN_REST_BASE}/posts`, {
+      method: "POST",
+      headers: this.restHeaders(token),
+      body: JSON.stringify(body),
+    });
+
+    if (!resp.ok) {
+      const respBody = await resp.text();
+      throw new Error(`LinkedIn poll failed (${resp.status}): ${respBody}`);
+    }
+
+    const postUrn =
+      resp.headers.get("x-restli-id") || resp.headers.get("X-RestLi-Id") || "";
+    const postUrl = postUrn
+      ? `https://www.linkedin.com/feed/update/${postUrn}/`
+      : undefined;
+
+    return { id: postUrn, url: postUrl };
+  }
+
+  /**
+   * Repost/share someone else's post.
+   */
+  async repost(originalPostUrn: string, commentary?: string): Promise<LinkedInPostResult> {
+    const token = await this.ensureToken();
+    const personUrn = await this.ensurePersonUrn();
+
+    const body: Record<string, any> = {
+      author: personUrn,
+      visibility: "PUBLIC",
+      distribution: {
+        feedDistribution: "MAIN_FEED",
+        targetEntities: [],
+        thirdPartyDistributionChannels: [],
+      },
+      lifecycleState: "PUBLISHED",
+      isReshareDisabledByAuthor: false,
+    };
+
+    if (commentary) {
+      // Reshare with commentary
+      body.commentary = commentary;
+      body.content = {
+        reshare: { resharedPost: originalPostUrn },
+      };
+    } else {
+      // Simple repost (no added text)
+      body.content = {
+        reshare: { resharedPost: originalPostUrn },
+      };
+    }
+
+    const resp = await fetch(`${LINKEDIN_REST_BASE}/posts`, {
+      method: "POST",
+      headers: this.restHeaders(token),
+      body: JSON.stringify(body),
+    });
+
+    if (!resp.ok) {
+      const respBody = await resp.text();
+      throw new Error(`LinkedIn repost failed (${resp.status}): ${respBody}`);
+    }
+
+    const postUrn =
+      resp.headers.get("x-restli-id") || resp.headers.get("X-RestLi-Id") || "";
+    const postUrl = postUrn
+      ? `https://www.linkedin.com/feed/update/${postUrn}/`
+      : undefined;
+
+    return { id: postUrn, url: postUrl };
+  }
+
+  /**
    * Get comments on a post by its URN.
    */
   async getComments(postUrn: string): Promise<Array<{
