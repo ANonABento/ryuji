@@ -8,7 +8,8 @@
 
 set -euo pipefail
 
-CHOOMFIE_DIR="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || realpath "$0")")/.." && pwd)"
+# bin/choomfie is at packages/core/bin/ — go up 3 levels to monorepo root
+CHOOMFIE_DIR="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || realpath "$0")")/../../.." && pwd)"
 
 # Ensure dependencies are installed
 if [ ! -d "$CHOOMFIE_DIR/node_modules" ]; then
