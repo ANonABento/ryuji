@@ -16,7 +16,6 @@ import {
   ButtonStyle,
 } from "discord.js";
 import { dirname, join } from "node:path";
-import { findMonorepoRoot } from "@choomfie/shared";
 import { VERSION } from "./version.ts";
 import { registerCommand, registerButtonHandler } from "./interactions.ts";
 import { McpProxy } from "./mcp-proxy.ts";
@@ -443,8 +442,7 @@ registerCommand("plugins", {
     const action = interaction.options.getString("action");
     const name = interaction.options.getString("name");
 
-    const projectRoot = findMonorepoRoot(import.meta.dir);
-    const available = discoverPlugins(projectRoot);
+    const available = discoverPlugins();
     const enabled = ctx.config.getEnabledPlugins();
 
     if (!action) {

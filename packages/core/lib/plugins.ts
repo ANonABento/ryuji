@@ -1,25 +1,26 @@
 /**
- * Plugin loader — discovers and loads plugins from the plugins/ directory.
+ * Plugin loader — loads plugins from workspace packages.
  */
 
 import type { Plugin } from "./types.ts";
 import type { ConfigManager } from "./config.ts";
-import { join } from "node:path";
-import { readdirSync, existsSync } from "node:fs";
 
-/** Scan plugins/ directory and return names of all valid plugins (have index.ts). */
-export function discoverPlugins(projectRoot: string): string[] {
-  const pluginsDir = join(projectRoot, "plugins");
-  if (!existsSync(pluginsDir)) return [];
+/** Explicit mapping of plugin names to workspace packages. */
+const PLUGIN_PACKAGES: Record<string, string> = {
+  voice: "@choomfie/voice",
+  browser: "@choomfie/browser",
+  tutor: "@choomfie/tutor",
+  socials: "@choomfie/socials",
+};
 
-  return readdirSync(pluginsDir, { withFileTypes: true })
-    .filter((e) => e.isDirectory() && existsSync(join(pluginsDir, e.name, "index.ts")))
-    .map((e) => e.name);
+/** Return names of all available plugins. */
+export function discoverPlugins(_projectRoot?: string): string[] {
+  return Object.keys(PLUGIN_PACKAGES);
 }
 
 export async function loadPlugins(
   config: ConfigManager,
-  projectRoot: string
+  _projectRoot?: string
 ): Promise<Plugin[]> {
   const enabled = config.getEnabledPlugins();
   if (enabled.length === 0) return [];
@@ -28,9 +29,14 @@ export async function loadPlugins(
   const seenTools = new Set<string>();
 
   for (const name of enabled) {
-    const pluginPath = join(projectRoot, "plugins", name, "index.ts");
+    const pkgName = PLUGIN_PACKAGES[name];
+    if (!pkgName) {
+      console.error(`Plugin ${name}: unknown plugin, skipping`);
+      continue;
+    }
+
     try {
-      const mod = await import(pluginPath);
+      const mod = await import(pkgName);
       const plugin: Plugin = mod.default;
 
       if (!plugin?.name) {

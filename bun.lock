@@ -6,7 +6,12 @@
       "name": "choomfie-monorepo",
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "^0.2.87",
+        "@choomfie/browser": "workspace:*",
+        "@choomfie/core": "workspace:*",
         "@choomfie/shared": "workspace:*",
+        "@choomfie/socials": "workspace:*",
+        "@choomfie/tutor": "workspace:*",
+        "@choomfie/voice": "workspace:*",
         "@discordjs/opus": "^0.10.0",
         "@discordjs/voice": "^0.19.2",
         "@modelcontextprotocol/sdk": "^1.0.0",
