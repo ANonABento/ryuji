@@ -1,0 +1,31 @@
+/**
+ * Provider interfaces — STT and TTS are swappable backends.
+ *
+ * To add a new provider:
+ *   1. Create a folder: providers/<name>/
+ *   2. Implement STTProvider and/or TTSProvider
+ *   3. Register in providers/index.ts
+ */
+
+export interface ProviderStatus {
+  available: boolean;
+  reason: string;
+  install?: string;
+  type: "local" | "api" | "free";
+}
+
+export interface STTProvider {
+  name: string;
+  /** Transcribe a WAV audio buffer to text */
+  transcribe(audio: Buffer, language?: string): Promise<string>;
+  /** Check if this provider's dependencies are available */
+  detect(): Promise<ProviderStatus>;
+}
+
+export interface TTSProvider {
+  name: string;
+  /** Synthesize text to PCM audio buffer (48kHz, 16-bit, stereo) */
+  synthesize(text: string, language?: string, speed?: number): Promise<Buffer>;
+  /** Check if this provider's dependencies are available */
+  detect(): Promise<ProviderStatus>;
+}
