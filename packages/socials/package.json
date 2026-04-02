@@ -1,0 +1,11 @@
+{
+  "name": "@choomfie/socials",
+  "version": "0.4.0",
+  "type": "module",
+  "main": "index.ts",
+  "license": "MIT",
+  "dependencies": {
+    "@choomfie/shared": "workspace:*",
+    "snoowrap": "^1.23.0"
+  }
+}
