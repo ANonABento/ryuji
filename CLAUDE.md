@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Choomfie is a Claude Code plugin — an MCP server that bridges Discord to Claude Code with persistent memory, switchable personas, reminders, Discord interactions (buttons/slash commands/modals), GitHub integration, and more. It runs as a subprocess inside Claude Code via `--plugin-dir`. Version is defined in `package.json` and read via `lib/version.ts`.
+Choomfie is a Claude Code plugin — an MCP server that bridges Discord to Claude Code with persistent memory, switchable personas, reminders, Discord interactions (buttons/slash commands/modals), GitHub integration, and more. It runs as a subprocess inside Claude Code via `--plugin-dir`. Version is defined in root `package.json` and read via `packages/shared/version.ts`.
 
 ## Tech Stack
 
@@ -16,113 +16,49 @@ Choomfie is a Claude Code plugin — an MCP server that bridges Discord to Claud
 ## Project Structure
 
 ```
-server.ts                      # Entry point — thin wrapper, imports supervisor.ts
-supervisor.ts                  # Immortal process: MCP server, IPC, restart tool, PID guard
-worker.ts                      # Disposable process: Discord, plugins, tools, reminders
-lib/
-  ipc-types.ts                 # Shared IPC message types (supervisor ↔ worker)
-  mcp-proxy.ts                 # Duck-type MCP Server for worker (notification + permission relay via IPC)
-  types.ts                     # AppContext, ToolDef, text/err helpers
-  context.ts                   # Env/config loading, creates AppContext
-  mcp-server.ts                # buildInstructions() + createMcpServer() (worker + boot test)
-  discord.ts                   # Discord client, Ready, MessageCreate, InteractionCreate
-  interactions.ts              # Interaction router + handler registries
-  commands.ts                  # Slash command definitions + handlers (self-registering)
-  handlers/
-    reminder-buttons.ts        # Reminder button builders + click handlers
-    modals.ts                  # Modal builders + submit handlers
-    shared.ts                  # Shared handler utils (auth helpers, createAndScheduleReminder)
-    github.ts                  # Shared GitHub CLI helper (buildGhArgs, runGh)
-  conversation.ts              # Channel activation, rate limiting
-  permissions.ts               # Permission relay (tool approval via DM)
-  reminders.ts                 # ReminderScheduler — timer-based (setTimeout per reminder)
-  time.ts                      # Time constants, formatting, parsing, cron validation
-  version.ts                   # VERSION constant (reads from package.json)
-  memory.ts                    # SQLite memory store (core + archival + reminders)
-  config.ts                    # Config manager (personas, rate limits, settings)
-  tools/
-    index.ts                   # Tool registry — aggregates all tool modules
-    discord-tools.ts           # reply (embeds), react, edit, fetch, search, thread, poll, pin/unpin
-    access-tools.ts            # allow/remove/list users (owner only)
-    memory-tools.ts            # save/search/list/delete memory, summary, stats
-    persona-tools.ts           # switch/save/list/delete persona
-    reminder-tools.ts          # set/list/cancel/snooze/ack reminder
-    github-tools.ts            # check_github
-    status-tools.ts            # choomfie_status
-    system-tools.ts            # (empty — restart moved to supervisor)
-  plugins.ts                   # Plugin loader (discovers + loads from plugins/)
-plugins/                       # Plugin directory (each plugin = subdirectory)
-  voice/
-    index.ts                   # Voice plugin entry — intents, init, tools, destroy
-    manager.ts                 # VoiceManager — join/leave/speak, STT receive, interruption
-    tools.ts                   # MCP tools: join_voice, leave_voice, speak
-    vad.ts                     # SileroVAD (ONNX), SpeechDetector, downsampleForVAD
-    sentence-splitter.ts       # splitSentences() for streaming TTS chunking
+package.json                       # Root: bun workspaces, scripts, dev deps
+packages/
+  shared/                          # @choomfie/shared — types + utils
+    package.json
+    index.ts                       # Re-exports everything
+    types.ts                       # Plugin, ToolDef, ToolResult, text(), err()
+    plugin-context.ts              # PluginContext, PluginConfig (minimal subset of AppContext)
+    time.ts                        # nowUTC, toSQLiteDatetime, dateToSQLite, parseNaturalTime
+    paths.ts                       # findMonorepoRoot() — resilient project root resolution
+    interactions.ts                # Registries + register functions ONLY (no dispatch)
+    version.ts                     # VERSION
+  core/                            # @choomfie/core — Discord bridge, memory, etc.
+    package.json
+    server.ts, supervisor.ts, worker.ts, meta.ts
+    lib/
+      types.ts                     # AppContext (extends PluginContext), re-exports shared
+      interactions.ts              # handleInteraction() + safeHandle() + re-exports shared registries
+      config.ts, memory.ts, reminders.ts, discord.ts, context.ts, ...
+      plugins.ts                   # Plugin loader (explicit workspace package map)
+      tools/, handlers/
+    test/
+    scripts/, skills/, bin/
+  voice/                           # @choomfie/voice
+    package.json
+    index.ts                       # Plugin export (for Choomfie)
+    manager.ts, tools.ts, vad.ts, ...
     providers/
-      index.ts                 # Provider factory — auto-detect or config-select STT/TTS
-      types.ts                 # STTProvider, TTSProvider, ProviderStatus interfaces
-      audio.ts                 # DISCORD_PCM/STT_WAV constants, toDiscordPcm()
-      detect.ts                # checkBinary(), checkPythonModule() helpers
-      kokoro/tts.ts            # Kokoro TTS — local neural TTS via Python/ONNX
-      edge-tts/tts.ts          # Edge TTS — free Microsoft API
-      elevenlabs/              # ElevenLabs — paid API (STT + TTS)
-      groq/stt.ts              # Groq — free cloud STT API
-      whisper/stt.ts           # whisper-cpp — local STT via CLI
-  browser/
-    index.ts                   # Browser plugin entry — tools, instructions, lifecycle
-    session.ts                 # Session manager — persistent Playwright contexts
-    tools.ts                   # MCP tools: browse, click, type, screenshot, eval, key, close
-  tutor/
-    index.ts                   # Tutor plugin entry — modular teaching harness
-    core/
-      types.ts                 # TutorModule interface
-      srs.ts                   # FSRS spaced repetition engine (SQLite)
-      srs-instance.ts          # SRS singleton
-      session.ts               # Per-user module/level tracking
-    tools/
-      index.ts                 # Tool aggregator
-      srs-tools.ts             # srs_review, srs_rate, srs_stats
-      tutor-tools.ts           # tutor_prompt, quiz, dictionary_lookup, set_level
-      module-tools.ts          # list_modules, switch_module
-      lesson-tools.ts          # lesson_status
-    core/
-      lesson-types.ts          # Lesson, Exercise, Unit types
-      lesson-db.ts             # SQLite lesson progress persistence
-      lesson-db-instance.ts    # LessonDB singleton
-      lesson-engine.ts         # Lesson runner: scoring, progression, SRS integration
-    lesson-interactions.ts     # /lesson, /progress commands + button handlers
-    modules/
-      index.ts                 # Module registry
-      japanese/                # Japanese module (JLPT N5-N1)
-        index.ts               # TutorModule implementation
-        dictionary.ts          # Jisho API
-        kana.ts                # Romaji ↔ kana (wanakana)
-        furigana.ts            # Auto-add readings to kanji (kuroshiro)
-        tools.ts               # convert_kana tool
-        data/n5-vocab.json     # 718 JLPT N5 vocabulary cards
-        lessons/
-          index.ts             # Lesson registry + unit definitions
-          unit-1-hiragana.ts   # 10 hiragana lessons with exercises
-  socials/
-    index.ts                   # Socials plugin entry — aggregates platform tools
-    tools.ts                   # MCP tools for all platforms
-    providers/
-      types.ts                 # Shared interfaces (VideoResult, RedditPost, etc.)
-      index.ts                 # Provider factory
-      linkedin/api.ts          # LinkedIn OAuth + posting (standard 3-legged, no PKCE)
-      reddit/api.ts            # Reddit OAuth + full read/write
-      youtube/api.ts           # YouTube Data API comments + yt-dlp reads
-scripts/
-  deploy-commands.ts           # Deploy slash commands to Discord
-.claude-plugin/plugin.json     # Plugin metadata
-.mcp.json                      # How Claude Code spawns the server
-test/
-  boot.test.ts                 # Smoke test — verifies server boots without crashing
-skills/
-├── configure/SKILL.md         # /choomfie:configure — set Discord token
-├── access/SKILL.md            # /choomfie:access — manage allowlist
-├── memory/SKILL.md            # /choomfie:memory — view/manage memories
-└── status/SKILL.md            # /choomfie:status — config overview
+  browser/                         # @choomfie/browser
+    package.json
+    index.ts                       # Plugin export
+    session.ts, tools.ts
+  tutor/                           # @choomfie/tutor
+    package.json
+    index.ts                       # Plugin export
+    core/, tools/, modules/
+  socials/                         # @choomfie/socials
+    package.json
+    index.ts                       # Plugin export
+    tools.ts, providers/
+docs/
+.claude-plugin/
+.mcp.json
+CLAUDE.md, README.md, LICENSE
 ```
 
 ## Architecture
@@ -140,12 +76,12 @@ Claude Code ← MCP stdio → supervisor.ts (immortal)
 - IPC: tool calls routed supervisor → worker, notifications forwarded worker → supervisor → Claude.
 - `McpProxy` in worker duck-types the MCP Server interface so discord.ts/permissions.ts/plugins work unchanged.
 
-Shared state flows through a single `AppContext` object (defined in `lib/types.ts`).
+Shared state flows through a single `AppContext` object (defined in `packages/core/lib/types.ts`, extends `PluginContext` from `@choomfie/shared`).
 Tools colocate their JSON schema definition + handler in one file as `ToolDef[]` arrays.
 
 ### Plugin System
 
-Plugins live in `plugins/<name>/index.ts` and export a `Plugin` interface:
+Plugins live in `packages/<name>/index.ts` and export a `Plugin` interface:
 - `tools` — ToolDef[] (auto-registered into MCP)
 - `instructions` — string[] (appended to system prompt)
 - `intents` — extra Discord gateway intents
@@ -154,13 +90,15 @@ Plugins live in `plugins/<name>/index.ts` and export a `Plugin` interface:
 - `onInteraction(interaction, ctx)` — hook into every interaction (buttons/commands/modals)
 - `destroy()` — cleanup on shutdown
 
+Plugins are workspace packages (`@choomfie/voice`, `@choomfie/browser`, etc.) that import shared types from `@choomfie/shared` instead of relative `../../lib/` paths. The plugin loader in `packages/core/lib/plugins.ts` uses an explicit workspace package map to resolve plugins.
+
 Enable plugins via `/plugins` command from Discord, or in `config.json`: `"plugins": ["voice", "socials"]`
 
 ## How It Works
 
-1. Claude Code loads Choomfie via `--plugin-dir` and `--dangerously-load-development-channels server:choomfie`, then spawns `bun server.ts` as an MCP subprocess
-2. `server.ts` → `supervisor.ts`: acquires PID file (single-instance guard), spawns `worker.ts` via `Bun.spawn({ ipc })`
-3. Worker creates AppContext, loads plugins, connects to Discord, waits for full initialization
+1. Claude Code loads Choomfie via `--plugin-dir` and `--dangerously-load-development-channels server:choomfie`, then spawns `bun packages/core/server.ts` as an MCP subprocess
+2. `server.ts` → `supervisor.ts`: acquires PID file (single-instance guard), spawns `worker.ts` via `Bun.spawn({ ipc })` (all in `packages/core/`)
+3. Worker creates AppContext, loads plugins (from `packages/`), connects to Discord, waits for full initialization
 4. Worker sends `{ type: "ready", tools, instructions }` to supervisor via IPC
 5. Supervisor creates MCP server with real instructions + tools, connects stdio transport
 6. Claude Code calls `initialize` → gets correct persona, security rules, and full tool list
@@ -172,20 +110,21 @@ Enable plugins via `/plugins` command from Discord, or in `config.json`: `"plugi
 
 ### Interaction System
 
-Discord interactions (buttons, slash commands, modals) are handled by `lib/interactions.ts`:
-- **InteractionCreate** event registered in `lib/discord.ts`, routes to `handleInteraction()`
+Discord interactions (buttons, slash commands, modals) use a split architecture:
+- **Registries** (`registerButtonHandler()`, `registerModalHandler()`, `registerCommand()`) live in `@choomfie/shared` (`packages/shared/interactions.ts`) so plugins can self-register without importing core
+- **Dispatch logic** (`handleInteraction()`, `safeHandle()`) lives in `packages/core/lib/interactions.ts`
+- **InteractionCreate** event registered in `packages/core/lib/discord.ts`, routes to `handleInteraction()`
 - Plugin hook: `onInteraction?(interaction, ctx)` in the Plugin interface
 - Button customId format: `prefix:action:data` (e.g. `reminder:ack:42`, `reminder:snooze:42:1h`)
-- Handlers self-register via `registerButtonHandler()`, `registerModalHandler()`, `registerCommand()`
 - Error handling via `safeHandle()` wrapper — catches errors + replies gracefully
 - All interactions bypass Claude — handled directly for instant response (<100ms vs ~5s)
 - Key constraint: Discord requires response within 3 seconds; use `deferReply()` for async work
-- Slash command definitions in `lib/commands.ts`, deployed via `bun scripts/deploy-commands.ts`
+- Slash command definitions in `packages/core/lib/commands.ts`, deployed via `bun packages/core/scripts/deploy-commands.ts`
 - Access control: `/persona switch`, `/newpersona`, `/savememory` are owner-only via `requireOwner()`
 
 ### Slash Commands
 
-Defined in `lib/commands.ts`, deployed via `scripts/deploy-commands.ts`:
+Defined in `packages/core/lib/commands.ts`, deployed via `packages/core/scripts/deploy-commands.ts`:
 - `/remind` — opens a modal form to set a reminder (message, time, recurring, nag)
 - `/reminders` — list active reminders with embed (ephemeral)
 - `/cancel <id>` — cancel a reminder by ID
@@ -201,11 +140,11 @@ Defined in `lib/commands.ts`, deployed via `scripts/deploy-commands.ts`:
 - `/progress` — show learning progress with unit bars and completion stats (ephemeral)
 - `/help` — show all commands and capabilities
 
-Commands auto-deploy on startup when definitions change (hash-based check). Manual: `bun scripts/deploy-commands.ts` or `--global` for global deploy.
+Commands auto-deploy on startup when definitions change (hash-based check). Manual: `bun packages/core/scripts/deploy-commands.ts` or `--global` for global deploy.
 
 ### Modals
 
-Modal forms triggered from slash commands, defined in `lib/handlers/modals.ts`:
+Modal forms triggered from slash commands, defined in `packages/core/lib/handlers/modals.ts`:
 - Reminder modal: message, time, recurring fields
 - Persona modal: key, name, personality fields (owner only)
 - Memory modal: key, value fields (owner only)
@@ -214,10 +153,10 @@ Modal forms triggered from slash commands, defined in `lib/handlers/modals.ts`:
 
 ### Shared Utilities
 
-- `lib/time.ts` — `MS_PER_MIN/HOUR/DAY` constants, `parseNaturalTime()`, `formatDuration()`, `relativeTime()`, `isValidCron()`, SQLite datetime formatting
-- `lib/handlers/shared.ts` — `createAndScheduleReminder()` (used by /remind + modal), `requireOwner()`, `isOwner()`, `isAllowed()`
-- `lib/handlers/github.ts` — `buildGhArgs()` + `runGh()` (used by MCP tool + slash command)
-- `lib/version.ts` — `VERSION` constant from package.json (used by mcp-server, commands, status-tools)
+- `packages/shared/time.ts` — `MS_PER_MIN/HOUR/DAY` constants, `parseNaturalTime()`, `formatDuration()`, `relativeTime()`, `isValidCron()`, SQLite datetime formatting (re-exported via `@choomfie/shared`)
+- `packages/core/lib/handlers/shared.ts` — `createAndScheduleReminder()` (used by /remind + modal), `requireOwner()`, `isOwner()`, `isAllowed()`
+- `packages/core/lib/handlers/github.ts` — `buildGhArgs()` + `runGh()` (used by MCP tool + slash command)
+- `packages/shared/version.ts` — `VERSION` constant from package.json (used by mcp-server, commands, status-tools)
 
 ## Tools (42)
 
@@ -253,7 +192,7 @@ Use for structured content (status, lists, summaries). Plain text for casual cha
 Reminders use precise `setTimeout` timers — each reminder gets its own timer that fires exactly when due. No polling, zero wasted compute.
 
 Architecture:
-- `ReminderScheduler` class in `lib/reminders.ts` manages all timers
+- `ReminderScheduler` class in `packages/core/lib/reminders.ts` manages all timers
 - On startup: loads pending reminders from DB, sets a timer for each
 - On create/snooze: immediately schedules a new timer
 - On cancel/ack: clears the timer
@@ -265,9 +204,9 @@ Features:
 - **Snooze:** `snooze_reminder` reschedules a fired reminder (non-recurring only; recurring auto-acks)
 - **Categories:** optional label for grouping (e.g. "work", "personal")
 - **History:** `list_reminders` with `include_history=true` shows fired reminders
-- **Buttons:** reminder notifications include interactive buttons (Done, Snooze 30m/1h/Tomorrow) — no Claude roundtrip needed, handled directly by `lib/interactions.ts`
+- **Buttons:** reminder notifications include interactive buttons (Done, Snooze 30m/1h/Tomorrow) — no Claude roundtrip needed, handled directly by `packages/core/lib/interactions.ts`
 
-**Datetime format:** All dates stored in SQLite use space-separated format (`YYYY-MM-DD HH:MM:SS`), never ISO 8601 with `T`/`Z`. Use `lib/time.ts` utilities (`toSQLiteDatetime`, `dateToSQLite`, `nowUTC`) for all conversions.
+**Datetime format:** All dates stored in SQLite use space-separated format (`YYYY-MM-DD HH:MM:SS`), never ISO 8601 with `T`/`Z`. Use `@choomfie/shared` time utilities (`toSQLiteDatetime`, `dateToSQLite`, `nowUTC`) for all conversions.
 
 DB schema (auto-migrated):
 ```sql
@@ -282,20 +221,20 @@ reminders: id, user_id, chat_id, message, due_at, fired, created_at,
 - State lives in `~/.claude/plugins/data/choomfie-inline/` (token, access list, database, inbox)
 - Personality loaded from core memory (key: "personality") at startup
 - Memory auto-compactor: core memories capped at 20. When exceeded, oldest are auto-archived to archival memory with `[auto-archived]` prefix and `auto-archived,core-memory` tags
-- Console output goes to stderr (stdout is MCP stdio transport)
+- Console output goes to stderr (stdout is MCP stdio transport) — entry point is `packages/core/server.ts`
 - DMs require Partials.Channel + Partials.Message in discord.js
 - All attachments downloaded to `~/.claude/plugins/data/choomfie-inline/inbox/` (file_path = first, file_paths = all semicolon-separated)
-- GitHub integration shells out to `gh` CLI via shared `lib/handlers/github.ts` (15s timeout)
+- GitHub integration shells out to `gh` CLI via shared `packages/core/lib/handlers/github.ts` (15s timeout)
 - Servers: only responds when @mentioned or replied to (not every message)
 - DMs: always responds
 - Rate limit: configurable via config.json (default 5s)
 - Conversation timeout: configurable via config.json `convoTimeoutMs` (default 5 min)
-- Typing indicator: state machine in `lib/typing.ts` (IDLE ↔ TYPING). Shows typing while Claude thinks, stops on reply. Use `keep_typing: true` on the reply tool to keep typing active between multi-message workflows. Safety timeout: 2 min. Skipped for conversation_mode.
+- Typing indicator: state machine in `packages/core/lib/typing.ts` (IDLE ↔ TYPING). Shows typing while Claude thinks, stops on reply. Use `keep_typing: true` on the reply tool to keep typing active between multi-message workflows. Safety timeout: 2 min. Skipped for conversation_mode.
 - Allowlist: loaded at startup from access.json. Use `allow_user`/`remove_user` tools to modify in-memory + persist to file (no restart needed). Manual file edits require restart.
 - @mentions stripped from message before forwarding to Claude
 - Personas stored in config.json, switchable from Discord (auto-restarts worker)
 - search_messages paginates up to 1000 messages for user/keyword filtering
-- **Hot-reload boundary:** Worker code (tools, plugins, Discord) is hot-reloadable via worker restart. Supervisor code (IPC types, MCP server) requires full session restart (exit + re-run `choomfie`)
+- **Hot-reload boundary:** Worker code in `packages/core/` (tools, plugins, Discord) and all plugin packages (`packages/voice/`, etc.) are hot-reloadable via worker restart. Supervisor code (`packages/core/supervisor.ts`, IPC types, MCP server) requires full session restart (exit + re-run `choomfie`). Shared package (`packages/shared/`) changes require worker restart at minimum.
 - Auto-restart triggers: persona switch, plugin enable/disable, voice config change — all send `request_restart` IPC → supervisor restarts worker → sends confirmation to Discord channel
 
 ## Config (config.json)
