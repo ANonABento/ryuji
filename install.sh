@@ -97,8 +97,8 @@ fi
 # --- Install choomfie command ---
 echo "[5/5] Installing 'choomfie' command..."
 mkdir -p "$BIN_DIR"
-chmod +x "$CHOOMFIE_DIR/bin/choomfie"
-ln -sf "$CHOOMFIE_DIR/bin/choomfie" "$BIN_DIR/choomfie"
+chmod +x "$CHOOMFIE_DIR/packages/core/bin/choomfie"
+ln -sf "$CHOOMFIE_DIR/packages/core/bin/choomfie" "$BIN_DIR/choomfie"
 
 # Check if BIN_DIR is in PATH
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then

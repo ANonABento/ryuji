@@ -55,10 +55,8 @@ choomfie --tmux
 
 ```bash
 bun install
-cp .env.example .env
-# Edit .env — add DISCORD_TOKEN and DISCORD_CLIENT_ID
-
-claude --plugin-dir /path/to/choomfie --dangerously-load-development-channels server:choomfie
+claude --plugin-dir . --dangerously-load-development-channels server:choomfie
+# On first run, use /choomfie:configure <token> to set your Discord bot token
 ```
 
 > **Note:** `--plugin-dir` loads Choomfie for that session only. `--dangerously-load-development-channels` is required for Discord messages to reach Claude. Do NOT add it to global `~/.claude.json` mcpServers.
@@ -171,6 +169,7 @@ Choomfie is a Bun monorepo with workspace packages:
 
 ```
 package.json                       # Root: bun workspaces, scripts, dev deps
+install.sh                         # Installer (deps, Discord token, choomfie command)
 packages/                          # Core infrastructure
   shared/                          # @choomfie/shared — types, utils, time, paths
   core/                            # @choomfie/core — MCP server, Discord bridge, memory
