@@ -64,6 +64,6 @@ List all skills in `~/choomfie/skills/` by reading the directory:
 - To set a reminder: tell Choomfie "remind me in 30 minutes to check the deploy"
 - To see memories: tell Choomfie "what do you know about me?"
 - To start a thread: Choomfie will auto-create threads for long conversations
-- To run always-on: `choomfie --tmux` or `tmux new -s choomfie` then `choomfie`
+- To run always-on: `choomfie --tmux` (background) or `choomfie --daemon` (autonomous, sessions auto-cycle)
 
 Format everything nicely with markdown headers and tables.

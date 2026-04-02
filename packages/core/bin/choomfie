@@ -2,9 +2,9 @@
 # Launch Choomfie — Claude Code plugin for Discord
 #
 # Usage:
-#   choomfie              # start normally
-#   choomfie --tmux       # start in a detached tmux session
-#   choomfie --always-on  # tmux + prevent system sleep (macOS)
+#   choomfie            # interactive — you + Discord, Claude Code terminal
+#   choomfie --tmux     # background — same as above, survives terminal close
+#   choomfie --daemon   # autonomous — Discord-only, Claude sessions auto-cycle
 
 set -euo pipefail
 
@@ -17,36 +17,62 @@ if [ ! -d "$CHOOMFIE_DIR/node_modules" ]; then
   (cd "$CHOOMFIE_DIR" && bun install --no-summary)
 fi
 
-if [ "${1:-}" = "--tmux" ] || [ "${1:-}" = "--always-on" ]; then
+# Parse flags
+USE_TMUX=false
+USE_DAEMON=false
+ALWAYS_ON=false
+EXTRA_ARGS=()
+
+for arg in "$@"; do
+  case "$arg" in
+    --tmux) USE_TMUX=true ;;
+    --daemon) USE_DAEMON=true ;;
+    --always-on) ALWAYS_ON=true; USE_TMUX=true ;;
+    *) EXTRA_ARGS+=("$arg") ;;
+  esac
+done
+
+# Build the inner command
+if [ "$USE_DAEMON" = true ]; then
+  INNER_CMD="cd '$CHOOMFIE_DIR' && exec bun packages/core/meta.ts ${EXTRA_ARGS[*]:-}"
+else
+  INNER_CMD="cd '$CHOOMFIE_DIR' && exec claude --plugin-dir '$CHOOMFIE_DIR' --dangerously-load-development-channels server:choomfie"
+fi
+
+# Run in tmux or foreground
+if [ "$USE_TMUX" = true ]; then
   if ! command -v tmux &>/dev/null; then
     echo "Error: tmux not found. Install with: brew install tmux"
     exit 1
   fi
 
   # --always-on: prevent system sleep (macOS)
-  if [ "${1:-}" = "--always-on" ]; then
+  if [ "$ALWAYS_ON" = true ]; then
     if command -v caffeinate &>/dev/null; then
-      # Kill any existing caffeinate from previous runs
       pkill -f "caffeinate.*choomfie" 2>/dev/null || true
       caffeinate -dims &
       CAFFEINATE_PID=$!
       echo "Sleep prevention enabled (caffeinate PID: $CAFFEINATE_PID)"
-      # Trap to clean up caffeinate when script exits
       trap "kill $CAFFEINATE_PID 2>/dev/null" EXIT
     else
       echo "Warning: caffeinate not found (not macOS?). Skipping sleep prevention."
     fi
   fi
 
-  if tmux has-session -t choomfie 2>/dev/null; then
+  SESSION_NAME="choomfie"
+  if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
     echo "Choomfie session already running. Attaching..."
-    tmux attach -t choomfie
+    tmux attach -t "$SESSION_NAME"
   else
-    tmux new-session -d -s choomfie "cd '$CHOOMFIE_DIR' && claude --plugin-dir '$CHOOMFIE_DIR' --dangerously-load-development-channels server:choomfie"
+    tmux new-session -d -s "$SESSION_NAME" "$INNER_CMD"
     echo "Choomfie started in tmux session. Attaching..."
-    tmux attach -t choomfie
+    tmux attach -t "$SESSION_NAME"
   fi
 else
   cd "$CHOOMFIE_DIR"
-  exec claude --plugin-dir "$CHOOMFIE_DIR" --dangerously-load-development-channels server:choomfie
+  if [ "$USE_DAEMON" = true ]; then
+    exec bun packages/core/meta.ts "${EXTRA_ARGS[@]:-}"
+  else
+    exec claude --plugin-dir "$CHOOMFIE_DIR" --dangerously-load-development-channels server:choomfie
+  fi
 fi

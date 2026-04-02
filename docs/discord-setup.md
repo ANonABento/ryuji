@@ -87,19 +87,21 @@ hey, what's up?
 what's your status?
 ```
 
-## Always-On Setup (tmux)
-
-Since Choomfie requires Claude Code to be running:
+## Modes
 
 ```bash
-# Start in a detached tmux session (built-in)
-choomfie --tmux
+choomfie            # interactive — you + Discord, Claude Code terminal
+choomfie --tmux     # background — same as above, survives terminal close
+choomfie --daemon   # autonomous — Discord-only, Claude sessions auto-cycle
+```
 
-# Or manually:
-tmux new -s choomfie
+**Daemon mode** runs the meta-supervisor (`meta.ts`) which uses the Agent SDK to spawn Claude Code sessions programmatically. When context gets heavy (~120k tokens or 80 turns), it captures a handoff summary and cycles to a fresh session automatically. No human in the loop — Discord is the only interface.
+
+Combine flags for always-on daemon: `choomfie --daemon --tmux` or `choomfie --daemon --always-on` (also prevents macOS sleep).
+
+For manual interactive setup:
+```bash
 claude --plugin-dir /path/to/choomfie --dangerously-load-development-channels server:choomfie
-# Detach: Ctrl+B, then D
-# Reattach later: tmux attach -t choomfie
 ```
 
 ## Troubleshooting

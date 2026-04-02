@@ -45,10 +45,12 @@ cd choomfie
 choomfie        # start!
 ```
 
-For always-on (survives terminal close):
+Modes:
 
 ```bash
-choomfie --tmux
+choomfie            # interactive — you + Discord, Claude Code terminal
+choomfie --tmux     # background — same as above, survives terminal close
+choomfie --daemon   # autonomous — Discord-only, Claude sessions auto-cycle
 ```
 
 ### 3. Manual Setup
