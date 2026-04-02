@@ -6,6 +6,7 @@
  * Writes (comments): Requires OAuth 2.0 (socials.youtube.clientId + clientSecret).
  */
 
+import type { PluginContext } from "@choomfie/shared";
 import type { YouTubeProvider, VideoResult, TranscriptSegment } from "../types.ts";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { randomBytes, createHash } from "node:crypto";
@@ -442,10 +443,7 @@ let commentClient: YouTubeCommentClient | null = null;
  * Initialize YouTube comment client with OAuth credentials.
  * Call during plugin init if YouTube OAuth is configured.
  */
-export function initYouTubeCommentClient(ctx: {
-  DATA_DIR: string;
-  config: any;
-}): YouTubeCommentClient | null {
+export function initYouTubeCommentClient(ctx: PluginContext): YouTubeCommentClient | null {
   if (commentClient) return commentClient;
 
   const config = ctx.config.getConfig();

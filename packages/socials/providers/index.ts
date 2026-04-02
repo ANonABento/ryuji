@@ -5,6 +5,7 @@
  * Config: "socials": { "youtube": "yt-dlp", "reddit": "reddit-api" }
  */
 
+import type { PluginContext } from "@choomfie/shared";
 import type { YouTubeProvider, RedditProvider } from "./types.ts";
 import {
   ytdlpProvider,
@@ -58,7 +59,7 @@ export function getRedditProvider(preferred?: string): RedditProvider {
  * If configured, replaces the stub in the provider registry so the
  * fallback proxy uses the real API client.
  */
-export function initRedditProvider(ctx: { DATA_DIR: string; config: any }): void {
+export function initRedditProvider(ctx: PluginContext): void {
   const client = getRedditApiClient(ctx);
   // Replace the stub in the registry with the real client
   redditProviders["reddit-api"] = client;
@@ -68,7 +69,7 @@ export function initRedditProvider(ctx: { DATA_DIR: string; config: any }): void
  * Initialize YouTube providers with config context.
  * Sets API key for read-only provider, initializes OAuth client for comments.
  */
-export function initYouTubeProvider(ctx: { DATA_DIR: string; config: any }): void {
+export function initYouTubeProvider(ctx: PluginContext): void {
   const config = ctx.config.getConfig();
   const ytConfig = (config as any).socials?.youtube;
 

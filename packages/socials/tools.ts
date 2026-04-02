@@ -2,7 +2,7 @@
  * Social platform tools — YouTube search/info, Reddit browse/search/post, LinkedIn posting.
  */
 
-import type { ToolDef, PluginConfig } from "@choomfie/shared";
+import type { ToolDef, PluginContext } from "@choomfie/shared";
 import { text, err } from "@choomfie/shared";
 import { getYouTubeProvider, getRedditProvider, getRedditClient, getYouTubeCommentClient } from "./providers/index.ts";
 import { LinkedInClient } from "./providers/linkedin/api.ts";
@@ -20,7 +20,7 @@ let linkedInClient: LinkedInClient | null = null;
 let linkedInMonitor: LinkedInMonitor | null = null;
 let linkedInScheduler: LinkedInScheduler | null = null;
 
-function getLinkedInClient(ctx: { DATA_DIR: string; config: PluginConfig }): LinkedInClient {
+function getLinkedInClient(ctx: PluginContext): LinkedInClient {
   if (linkedInClient) return linkedInClient;
 
   const config = ctx.config.getConfig();
@@ -42,7 +42,7 @@ function getLinkedInClient(ctx: { DATA_DIR: string; config: PluginConfig }): Lin
 }
 
 /** Get or create the LinkedIn monitor (shares the LinkedIn client). */
-export function getLinkedInMonitor(ctx: { DATA_DIR: string; config: PluginConfig }): LinkedInMonitor | null {
+export function getLinkedInMonitor(ctx: PluginContext): LinkedInMonitor | null {
   if (linkedInMonitor) return linkedInMonitor;
   try {
     const client = getLinkedInClient(ctx);
@@ -54,7 +54,7 @@ export function getLinkedInMonitor(ctx: { DATA_DIR: string; config: PluginConfig
 }
 
 /** Get or create the LinkedIn scheduler. */
-export function getLinkedInScheduler(ctx: { DATA_DIR: string; config: PluginConfig }): LinkedInScheduler | null {
+export function getLinkedInScheduler(ctx: PluginContext): LinkedInScheduler | null {
   if (linkedInScheduler) return linkedInScheduler;
   try {
     const client = getLinkedInClient(ctx);

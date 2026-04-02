@@ -11,7 +11,7 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
-import { VERSION } from "@choomfie/shared";
+import { VERSION, type PluginContext } from "@choomfie/shared";
 import type { RedditProvider, RedditWriteProvider, RedditPost, RedditComment, RedditSubmitResult } from "../types.ts";
 
 // --- Constants ---
@@ -380,10 +380,7 @@ let clientInstance: RedditClient | null = null;
  * Get or create the Reddit API client.
  * Returns the stub if not configured (will fall through to scraper via proxy).
  */
-export function getRedditApiClient(ctx?: {
-  DATA_DIR: string;
-  config: any;
-}): RedditProvider {
+export function getRedditApiClient(ctx?: PluginContext): RedditProvider {
   if (clientInstance) return clientInstance;
   if (!ctx) return redditApiStub;
 
