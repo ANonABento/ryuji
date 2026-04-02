@@ -104,7 +104,7 @@ const socialsPlugin: Plugin = {
             `💬 **New LinkedIn comment** on your post "${comment.postText}..."\n` +
             `**${comment.authorName}:** ${comment.text}`;
           try {
-            ctx.mcp?.sendNotification?.({
+            ctx.mcp?.notification?.({
               method: "notifications/message",
               params: { content: msg },
             });
@@ -126,7 +126,7 @@ const socialsPlugin: Plugin = {
           `"${post.text.slice(0, 100)}..."\n` +
           (result.url ? `URL: ${result.url}` : `URN: ${result.id}`);
         try {
-          ctx.mcp?.sendNotification?.({
+          ctx.mcp?.notification?.({
             method: "notifications/message",
             params: { content: msg },
           });
@@ -139,7 +139,7 @@ const socialsPlugin: Plugin = {
           `❌ **Scheduled LinkedIn post failed!**\n` +
           `Post #${post.id}: "${post.text.slice(0, 80)}..."\nError: ${error}`;
         try {
-          ctx.mcp?.sendNotification?.({
+          ctx.mcp?.notification?.({
             method: "notifications/message",
             params: { content: msg },
           });

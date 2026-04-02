@@ -33,6 +33,7 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import { readFile, writeFile, unlink, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { findMonorepoRoot } from "@choomfie/shared";
 
 // --- Constants ---
 
@@ -53,7 +54,6 @@ const META_DIR = `${DATA_DIR}/meta`;
 const PID_PATH = `${META_DIR}/meta.pid`;
 const HANDOFFS_PATH = `${META_DIR}/handoffs.json`;
 
-import { findMonorepoRoot } from "@choomfie/shared";
 const PLUGIN_DIR = findMonorepoRoot(import.meta.dir);
 
 // --- CLI Flags ---

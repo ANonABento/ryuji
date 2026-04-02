@@ -20,7 +20,7 @@ export interface PluginContext {
   config: PluginConfig;
   /** MCP server or proxy for sending notifications */
   mcp?: {
-    sendNotification?(notification: { method: string; params: any }): void;
+    notification?(msg: { method: string; params: Record<string, unknown> }): void;
   };
   /** Discord client (only if running inside Choomfie) */
   discord?: any;
