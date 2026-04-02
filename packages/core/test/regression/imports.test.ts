@@ -1,12 +1,12 @@
 /**
- * Regression test — verifies no plugin imports from another plugin directory.
- * Also validates no circular dependencies between plugins.
+ * Regression test — verifies no plugin imports from another plugin or from core's lib/.
  */
 import { test, expect, describe } from "bun:test";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const PLUGINS_DIR = join(import.meta.dir, "../../../../plugins");
+// packages/ directory — each plugin is a sibling
+const PACKAGES_DIR = join(import.meta.dir, "../../..");
 const PLUGIN_NAMES = ["voice", "browser", "tutor", "socials"];
 
 /** Recursively get all .ts files in a directory */
@@ -14,7 +14,7 @@ function getTsFiles(dir: string): string[] {
   const files: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
+    if (entry.isDirectory() && entry.name !== "node_modules") {
       files.push(...getTsFiles(full));
     } else if (entry.name.endsWith(".ts")) {
       files.push(full);
@@ -24,26 +24,29 @@ function getTsFiles(dir: string): string[] {
 }
 
 describe("import validation", () => {
-  test("no plugin imports from another plugin directory", () => {
+  test("no plugin imports from another plugin package", () => {
     const violations: string[] = [];
 
     for (const pluginName of PLUGIN_NAMES) {
-      const pluginDir = join(PLUGINS_DIR, pluginName);
+      const pluginDir = join(PACKAGES_DIR, pluginName);
       const files = getTsFiles(pluginDir);
 
       for (const file of files) {
         const content = readFileSync(file, "utf-8");
-        // Check for imports from other plugin directories
         for (const otherPlugin of PLUGIN_NAMES) {
           if (otherPlugin === pluginName) continue;
-          const pattern = new RegExp(
-            `from\\s+["'].*plugins/${otherPlugin}/`,
-          );
-          if (pattern.test(content)) {
-            const relative = file.replace(PLUGINS_DIR + "/", "");
-            violations.push(
-              `${relative} imports from plugins/${otherPlugin}/`,
-            );
+          // Check both old plugins/ path and new @choomfie/ cross-import
+          const patterns = [
+            new RegExp(`from\\s+["'].*plugins/${otherPlugin}/`),
+            new RegExp(`from\\s+["']@choomfie/${otherPlugin}`),
+          ];
+          for (const pattern of patterns) {
+            if (pattern.test(content)) {
+              const relative = file.replace(PACKAGES_DIR + "/", "");
+              violations.push(
+                `${relative} imports from ${otherPlugin}`,
+              );
+            }
           }
         }
       }
@@ -52,29 +55,28 @@ describe("import validation", () => {
     expect(violations).toEqual([]);
   });
 
-  test("all plugin imports from lib/ use valid paths", () => {
+  test("no plugin imports from core lib/ via relative paths", () => {
     const violations: string[] = [];
 
     for (const pluginName of PLUGIN_NAMES) {
-      const pluginDir = join(PLUGINS_DIR, pluginName);
+      const pluginDir = join(PACKAGES_DIR, pluginName);
       const files = getTsFiles(pluginDir);
 
       for (const file of files) {
         const content = readFileSync(file, "utf-8");
-        // Match imports from ../../lib/ (or deeper relative paths to lib)
+        // After migration, no plugin should have relative imports to lib/
         const libImports = content.match(
           /from\s+["']\.\.\/[^"']*lib\/[^"']+["']/g,
         );
         if (libImports) {
+          const relative = file.replace(PACKAGES_DIR + "/", "");
           for (const imp of libImports) {
-            // These are valid — plugins importing from core's lib/
-            // After migration these become @choomfie/shared imports
+            violations.push(`${relative}: ${imp}`);
           }
         }
       }
     }
 
-    // This test just documents current state — all plugins import from lib/
-    expect(true).toBe(true);
+    expect(violations).toEqual([]);
   });
 });
