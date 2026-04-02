@@ -169,7 +169,7 @@ Based on API accessibility, usefulness, and effort:
 ## Architecture
 
 ```
-packages/socials/
+plugins/socials/
 ├── index.ts                    # Plugin entry, aggregates all platform tools
 ├── tools.ts                    # MCP tool definitions (per-platform)
 ├── auth.ts                     # OAuth flow manager (shared across platforms)

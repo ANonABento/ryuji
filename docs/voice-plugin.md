@@ -153,7 +153,7 @@ User speaks in VC
 ### Structure
 
 ```
-packages/voice/
+plugins/voice/
   package.json                — @choomfie/voice workspace package
   index.ts                    — Plugin entry point
   tools.ts                    — MCP tools (join, leave, speak)
@@ -230,7 +230,7 @@ Default is `"auto"` — the factory runs `detect()` on each provider in priority
 #### 1. Create the provider
 
 ```typescript
-// packages/voice/providers/my-tts/tts.ts
+// plugins/voice/providers/my-tts/tts.ts
 import type { TTSProvider } from "../types.ts";
 import { checkBinary } from "../detect.ts";
 import { toDiscordPcm } from "../audio.ts";
@@ -257,13 +257,13 @@ export const myTTS: TTSProvider = {
 ```
 
 ```typescript
-// packages/voice/providers/my-tts/index.ts
+// plugins/voice/providers/my-tts/index.ts
 export { myTTS } from "./tts.ts";
 ```
 
 #### 2. Register in the factory
 
-Edit `packages/voice/providers/index.ts`:
+Edit `plugins/voice/providers/index.ts`:
 
 ```typescript
 import { myTTS } from "./my-tts/index.ts";

@@ -10,7 +10,7 @@ Choomfie uses a plugin architecture — the core handles Discord bridging, memor
 
 ### Enable a plugin
 
-1. Make sure the plugin exists as a workspace package in `packages/<name>/`
+1. Make sure the plugin exists as a workspace package in `plugins/<name>/`
 2. Add it to `config.json`:
    ```json
    {
@@ -110,7 +110,7 @@ export default myPlugin;
 ### 1. Create the workspace package
 
 ```
-packages/
+plugins/
   my-plugin/
     package.json   # { "name": "@choomfie/my-plugin", "dependencies": { "@choomfie/shared": "workspace:*" } }
     index.ts       # Plugin entry — exports default Plugin
@@ -119,7 +119,7 @@ packages/
 ### 2. Write the plugin
 
 ```typescript
-// packages/my-plugin/index.ts
+// plugins/my-plugin/index.ts
 import type { Plugin, ToolDef } from "@choomfie/shared";
 import { text, err } from "@choomfie/shared";
 
@@ -197,7 +197,7 @@ const plugin: Plugin = {
 Plugins are workspace packages. Add dependencies to the plugin's own `package.json`:
 
 ```bash
-cd packages/my-plugin
+cd plugins/my-plugin
 bun add some-package
 ```
 
@@ -218,7 +218,7 @@ Plugin errors are caught and logged — a failing plugin won't crash the bot:
 ## File Structure
 
 ```
-packages/
+plugins/
   <name>/
     package.json       # Workspace package with @choomfie/shared dependency
     index.ts           # Required — exports default Plugin

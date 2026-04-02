@@ -47,10 +47,10 @@ For stable, logic-heavy modules where mocking is minimal:
 
 ### Plugin Tests (Priority 3)
 
-Each plugin gets its own test file in `packages/<name>/test/`:
+Each plugin gets its own test file in `plugins/<name>/test/`:
 
 ```
-packages/
+plugins/
   voice/
     test/
       manager.test.ts     # join/leave/speak flow

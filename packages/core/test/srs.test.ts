@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SRSManager } from "../../tutor/core/srs.ts";
+import { SRSManager } from "../../../plugins/tutor/core/srs.ts";
 
 const tempDirs: string[] = [];
 

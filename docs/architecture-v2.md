@@ -83,7 +83,7 @@ The current supervisor's ONLY job is keeping the MCP pipe alive. If meta-supervi
 ### What We Keep
 
 - `packages/core/worker.ts` — same Discord worker, same plugins, same tools. Just different IPC parent.
-- All plugin packages (`packages/voice/`, `packages/browser/`, `packages/socials/`, `packages/tutor/`) — unchanged.
+- All plugin packages in `plugins/` (voice, browser, tutor, socials) — unchanged.
 - All tool definitions — unchanged, but registered differently.
 
 ## Communication

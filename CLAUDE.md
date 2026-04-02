@@ -38,6 +38,7 @@ packages/
       tools/, handlers/
     test/
     scripts/, skills/, bin/
+plugins/                           # Optional, enable/disable from Discord
   voice/                           # @choomfie/voice
     package.json
     index.ts                       # Plugin export (for Choomfie)
@@ -234,7 +235,7 @@ reminders: id, user_id, chat_id, message, due_at, fired, created_at,
 - @mentions stripped from message before forwarding to Claude
 - Personas stored in config.json, switchable from Discord (auto-restarts worker)
 - search_messages paginates up to 1000 messages for user/keyword filtering
-- **Hot-reload boundary:** Worker code in `packages/core/` (tools, plugins, Discord) and all plugin packages (`packages/voice/`, etc.) are hot-reloadable via worker restart. Supervisor code (`packages/core/supervisor.ts`, IPC types, MCP server) requires full session restart (exit + re-run `choomfie`). Shared package (`packages/shared/`) changes require worker restart at minimum.
+- **Hot-reload boundary:** Worker code in `packages/core/` (tools, Discord) and all plugin packages in `plugins/` (voice, browser, tutor, socials) are hot-reloadable via worker restart. Supervisor code (`packages/core/supervisor.ts`, IPC types, MCP server) requires full session restart (exit + re-run `choomfie`). Shared package (`packages/shared/`) changes require worker restart at minimum.
 - Auto-restart triggers: persona switch, plugin enable/disable, voice config change — all send `request_restart` IPC → supervisor restarts worker → sends confirmation to Discord channel
 
 ## Config (config.json)

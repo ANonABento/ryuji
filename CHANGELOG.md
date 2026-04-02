@@ -5,7 +5,7 @@
 ### Breaking Changes
 
 - Restructured from flat layout to Bun monorepo with workspace packages
-- Old `plugins/` directory removed — plugins are now workspace packages under `packages/`
+- Core infrastructure in `packages/` (shared, core), plugins in `plugins/` (voice, browser, tutor, socials)
 - Old `lib/`, `server.ts`, `supervisor.ts`, `worker.ts` moved into `packages/core/`
 - Old `skills/` moved to `packages/core/skills/`
 

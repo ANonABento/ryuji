@@ -171,7 +171,7 @@ Choomfie is a Bun monorepo with workspace packages:
 
 ```
 package.json                       # Root: bun workspaces, scripts, dev deps
-packages/
+packages/                          # Core infrastructure
   shared/                          # @choomfie/shared — types, utils, time, paths
   core/                            # @choomfie/core — MCP server, Discord bridge, memory
     server.ts, supervisor.ts, worker.ts, meta.ts
@@ -180,6 +180,7 @@ packages/
     scripts/                       # deploy-commands.ts
     test/                          # boot, plugin, regression tests
     bin/                           # choomfie launcher
+plugins/                           # Optional, enable/disable from Discord
   voice/                           # @choomfie/voice — STT/TTS/VAD
   browser/                         # @choomfie/browser — Playwright browsing
   tutor/                           # @choomfie/tutor — language learning (FSRS, lessons)

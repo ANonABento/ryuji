@@ -271,7 +271,7 @@ When the worker sends `ready` (initial or after restart), supervisor sends a `no
 
 ## Hot-Reload Boundaries
 
-**Worker code (hot-reloadable):** Any change to `packages/core/worker.ts`, `packages/core/lib/`, or any plugin package (`packages/voice/`, `packages/browser/`, etc.) is picked up on worker restart (via `restart` tool or `request_restart` IPC). No session restart needed.
+**Worker code (hot-reloadable):** Any change to `packages/core/worker.ts`, `packages/core/lib/`, or any plugin package in `plugins/` (voice, browser, tutor, socials) is picked up on worker restart (via `restart` tool or `request_restart` IPC). No session restart needed.
 
 **Shared package (`packages/shared/`):** Changes require worker restart at minimum, since the shared code is imported by both core and plugins.
 

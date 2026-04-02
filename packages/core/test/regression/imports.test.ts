@@ -5,8 +5,8 @@ import { test, expect, describe } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-// packages/ directory — each plugin is a sibling
-const PACKAGES_DIR = join(import.meta.dir, "../../..");
+// plugins/ directory — each plugin is a workspace package
+const PLUGINS_DIR = join(import.meta.dir, "../../../..", "plugins");
 const PLUGIN_NAMES = ["voice", "browser", "tutor", "socials"];
 
 /** Recursively get all .ts files in a directory */
@@ -28,7 +28,7 @@ describe("import validation", () => {
     const violations: string[] = [];
 
     for (const pluginName of PLUGIN_NAMES) {
-      const pluginDir = join(PACKAGES_DIR, pluginName);
+      const pluginDir = join(PLUGINS_DIR, pluginName);
       const files = getTsFiles(pluginDir);
 
       for (const file of files) {
@@ -42,7 +42,7 @@ describe("import validation", () => {
           ];
           for (const pattern of patterns) {
             if (pattern.test(content)) {
-              const relative = file.replace(PACKAGES_DIR + "/", "");
+              const relative = file.replace(PLUGINS_DIR + "/", "");
               violations.push(
                 `${relative} imports from ${otherPlugin}`,
               );
@@ -59,7 +59,7 @@ describe("import validation", () => {
     const violations: string[] = [];
 
     for (const pluginName of PLUGIN_NAMES) {
-      const pluginDir = join(PACKAGES_DIR, pluginName);
+      const pluginDir = join(PLUGINS_DIR, pluginName);
       const files = getTsFiles(pluginDir);
 
       for (const file of files) {
@@ -69,7 +69,7 @@ describe("import validation", () => {
           /from\s+["']\.\.\/[^"']*lib\/[^"']+["']/g,
         );
         if (libImports) {
-          const relative = file.replace(PACKAGES_DIR + "/", "");
+          const relative = file.replace(PLUGINS_DIR + "/", "");
           for (const imp of libImports) {
             violations.push(`${relative}: ${imp}`);
           }

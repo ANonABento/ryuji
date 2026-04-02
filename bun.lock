@@ -32,14 +32,6 @@
         "@types/bun": "^1.3.10",
       },
     },
-    "packages/browser": {
-      "name": "@choomfie/browser",
-      "version": "0.4.0",
-      "dependencies": {
-        "@choomfie/shared": "workspace:*",
-        "playwright": "^1.58.2",
-      },
-    },
     "packages/core": {
       "name": "@choomfie/core",
       "version": "0.4.0",
@@ -59,7 +51,15 @@
         "discord.js": "^14.16.0",
       },
     },
-    "packages/socials": {
+    "plugins/browser": {
+      "name": "@choomfie/browser",
+      "version": "0.4.0",
+      "dependencies": {
+        "@choomfie/shared": "workspace:*",
+        "playwright": "^1.58.2",
+      },
+    },
+    "plugins/socials": {
       "name": "@choomfie/socials",
       "version": "0.4.0",
       "dependencies": {
@@ -67,7 +67,7 @@
         "snoowrap": "^1.23.0",
       },
     },
-    "packages/tutor": {
+    "plugins/tutor": {
       "name": "@choomfie/tutor",
       "version": "0.4.0",
       "dependencies": {
@@ -79,7 +79,7 @@
         "wanakana": "^5.3.1",
       },
     },
-    "packages/voice": {
+    "plugins/voice": {
       "name": "@choomfie/voice",
       "version": "0.4.0",
       "dependencies": {
@@ -105,17 +105,17 @@
 
     "@babel/runtime": ["@babel/runtime@7.29.2", "", {}, "sha512-JiDShH45zKHWyGe4ZNVRrCjBz8Nh9TMmZG1kh4QTK8hCBTWBi8Da+i7s1fJw7/lYpM4ccepSNfqzZ/QvABBi5g=="],
 
-    "@choomfie/browser": ["@choomfie/browser@workspace:packages/browser"],
+    "@choomfie/browser": ["@choomfie/browser@workspace:plugins/browser"],
 
     "@choomfie/core": ["@choomfie/core@workspace:packages/core"],
 
     "@choomfie/shared": ["@choomfie/shared@workspace:packages/shared"],
 
-    "@choomfie/socials": ["@choomfie/socials@workspace:packages/socials"],
+    "@choomfie/socials": ["@choomfie/socials@workspace:plugins/socials"],
 
-    "@choomfie/tutor": ["@choomfie/tutor@workspace:packages/tutor"],
+    "@choomfie/tutor": ["@choomfie/tutor@workspace:plugins/tutor"],
 
-    "@choomfie/voice": ["@choomfie/voice@workspace:packages/voice"],
+    "@choomfie/voice": ["@choomfie/voice@workspace:plugins/voice"],
 
     "@discordjs/builders": ["@discordjs/builders@1.14.1", "", { "dependencies": { "@discordjs/formatters": "^0.6.2", "@discordjs/util": "^1.2.0", "@sapphire/shapeshift": "^4.0.0", "discord-api-types": "^0.38.40", "fast-deep-equal": "^3.1.3", "ts-mixer": "^6.0.4", "tslib": "^2.6.3" } }, "sha512-gSKkhXLqs96TCzk66VZuHHl8z2bQMJFGwrXC0f33ngK+FLNau4hU1PYny3DNJfNdSH+gVMzE85/d5FQ2BpcNwQ=="],
 

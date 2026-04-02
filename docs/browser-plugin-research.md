@@ -203,7 +203,7 @@ Two browsers: clean Playwright for dev/testing, stealth for social media.
 
 ### Phase 1: Playwright CLI
 1. `npm install -g @playwright/cli@latest && playwright-cli install --skills`
-2. Wrap as single MCP tool `browse` in `packages/browser/index.ts`
+2. Wrap as single MCP tool `browse` in `plugins/browser/index.ts`
 3. Claude sends task via Bash → CLI commands → returns screenshot + content
 4. Persistent sessions with `--persistent` and `-s=<name>`
 

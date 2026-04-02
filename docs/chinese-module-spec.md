@@ -70,7 +70,7 @@ Implementation:
 ## File Structure
 
 ```
-packages/tutor/modules/chinese/
+plugins/tutor/modules/chinese/
 ├── index.ts                # TutorModule implementation
 ├── dictionary.ts           # CC-CEDICT parser + lookup
 ├── pinyin.ts               # Pinyin utilities (tone conversion, display)

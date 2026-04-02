@@ -34,7 +34,7 @@ What we already have:
 ## Proposed Architecture
 
 ```
-packages/tutor/
+plugins/tutor/
 ├── index.ts                    # Plugin entry — discovers + loads modules
 ├── core/
 │   ├── srs.ts                  # FSRS engine (extracted, unchanged)
@@ -407,7 +407,7 @@ Finalized through discussion:
 ## Architecture
 
 ```
-packages/tutor/
+plugins/tutor/
 ├── core/
 │   ├── srs.ts                      # (existing) FSRS engine
 │   ├── session.ts                  # (extend) Add lesson progress tracking
