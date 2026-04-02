@@ -2,8 +2,9 @@
 # Launch Choomfie — Claude Code plugin for Discord
 #
 # Usage:
-#   choomfie          # start normally
-#   choomfie --tmux   # start in a detached tmux session
+#   choomfie              # start normally
+#   choomfie --tmux       # start in a detached tmux session
+#   choomfie --always-on  # tmux + prevent system sleep (macOS)
 
 set -euo pipefail
 
@@ -15,11 +16,27 @@ if [ ! -d "$CHOOMFIE_DIR/node_modules" ]; then
   (cd "$CHOOMFIE_DIR" && bun install --no-summary)
 fi
 
-if [ "${1:-}" = "--tmux" ]; then
+if [ "${1:-}" = "--tmux" ] || [ "${1:-}" = "--always-on" ]; then
   if ! command -v tmux &>/dev/null; then
     echo "Error: tmux not found. Install with: brew install tmux"
     exit 1
   fi
+
+  # --always-on: prevent system sleep (macOS)
+  if [ "${1:-}" = "--always-on" ]; then
+    if command -v caffeinate &>/dev/null; then
+      # Kill any existing caffeinate from previous runs
+      pkill -f "caffeinate.*choomfie" 2>/dev/null || true
+      caffeinate -dims &
+      CAFFEINATE_PID=$!
+      echo "Sleep prevention enabled (caffeinate PID: $CAFFEINATE_PID)"
+      # Trap to clean up caffeinate when script exits
+      trap "kill $CAFFEINATE_PID 2>/dev/null" EXIT
+    else
+      echo "Warning: caffeinate not found (not macOS?). Skipping sleep prevention."
+    fi
+  fi
+
   if tmux has-session -t choomfie 2>/dev/null; then
     echo "Choomfie session already running. Attaching..."
     tmux attach -t choomfie
