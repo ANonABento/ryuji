@@ -94,6 +94,7 @@ const socialsPlugin: Plugin = {
     initRedditProvider({ DATA_DIR: ctx.DATA_DIR, config: ctx.config });
 
     // Start LinkedIn comment monitor (if configured)
+    // Register callbacks BEFORE starting poll to avoid race
     const monitor = getLinkedInMonitor({ DATA_DIR: ctx.DATA_DIR, config: ctx.config });
     if (monitor) {
       monitor.onComments((comments) => {

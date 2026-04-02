@@ -169,6 +169,7 @@ export class LinkedInClient {
       refresh_token_expires_in?: number;
     };
 
+    if (!this.tokens) throw new Error("Token state lost during refresh");
     const now = Date.now();
     this.tokens.accessToken = data.access_token;
     this.tokens.expiresAt = now + data.expires_in * 1000;
@@ -222,6 +223,10 @@ export class LinkedInClient {
       },
     });
 
+    if (server.port !== 9876) {
+      server.stop();
+      throw new Error(`Port 9876 not available (got ${server.port}). Ensure nothing else is using it.`);
+    }
     this.pendingAuth.server = server;
     const port = server.port;
 
@@ -461,7 +466,7 @@ export class LinkedInClient {
     }
 
     const postUrn =
-      resp.headers.get("x-restli-id") || resp.headers.get("X-RestLi-Id") || "";
+      resp.headers.get("x-restli-id") || "";
 
     const postUrl = postUrn
       ? `https://www.linkedin.com/feed/update/${postUrn}/`
@@ -572,7 +577,7 @@ export class LinkedInClient {
     }
 
     const postUrn =
-      resp.headers.get("x-restli-id") || resp.headers.get("X-RestLi-Id") || "";
+      resp.headers.get("x-restli-id") || "";
     const postUrl = postUrn
       ? `https://www.linkedin.com/feed/update/${postUrn}/`
       : undefined;
@@ -633,7 +638,7 @@ export class LinkedInClient {
     }
 
     const postUrn =
-      resp.headers.get("x-restli-id") || resp.headers.get("X-RestLi-Id") || "";
+      resp.headers.get("x-restli-id") || "";
     const postUrl = postUrn
       ? `https://www.linkedin.com/feed/update/${postUrn}/`
       : undefined;
@@ -683,7 +688,7 @@ export class LinkedInClient {
     }
 
     const postUrn =
-      resp.headers.get("x-restli-id") || resp.headers.get("X-RestLi-Id") || "";
+      resp.headers.get("x-restli-id") || "";
     const postUrl = postUrn
       ? `https://www.linkedin.com/feed/update/${postUrn}/`
       : undefined;
@@ -797,7 +802,7 @@ export class LinkedInClient {
     }
 
     const postUrn =
-      resp.headers.get("x-restli-id") || resp.headers.get("X-RestLi-Id") || "";
+      resp.headers.get("x-restli-id") || "";
     const postUrl = postUrn
       ? `https://www.linkedin.com/feed/update/${postUrn}/`
       : undefined;
@@ -849,7 +854,7 @@ export class LinkedInClient {
     }
 
     const postUrn =
-      resp.headers.get("x-restli-id") || resp.headers.get("X-RestLi-Id") || "";
+      resp.headers.get("x-restli-id") || "";
     const postUrl = postUrn
       ? `https://www.linkedin.com/feed/update/${postUrn}/`
       : undefined;
@@ -927,7 +932,7 @@ export class LinkedInClient {
     }
 
     const commentUrn =
-      resp.headers.get("x-restli-id") || resp.headers.get("X-RestLi-Id") || "";
+      resp.headers.get("x-restli-id") || "";
     return commentUrn;
   }
 

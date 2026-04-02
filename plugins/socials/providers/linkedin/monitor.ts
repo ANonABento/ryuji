@@ -78,7 +78,7 @@ export class LinkedInMonitor {
    * Called automatically when a post is created.
    */
   trackPost(postUrn: string, text: string): void {
-    if (!postUrn) return;
+    if (!postUrn || typeof text !== "string") return;
 
     // Enforce max tracked posts — remove oldest
     const count = this.db.query("SELECT COUNT(*) as c FROM linkedin_posts").get() as { c: number };
@@ -148,7 +148,13 @@ export class LinkedInMonitor {
   async pollOnce(): Promise<NewComment[]> {
     if (!this.client.isAuthenticated()) return [];
 
-    const posts = this.getTrackedPosts();
+    let posts: TrackedPost[];
+    try {
+      posts = this.getTrackedPosts();
+    } catch (e: any) {
+      console.error(`[LinkedIn Monitor] Failed to load tracked posts: ${e.message}`);
+      return [];
+    }
     const allNew: NewComment[] = [];
 
     for (const post of posts) {

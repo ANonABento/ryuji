@@ -41,8 +41,13 @@ export class LinkedInScheduler {
     this.db = new Database(dbPath);
     this.client = client;
     this.monitor = monitor;
-    this.migrate();
-    this.scheduleAll();
+    try {
+      this.migrate();
+      this.scheduleAll();
+    } catch (e) {
+      this.db.close();
+      throw e;
+    }
   }
 
   private migrate(): void {
@@ -111,6 +116,10 @@ export class LinkedInScheduler {
   }
 
   private async firePost(post: ScheduledPost): Promise<void> {
+    // Re-check status in case it was cancelled while timer was pending
+    const current = this.db.query("SELECT status FROM linkedin_queue WHERE id = ?").get(post.id) as { status: string } | null;
+    if (!current || current.status !== "pending") return;
+
     if (!this.client.isAuthenticated()) {
       this.markFailed(post.id, "Not authenticated with LinkedIn.");
       return;
