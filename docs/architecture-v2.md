@@ -30,8 +30,8 @@ Meta-Supervisor (meta.ts) — always running, manages everything
 
 ```
 Claude Code (terminal session, manages context)
-  └→ Supervisor (server.ts — immortal, MCP stdio, PID guard)
-       └→ Worker (worker.ts — disposable, Discord + plugins + tools)
+  └→ Supervisor (packages/core/server.ts — immortal, MCP stdio, PID guard)
+       └→ Worker (packages/core/worker.ts — disposable, Discord + plugins + tools)
 ```
 
 **Why 3 layers exist:**
@@ -44,10 +44,10 @@ Claude Code (terminal session, manages context)
 ## Proposed Architecture (V2)
 
 ```
-Meta-Supervisor (meta.ts — immortal, always running)
+Meta-Supervisor (packages/core/meta.ts — immortal, always running)
   ├→ Claude Session (Agent SDK — managed, cycled when context heavy)
   │    └→ Choomfie tools registered via plugin or direct
-  └→ Discord Worker (worker.ts — disposable, Discord + plugins)
+  └→ Discord Worker (packages/core/worker.ts — disposable, Discord + plugins)
        └→ IPC back to Meta-Supervisor
 ```
 
@@ -76,14 +76,14 @@ The current supervisor's ONLY job is keeping the MCP pipe alive. If meta-supervi
 
 ### What We Remove
 
-- `supervisor.ts` — no longer needed. Meta-supervisor handles both Claude and worker lifecycle.
+- `packages/core/supervisor.ts` — no longer needed. Meta-supervisor handles both Claude and worker lifecycle.
 - MCP stdio transport — replaced by Agent SDK's programmatic interface.
 - MCP server creation — tools registered directly with the Agent SDK.
 
 ### What We Keep
 
-- `worker.ts` — same Discord worker, same plugins, same tools. Just different IPC parent.
-- All plugins (voice, browser, socials, language-learning) — unchanged.
+- `packages/core/worker.ts` — same Discord worker, same plugins, same tools. Just different IPC parent.
+- All plugin packages (`packages/voice/`, `packages/browser/`, `packages/socials/`, `packages/tutor/`) — unchanged.
 - All tool definitions — unchanged, but registered differently.
 
 ## Communication

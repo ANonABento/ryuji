@@ -50,7 +50,7 @@ Claude tokens: "Sure! " + "I can help " + "with that. " + "Let me explain..."
 
 #### 1. Add `StreamingTTSQueue` class
 
-New file: `plugins/voice/streaming-queue.ts`
+New file: `packages/voice/streaming-queue.ts`
 
 ```typescript
 import { Readable } from "node:stream";
@@ -128,7 +128,7 @@ export class StreamingTTSQueue {
 #### 2. Sentence boundary splitter
 
 ```typescript
-// plugins/voice/sentence-splitter.ts
+// packages/voice/sentence-splitter.ts
 
 /**
  * Buffers streaming text tokens and emits complete sentences.
@@ -281,7 +281,7 @@ Note: `@ricky0123/vad-node` wraps Silero's ONNX model. Runs locally, no cloud de
 
 #### 2. Create VAD wrapper
 
-New file: `plugins/voice/vad.ts`
+New file: `packages/voice/vad.ts`
 
 ```typescript
 import { type MicVAD, createMicVADStream } from "@ricky0123/vad-node";
@@ -657,7 +657,7 @@ Pre-synthesize filler phrases at startup. When a user finishes speaking, immedia
 #### 1. Filler definitions per persona
 
 ```typescript
-// plugins/voice/fillers.ts
+// packages/voice/fillers.ts
 
 export interface FillerSet {
   /** Fillers played while waiting for LLM response */
@@ -780,8 +780,8 @@ Fillers should be generated as part of the `/voice` setup wizard, after the user
 # scripts/generate-fillers.ts
 # Run after voice provider selection during /voice setup
 
-import { getTTSProvider } from "../plugins/voice/providers/index.ts";
-import { FILLER_SETS } from "../plugins/voice/fillers.ts";
+import { getTTSProvider } from "../packages/voice/providers/index.ts";
+import { FILLER_SETS } from "../packages/voice/fillers.ts";
 
 const tts = await getTTSProvider(config);
 const outputDir = `${DATA_DIR}/voice-cache/fillers/${persona}`;
@@ -975,7 +975,7 @@ class STTWorkerPool {
 
   async init() {
     for (let i = 0; i < this.poolSize; i++) {
-      const worker = Bun.spawn(["bun", "plugins/voice/stt-worker.ts"], {
+      const worker = Bun.spawn(["bun", "packages/voice/stt-worker.ts"], {
         stdin: "pipe",
         stdout: "pipe",
         ipc: (message) => this.handleResult(message),
@@ -1021,7 +1021,7 @@ Make `maxConcurrent` configurable in `config.json` under `voice.maxSpeakers`.
 
 ### System Prompt Additions
 
-Add to voice-mode instructions in `plugins/voice/index.ts`:
+Add to voice-mode instructions in `packages/voice/index.ts`:
 
 ```typescript
 instructions: [

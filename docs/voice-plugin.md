@@ -2,7 +2,7 @@
 
 Discord voice channel support with swappable STT/TTS providers.
 
-> Last updated: 2026-03-26
+> Last updated: 2026-04-02
 
 ---
 
@@ -153,10 +153,12 @@ User speaks in VC
 ### Structure
 
 ```
-plugins/voice/
+packages/voice/
+  package.json                — @choomfie/voice workspace package
   index.ts                    — Plugin entry point
   tools.ts                    — MCP tools (join, leave, speak)
   manager.ts                  — Voice connections + audio pipeline
+  vad.ts                      — Silero VAD integration
   providers/
     types.ts                  — STTProvider + TTSProvider + ProviderStatus interfaces
     index.ts                  — Provider factory (auto-detect + config)
@@ -228,7 +230,7 @@ Default is `"auto"` — the factory runs `detect()` on each provider in priority
 #### 1. Create the provider
 
 ```typescript
-// providers/my-tts/tts.ts
+// packages/voice/providers/my-tts/tts.ts
 import type { TTSProvider } from "../types.ts";
 import { checkBinary } from "../detect.ts";
 import { toDiscordPcm } from "../audio.ts";
@@ -255,13 +257,13 @@ export const myTTS: TTSProvider = {
 ```
 
 ```typescript
-// providers/my-tts/index.ts
+// packages/voice/providers/my-tts/index.ts
 export { myTTS } from "./tts.ts";
 ```
 
 #### 2. Register in the factory
 
-Edit `providers/index.ts`:
+Edit `packages/voice/providers/index.ts`:
 
 ```typescript
 import { myTTS } from "./my-tts/index.ts";

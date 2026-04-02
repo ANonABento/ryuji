@@ -1064,7 +1064,7 @@ Full voice conversation using the existing voice pipeline:
 
 A structured JSON file with all kana, their readings, mnemonics, stroke counts, and example words.
 
-**File:** `plugins/language-learning/languages/japanese/data/kana-chart.json`
+**File:** `packages/tutor/languages/japanese/data/kana-chart.json`
 
 ```json
 {
@@ -1102,9 +1102,9 @@ A structured JSON file with all kana, their readings, mnemonics, stroke counts, 
 **Existing asset:** `n5-vocab.json` (718 cards with front/back/reading/tags).
 
 **New data needed:**
-- `plugins/language-learning/languages/japanese/data/survival-vocab.json` — The 75 Stage 1 words with thematic grouping, example sentences, and cultural notes.
-- `plugins/language-learning/languages/japanese/data/grammar-patterns.json` — N5 grammar patterns with explanations, examples, and practice exercises.
-- `plugins/language-learning/languages/japanese/data/conversation-scripts.json` — Dialogue scripts for conversation practice scenarios.
+- `packages/tutor/languages/japanese/data/survival-vocab.json` — The 75 Stage 1 words with thematic grouping, example sentences, and cultural notes.
+- `packages/tutor/languages/japanese/data/grammar-patterns.json` — N5 grammar patterns with explanations, examples, and practice exercises.
+- `packages/tutor/languages/japanese/data/conversation-scripts.json` — Dialogue scripts for conversation practice scenarios.
 
 ### Sentence Pattern Templates
 
@@ -1240,7 +1240,7 @@ The existing in-memory `sessions` Map in `session.ts` becomes a read-through cac
 The language-learning plugin registers button handlers via `registerButtonHandler("learn", handler)` in its `onInteraction` hook. The handler routes based on the second segment of the customId:
 
 ```typescript
-// In plugins/language-learning/interactions.ts
+// In packages/tutor/interactions.ts
 registerButtonHandler("learn", async (interaction, parts, ctx) => {
   const [_, section, action, ...rest] = parts;
   // section: "onboard", "kana", "srs", "vocab", "grammar", "profile"
@@ -1308,7 +1308,7 @@ To enforce the timeout: a `setTimeout` fires after 10 seconds and edits the embe
 ### Plugin File Structure (Proposed)
 
 ```
-plugins/language-learning/
+packages/tutor/
 ├── index.ts                    # Plugin entry (existing, add onInteraction hook)
 ├── tools.ts                    # MCP tools (existing)
 ├── srs.ts                      # SRS manager (existing)
@@ -1350,7 +1350,7 @@ plugins/language-learning/
 | Furigana | `furigana.ts` (kuroshiro) | Auto-add readings in embeds and passive tutoring |
 | Dictionary | `dictionary.ts` (Jisho API) | Used in conversation practice for word explanations |
 | Reminders | `ReminderScheduler` in `lib/reminders.ts` | Daily review scheduling, streak protection nudges |
-| Voice TTS/STT | `plugins/voice/` providers | Pronunciation practice, listening quizzes, shadowing |
+| Voice TTS/STT | `packages/voice/` providers | Pronunciation practice, listening quizzes, shadowing |
 | Button handlers | `registerButtonHandler()` in `lib/interactions.ts` | All quiz/lesson navigation |
 | Slash commands | `registerCommand()` in `lib/interactions.ts` | `/learn` and subcommands |
 | Config | `ConfigManager` in `lib/config.ts` | Plugin settings (enabled, global preferences) |

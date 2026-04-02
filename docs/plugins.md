@@ -2,7 +2,7 @@
 
 Choomfie uses a plugin architecture — the core handles Discord bridging, memory, personas, and basic tools. Everything else (voice, language learning, image gen, etc.) is a plugin.
 
-> Last updated: 2026-03-25
+> Last updated: 2026-04-02
 
 ---
 
@@ -10,7 +10,7 @@ Choomfie uses a plugin architecture — the core handles Discord bridging, memor
 
 ### Enable a plugin
 
-1. Make sure the plugin exists in `plugins/<name>/`
+1. Make sure the plugin exists as a workspace package in `packages/<name>/`
 2. Add it to `config.json`:
    ```json
    {
@@ -48,10 +48,10 @@ Shutdown:
 
 ### Plugin Interface
 
-Every plugin exports a default object implementing the `Plugin` interface from `lib/types.ts`:
+Every plugin exports a default object implementing the `Plugin` interface from `@choomfie/shared`:
 
 ```typescript
-import type { Plugin } from "../../lib/types.ts";
+import type { Plugin } from "@choomfie/shared";
 
 const myPlugin: Plugin = {
   // Required
@@ -107,20 +107,21 @@ export default myPlugin;
 
 ## Creating a New Plugin
 
-### 1. Create the directory
+### 1. Create the workspace package
 
 ```
-plugins/
+packages/
   my-plugin/
-    index.ts     # Plugin entry — exports default Plugin
+    package.json   # { "name": "@choomfie/my-plugin", "dependencies": { "@choomfie/shared": "workspace:*" } }
+    index.ts       # Plugin entry — exports default Plugin
 ```
 
 ### 2. Write the plugin
 
 ```typescript
-// plugins/my-plugin/index.ts
-import type { Plugin, ToolDef } from "../../lib/types.ts";
-import { text, err } from "../../lib/types.ts";
+// packages/my-plugin/index.ts
+import type { Plugin, ToolDef } from "@choomfie/shared";
+import { text, err } from "@choomfie/shared";
 
 const tools: ToolDef[] = [
   {
@@ -160,9 +161,9 @@ Add `"my-plugin"` to the `plugins` array in `config.json`:
 }
 ```
 
-### 4. Restart
+### 4. Register in the plugin loader
 
-The plugin loader auto-discovers `plugins/my-plugin/index.ts` and registers everything.
+Add the package to the workspace map in `packages/core/lib/plugins.ts`, then restart.
 
 ---
 
@@ -193,13 +194,14 @@ const plugin: Plugin = {
 
 ## Dependencies
 
-If a plugin needs npm packages, add them to the root `package.json`:
+Plugins are workspace packages. Add dependencies to the plugin's own `package.json`:
 
 ```bash
+cd packages/my-plugin
 bun add some-package
 ```
 
-All plugins share the same `node_modules`. This is fine for a personal project — no need for per-plugin package management.
+Or add to the root `package.json` if shared across packages. All packages share the same `node_modules` via Bun workspaces.
 
 ---
 
@@ -216,8 +218,9 @@ Plugin errors are caught and logged — a failing plugin won't crash the bot:
 ## File Structure
 
 ```
-plugins/
+packages/
   <name>/
+    package.json       # Workspace package with @choomfie/shared dependency
     index.ts           # Required — exports default Plugin
     tools.ts           # Optional — ToolDef[] (for organization)
     *.ts               # Optional — internal modules
@@ -227,9 +230,9 @@ plugins/
 
 | File | Purpose |
 |------|---------|
-| `lib/types.ts` | `Plugin` interface definition |
-| `lib/plugins.ts` | Plugin loader (discovery + validation) |
-| `lib/tools/index.ts` | Merges plugin tools into core tool registry |
-| `lib/mcp-server.ts` | Appends plugin instructions to system prompt |
-| `lib/discord.ts` | Merges intents, calls init/onMessage hooks |
-| `lib/config.ts` | `plugins` array + plugin-specific config sections |
+| `packages/shared/types.ts` | `Plugin` interface definition |
+| `packages/core/lib/plugins.ts` | Plugin loader (explicit workspace package map) |
+| `packages/core/lib/tools/index.ts` | Merges plugin tools into core tool registry |
+| `packages/core/lib/mcp-server.ts` | Appends plugin instructions to system prompt |
+| `packages/core/lib/discord.ts` | Merges intents, calls init/onMessage hooks |
+| `packages/core/lib/config.ts` | `plugins` array + plugin-specific config sections |

@@ -41,10 +41,10 @@ Full config overview — memory stats, personality, access policy, all features,
 
 ## Creating Custom Skills
 
-Add a folder under `skills/` with a `SKILL.md`:
+Add a folder under `packages/core/skills/` with a `SKILL.md`:
 
 ```
-skills/
+packages/core/skills/
 └── my-skill/
     └── SKILL.md
 ```

@@ -167,18 +167,24 @@ Configure via `/voice` slash command in Discord.
 
 ## Project Structure
 
+Choomfie is a Bun monorepo with workspace packages:
+
 ```
-server.ts              # Entry point
-supervisor.ts          # Immortal MCP process
-worker.ts              # Disposable Discord/plugin process
-lib/                   # Core: discord, memory, reminders, tools, config, permissions
-plugins/
-  voice/               # Voice chat (STT/TTS/VAD)
-  browser/             # Web browsing (Playwright)
-  tutor/               # Language learning (FSRS, lessons, Japanese module)
-  socials/             # YouTube, Reddit, LinkedIn
-skills/                # Claude Code slash command skills
-docs/                  # Setup guides, architecture, roadmap
+package.json                       # Root: bun workspaces, scripts, dev deps
+packages/
+  shared/                          # @choomfie/shared — types, utils, time, paths
+  core/                            # @choomfie/core — MCP server, Discord bridge, memory
+    server.ts, supervisor.ts, worker.ts, meta.ts
+    lib/                           # Discord, memory, reminders, tools, config, permissions
+    skills/                        # Claude Code slash command skills
+    scripts/                       # deploy-commands.ts
+    test/                          # boot, plugin, regression tests
+    bin/                           # choomfie launcher
+  voice/                           # @choomfie/voice — STT/TTS/VAD
+  browser/                         # @choomfie/browser — Playwright browsing
+  tutor/                           # @choomfie/tutor — language learning (FSRS, lessons)
+  socials/                         # @choomfie/socials — YouTube, Reddit, LinkedIn
+docs/                              # Setup guides, architecture, roadmap
 ```
 
 ## Docs

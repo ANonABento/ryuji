@@ -199,7 +199,7 @@ CREATE TABLE linkedin_comments (
 ## File Structure
 
 ```
-plugins/socials/providers/linkedin/
+packages/socials/providers/linkedin/
   api.ts            # (existing) OAuth + core API methods
   posts.ts          # NEW: Posts API (create, edit, delete, media upload)
   comments.ts       # NEW: Comments + reactions API

@@ -1,7 +1,7 @@
 {
   "name": "choomfie-monorepo",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Personal AI agent channel plugin for Claude Code — Discord bridge with persistent memory and skills.",
   "license": "MIT",
   "type": "module",

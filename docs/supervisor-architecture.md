@@ -40,8 +40,8 @@ The supervisor/worker split solves this: **the process Claude talks to never die
 │                                                          │
 │  ✦ DISPOSABLE — can be killed and respawned              │
 │  ✦ Owns Discord connection                               │
-│  ✦ Owns all 49 tools (reply, react, memory, etc.)        │
-│  ✦ Owns plugins (voice, browser, language-learning)      │
+│  ✦ Owns all 42 tools (reply, react, memory, etc.)        │
+│  ✦ Owns plugins (voice, browser, tutor, socials)         │
 │  ✦ Owns reminders, config, permissions                   │
 │                                                          │
 └────────────────────┬────────────────────────────────────┘
@@ -153,7 +153,7 @@ Supervisor                           Worker
 ## Startup Sequence
 
 ```
-server.ts
+packages/core/server.ts
   │
   └─► import "./supervisor.ts"
         │
@@ -161,7 +161,7 @@ server.ts
         ├─ 2. Bun.spawn("worker.ts") with IPC
         │       │
         │       ├─ createContext() — env, config, memory, access list
-        │       ├─ loadPlugins() — voice, browser, language-learning
+        │       ├─ loadPlugins() — voice, browser, tutor, socials (from packages/)
         │       ├─ McpProxy() — fake MCP server for IPC forwarding
         │       ├─ createDiscordClient() — sets up event handlers
         │       ├─ discord.login() — connects to Discord gateway
@@ -220,14 +220,18 @@ Existing code doesn't need to know it's in a child process. It just calls `ctx.m
 
 ## File Layout
 
+All core files live under `packages/core/`:
+
 | File | Role |
 |---|---|
 | `server.ts` | Thin wrapper: `import "./supervisor.ts"` |
 | `supervisor.ts` | Immortal process: MCP, IPC, restart, PID |
 | `worker.ts` | Disposable process: Discord, plugins, tools |
+| `meta.ts` | Meta-supervisor for Agent SDK session cycling |
 | `lib/ipc-types.ts` | Shared IPC message types |
 | `lib/mcp-proxy.ts` | Duck-type MCP Server for worker (`notification()` + `setNotificationHandler()`) |
 | `lib/mcp-server.ts` | `buildInstructions()` + `createMcpServer()` (used by worker + boot test) |
+| `lib/plugins.ts` | Plugin loader (explicit workspace package map) |
 
 ## PID File Guard
 
@@ -267,9 +271,11 @@ When the worker sends `ready` (initial or after restart), supervisor sends a `no
 
 ## Hot-Reload Boundaries
 
-**Worker code (hot-reloadable):** Any change to worker.ts, lib/, plugins/, tools is picked up on worker restart (via `restart` tool or `request_restart` IPC). No session restart needed.
+**Worker code (hot-reloadable):** Any change to `packages/core/worker.ts`, `packages/core/lib/`, or any plugin package (`packages/voice/`, `packages/browser/`, etc.) is picked up on worker restart (via `restart` tool or `request_restart` IPC). No session restart needed.
 
-**Supervisor code (NOT hot-reloadable):** Changes to supervisor.ts, ipc-types.ts (new message types), or the MCP server setup require a full session restart (exit + re-run `choomfie`). The supervisor is the immortal process — it never restarts itself.
+**Shared package (`packages/shared/`):** Changes require worker restart at minimum, since the shared code is imported by both core and plugins.
+
+**Supervisor code (NOT hot-reloadable):** Changes to `packages/core/supervisor.ts`, `packages/core/lib/ipc-types.ts` (new message types), or the MCP server setup require a full session restart (exit + re-run `choomfie`). The supervisor is the immortal process — it never restarts itself.
 
 **Rule of thumb:** If you're adding new IPC message types or changing supervisor logic, you need a fresh session. If you're changing tool handlers, plugins, Discord code, or persona logic, a worker restart is enough.
 
@@ -335,7 +341,7 @@ Supervisor handles it identically to the `restart` tool — graceful shutdown, r
 
 ### Implementation
 
-1. **`lib/ipc-types.ts`** — Add `IpcRequestRestart` type:
+1. **`packages/core/lib/ipc-types.ts`** — Add `IpcRequestRestart` type:
    ```typescript
    export interface IpcRequestRestart {
      type: "request_restart";
@@ -344,7 +350,7 @@ Supervisor handles it identically to the `restart` tool — graceful shutdown, r
    ```
    Add to `WorkerMessage` union.
 
-2. **`lib/mcp-proxy.ts`** or **`lib/types.ts`** — Expose restart request on AppContext:
+2. **`packages/core/lib/mcp-proxy.ts`** or **`packages/core/lib/types.ts`** — Expose restart request on AppContext:
    ```typescript
    // Option A: method on McpProxy
    ctx.mcp.requestRestart("persona switch: takagi")
@@ -354,14 +360,14 @@ Supervisor handles it identically to the `restart` tool — graceful shutdown, r
    ```
    Both just call `process.send({ type: "request_restart", reason })`.
 
-3. **`supervisor.ts`** — Handle `request_restart` in the worker message handler:
+3. **`packages/core/supervisor.ts`** — Handle `request_restart` in the worker message handler:
    - Extract the restart logic from `handleSupervisorTool("restart")` into a shared `restartWorker(reason)` function
    - Call it from both the `restart` tool handler and the `request_restart` IPC handler
    - Note: the tool_call that triggered the persona switch is still pending — need to either:
      - (a) Return the tool result first, then restart (small delay)
      - (b) Let the restart kill the worker, supervisor resolves pending tool call with "restarting..."
 
-4. **`lib/tools/persona-tools.ts`** — After `switchPersona()`, call `ctx.requestRestart()`:
+4. **`packages/core/lib/tools/persona-tools.ts`** — After `switchPersona()`, call `ctx.requestRestart()`:
    ```typescript
    handler: async (args, ctx) => {
      const persona = ctx.config.switchPersona(args.key as string);
@@ -371,7 +377,7 @@ Supervisor handles it identically to the `restart` tool — graceful shutdown, r
    },
    ```
 
-5. **`lib/commands.ts`** — Same pattern for `/persona switch`, `/plugins enable|disable`, voice-setup buttons:
+5. **`packages/core/lib/commands.ts`** — Same pattern for `/persona switch`, `/plugins enable|disable`, voice-setup buttons:
    ```typescript
    ctx.requestRestart(`plugin ${action}: ${name}`);
    ```
@@ -390,10 +396,10 @@ Since IPC messages are ordered (same channel), the tool result will always arriv
 ### What This Replaces
 
 After implementation, remove all "restart for full effect" / "restart to apply" messages from:
-- `lib/tools/persona-tools.ts` (switch_persona)
-- `lib/tools/discord-tools.ts` (reply tool description mentioning persona restart)
-- `lib/commands.ts` (/persona switch, /plugins enable/disable, voice-setup buttons)
-- `lib/tools/status-tools.ts` (status display mentioning restart)
+- `packages/core/lib/tools/persona-tools.ts` (switch_persona)
+- `packages/core/lib/tools/discord-tools.ts` (reply tool description mentioning persona restart)
+- `packages/core/lib/commands.ts` (/persona switch, /plugins enable/disable, voice-setup buttons)
+- `packages/core/lib/tools/status-tools.ts` (status display mentioning restart)
 
 ## Future Phases
 
