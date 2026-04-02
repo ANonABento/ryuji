@@ -109,10 +109,15 @@
 - [x] YouTube — OAuth commenting (YouTube Data API v3)
 - [x] Reddit — search, posts, comments (JSON scraper + OAuth API)
 - [x] Reddit — post, comment (OAuth write)
-- [x] LinkedIn — OAuth 2.0 + PKCE auth flow
-- [x] LinkedIn — post to personal profile
-- [x] LinkedIn — status check
-- [ ] LinkedIn — config setup (client ID + secret needed)
+- [x] LinkedIn — OAuth 2.0 (standard 3-legged, no PKCE)
+- [x] LinkedIn — Posts API (`/rest/posts`, version 202603)
+- [x] LinkedIn — text, image, multi-image, link/article, poll posts
+- [x] LinkedIn — edit, delete, repost
+- [x] LinkedIn — comments (read/write), reactions
+- [x] LinkedIn — post scheduling with queue + first-comment automation
+- [x] LinkedIn — comment monitor (auto-poll every 5 min → Discord)
+- [x] LinkedIn — engagement analytics (likes, comments, top posts)
+- [x] LinkedIn — 17 MCP tools total
 
 ## Phase 10: Google Integration
 
