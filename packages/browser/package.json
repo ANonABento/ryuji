@@ -1,0 +1,11 @@
+{
+  "name": "@choomfie/browser",
+  "version": "0.4.0",
+  "type": "module",
+  "main": "index.ts",
+  "license": "MIT",
+  "dependencies": {
+    "@choomfie/shared": "workspace:*",
+    "playwright": "^1.58.2"
+  }
+}
