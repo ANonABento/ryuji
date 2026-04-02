@@ -7,6 +7,7 @@
  * Communicates with supervisor via IPC messages (see lib/ipc-types.ts).
  */
 
+import { findMonorepoRoot } from "@choomfie/shared";
 import { createContext } from "./lib/context.ts";
 import { loadPlugins } from "./lib/plugins.ts";
 import { createDiscordClient } from "./lib/discord.ts";
@@ -22,7 +23,7 @@ import type { ToolResult } from "./lib/types.ts";
 const { ctx, discordToken } = await createContext();
 
 // Load plugins
-ctx.plugins = await loadPlugins(ctx.config, import.meta.dir);
+ctx.plugins = await loadPlugins(ctx.config, findMonorepoRoot(import.meta.dir));
 
 // Create MCP proxy (forwards notifications to supervisor via IPC)
 const mcpProxy = new McpProxy();

@@ -53,7 +53,8 @@ const META_DIR = `${DATA_DIR}/meta`;
 const PID_PATH = `${META_DIR}/meta.pid`;
 const HANDOFFS_PATH = `${META_DIR}/handoffs.json`;
 
-const PLUGIN_DIR = import.meta.dir;
+import { findMonorepoRoot } from "@choomfie/shared";
+const PLUGIN_DIR = findMonorepoRoot(import.meta.dir);
 
 // --- CLI Flags ---
 

@@ -6,7 +6,7 @@ import { test, expect, describe } from "bun:test";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-const PLUGINS_DIR = join(import.meta.dir, "../../plugins");
+const PLUGINS_DIR = join(import.meta.dir, "../../../../plugins");
 const PLUGIN_NAMES = ["voice", "browser", "tutor", "socials"];
 
 /** Recursively get all .ts files in a directory */

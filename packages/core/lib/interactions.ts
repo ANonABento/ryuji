@@ -1,67 +1,29 @@
 /**
  * Interaction router — dispatches buttons, slash commands, and modal submissions.
  *
+ * Re-exports shared registries so existing core imports don't break.
  * Handler logic lives in lib/handlers/ and lib/commands.ts.
  * All register themselves via side-effect imports at the bottom.
  */
 
 import {
   MessageFlags,
-  type ButtonInteraction,
-  type ChatInputCommandInteraction,
   type Interaction,
-  type ModalSubmitInteraction,
-  type RESTPostAPIChatInputApplicationCommandsJSONBody,
 } from "discord.js";
 import type { AppContext } from "./types.ts";
 
-// --- Handler registries ---
+// Re-export shared registries so existing core imports keep working
+export {
+  registerButtonHandler,
+  registerModalHandler,
+  registerCommand,
+  getCommandDefs,
+  buttonHandlers,
+  modalHandlers,
+  commands,
+} from "@choomfie/shared";
 
-type ButtonHandler = (
-  interaction: ButtonInteraction,
-  parts: string[],
-  ctx: AppContext
-) => Promise<void>;
-
-type ModalHandler = (
-  interaction: ModalSubmitInteraction,
-  parts: string[],
-  ctx: AppContext
-) => Promise<void>;
-
-type CommandHandler = (
-  interaction: ChatInputCommandInteraction,
-  ctx: AppContext
-) => Promise<void>;
-
-interface CommandDef {
-  data: RESTPostAPIChatInputApplicationCommandsJSONBody;
-  handler: CommandHandler;
-}
-
-const buttonHandlers = new Map<string, ButtonHandler>();
-const modalHandlers = new Map<string, ModalHandler>();
-const commands = new Map<string, CommandDef>();
-
-export function registerButtonHandler(prefix: string, handler: ButtonHandler) {
-  buttonHandlers.set(prefix, handler);
-}
-
-export function registerModalHandler(prefix: string, handler: ModalHandler) {
-  modalHandlers.set(prefix, handler);
-}
-
-export function registerCommand(
-  name: string,
-  def: { data: RESTPostAPIChatInputApplicationCommandsJSONBody; handler: CommandHandler }
-) {
-  commands.set(name, def);
-}
-
-/** Get all command definitions for deploy script */
-export function getCommandDefs(): RESTPostAPIChatInputApplicationCommandsJSONBody[] {
-  return [...commands.values()].map((c) => c.data);
-}
+import { buttonHandlers, modalHandlers, commands } from "@choomfie/shared";
 
 // --- Error-safe interaction wrapper ---
 

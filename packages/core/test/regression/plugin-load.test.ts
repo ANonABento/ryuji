@@ -8,7 +8,7 @@ const PLUGIN_NAMES = ["voice", "browser", "tutor", "socials"];
 describe("plugin interface", () => {
   for (const name of PLUGIN_NAMES) {
     test(`${name} plugin exports valid Plugin interface`, async () => {
-      const mod = await import(`../../plugins/${name}/index.ts`);
+      const mod = await import(`../../../../plugins/${name}/index.ts`);
       const plugin = mod.default;
 
       // Required: name
