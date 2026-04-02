@@ -1,0 +1,4310 @@
+[
+  {
+    "front": "ああ",
+    "reading": "ああ",
+    "back": "Ah!, Oh!",
+    "tags": "n5"
+  },
+  {
+    "front": "会う",
+    "reading": "あう",
+    "back": "to meet, to see",
+    "tags": "n5"
+  },
+  {
+    "front": "青",
+    "reading": "あお",
+    "back": "blue",
+    "tags": "n5"
+  },
+  {
+    "front": "青い",
+    "reading": "あおい",
+    "back": "blue",
+    "tags": "n5"
+  },
+  {
+    "front": "赤",
+    "reading": "あか",
+    "back": "red",
+    "tags": "n5"
+  },
+  {
+    "front": "赤い",
+    "reading": "あかい",
+    "back": "red",
+    "tags": "n5"
+  },
+  {
+    "front": "明るい",
+    "reading": "あかるい",
+    "back": "bright (in reference to personality or weather); cheerful",
+    "tags": "n5"
+  },
+  {
+    "front": "秋",
+    "reading": "あき",
+    "back": "fall (season)",
+    "tags": "n5"
+  },
+  {
+    "front": "開く",
+    "reading": "あく",
+    "back": "to open, to become open",
+    "tags": "n5"
+  },
+  {
+    "front": "開ける",
+    "reading": "あける",
+    "back": "to open (v.t.)",
+    "tags": "n5"
+  },
+  {
+    "front": "上げる",
+    "reading": "あげる",
+    "back": "to raise, to lift",
+    "tags": "n5"
+  },
+  {
+    "front": "朝",
+    "reading": "あさ",
+    "back": "morning",
+    "tags": "n5"
+  },
+  {
+    "front": "朝御飯",
+    "reading": "あさごはん",
+    "back": "breakfast",
+    "tags": "n5"
+  },
+  {
+    "front": "明後日",
+    "reading": "あさって",
+    "back": "day after tomorrow",
+    "tags": "n5"
+  },
+  {
+    "front": "足; 脚",
+    "reading": "あし",
+    "back": "foot; leg",
+    "tags": "n5"
+  },
+  {
+    "front": "明日",
+    "reading": "あした",
+    "back": "tomorrow",
+    "tags": "n5"
+  },
+  {
+    "front": "あそこ",
+    "reading": "あそこ",
+    "back": "there, over there, that place",
+    "tags": "n5"
+  },
+  {
+    "front": "遊ぶ",
+    "reading": "あそぶ",
+    "back": "to play; to spend time pleasantly; to hang out",
+    "tags": "n5"
+  },
+  {
+    "front": "暖かい",
+    "reading": "あたたかい",
+    "back": "warm",
+    "tags": "n5"
+  },
+  {
+    "front": "頭",
+    "reading": "あたま",
+    "back": "head",
+    "tags": "n5"
+  },
+  {
+    "front": "新しい",
+    "reading": "あたらしい",
+    "back": "new",
+    "tags": "n5"
+  },
+  {
+    "front": "あちら",
+    "reading": "あちら",
+    "back": "this way (polite)",
+    "tags": "n5"
+  },
+  {
+    "front": "暑い",
+    "reading": "あつい",
+    "back": "hot (in reference to weather), warm",
+    "tags": "n5"
+  },
+  {
+    "front": "熱い",
+    "reading": "あつい",
+    "back": "hot (objects)",
+    "tags": "n5"
+  },
+  {
+    "front": "厚い",
+    "reading": "あつい",
+    "back": "kind, warm(hearted), thick, deep",
+    "tags": "n5"
+  },
+  {
+    "front": "あっち",
+    "reading": "あっち",
+    "back": "over there",
+    "tags": "n5"
+  },
+  {
+    "front": "後",
+    "reading": "あと",
+    "back": "afterwards (later); in the future; the rest; since then",
+    "tags": "n5"
+  },
+  {
+    "front": "あなた",
+    "reading": "あなた",
+    "back": "you",
+    "tags": "n5"
+  },
+  {
+    "front": "兄",
+    "reading": "あに",
+    "back": "(my) older brother (humble)",
+    "tags": "n5"
+  },
+  {
+    "front": "姉",
+    "reading": "あね",
+    "back": "(my) older sister (humble)",
+    "tags": "n5"
+  },
+  {
+    "front": "アパート",
+    "reading": "アパート",
+    "back": "apartment (abbr.)",
+    "tags": "n5"
+  },
+  {
+    "front": "あの",
+    "reading": "あの",
+    "back": "that over there; like that, that way; um...",
+    "tags": "n5"
+  },
+  {
+    "front": "浴びる",
+    "reading": "あびる",
+    "back": "to bathe, to shower",
+    "tags": "n5"
+  },
+  {
+    "front": "危ない",
+    "reading": "あぶない",
+    "back": "dangerous, critical",
+    "tags": "n5"
+  },
+  {
+    "front": "甘い",
+    "reading": "あまい",
+    "back": "generous, sweet",
+    "tags": "n5"
+  },
+  {
+    "front": "余り",
+    "reading": "あまり",
+    "back": "not very; surplus",
+    "tags": "n5"
+  },
+  {
+    "front": "雨",
+    "reading": "あめ",
+    "back": "rain",
+    "tags": "n5"
+  },
+  {
+    "front": "飴",
+    "reading": "あめ",
+    "back": "(hard) candy",
+    "tags": "n5"
+  },
+  {
+    "front": "洗う",
+    "reading": "あらう",
+    "back": "to wash",
+    "tags": "n5"
+  },
+  {
+    "front": "在る",
+    "reading": "ある",
+    "back": "to be, to have",
+    "tags": "n5"
+  },
+  {
+    "front": "有る",
+    "reading": "ある",
+    "back": "to be, to have",
+    "tags": "n5"
+  },
+  {
+    "front": "歩く",
+    "reading": "あるく",
+    "back": "to walk",
+    "tags": "n5"
+  },
+  {
+    "front": "あれ",
+    "reading": "あれ",
+    "back": "that one (over there)",
+    "tags": "n5"
+  },
+  {
+    "front": "いい; よい",
+    "reading": "いい; よい",
+    "back": "good",
+    "tags": "n5"
+  },
+  {
+    "front": "いいえ",
+    "reading": "いいえ",
+    "back": "no, not at all",
+    "tags": "n5"
+  },
+  {
+    "front": "言う",
+    "reading": "いう",
+    "back": "to say",
+    "tags": "n5"
+  },
+  {
+    "front": "家",
+    "reading": "いえ",
+    "back": "house, home",
+    "tags": "n5"
+  },
+  {
+    "front": "いかが",
+    "reading": "いかが",
+    "back": "how, in what way",
+    "tags": "n5"
+  },
+  {
+    "front": "行く",
+    "reading": "いく; ゆく",
+    "back": "to go",
+    "tags": "n5"
+  },
+  {
+    "front": "いくつ",
+    "reading": "いくつ",
+    "back": "how many, how old",
+    "tags": "n5"
+  },
+  {
+    "front": "いくら",
+    "reading": "いくら",
+    "back": "how much, how many",
+    "tags": "n5"
+  },
+  {
+    "front": "池",
+    "reading": "いけ",
+    "back": "pond",
+    "tags": "n5"
+  },
+  {
+    "front": "医者",
+    "reading": "いしゃ",
+    "back": "doctor; physician",
+    "tags": "n5"
+  },
+  {
+    "front": "椅子",
+    "reading": "いす",
+    "back": "chair",
+    "tags": "n5"
+  },
+  {
+    "front": "忙しい",
+    "reading": "いそがしい",
+    "back": "busy (people, days)",
+    "tags": "n5"
+  },
+  {
+    "front": "痛い",
+    "reading": "いたい",
+    "back": "hurt; painful; sore",
+    "tags": "n5"
+  },
+  {
+    "front": "一",
+    "reading": "いち",
+    "back": "one",
+    "tags": "n5"
+  },
+  {
+    "front": "一日",
+    "reading": "いちにち",
+    "back": "one day (duration)",
+    "tags": "n5"
+  },
+  {
+    "front": "一番",
+    "reading": "いちばん",
+    "back": "best (most), first, number one",
+    "tags": "n5"
+  },
+  {
+    "front": "いつ",
+    "reading": "いつ",
+    "back": "when",
+    "tags": "n5"
+  },
+  {
+    "front": "五日",
+    "reading": "いつか",
+    "back": "five days; fifth day of the month",
+    "tags": "n5"
+  },
+  {
+    "front": "一緒",
+    "reading": "いっしょ",
+    "back": "together",
+    "tags": "n5"
+  },
+  {
+    "front": "五つ",
+    "reading": "いつつ",
+    "back": "five things",
+    "tags": "n5"
+  },
+  {
+    "front": "いつも",
+    "reading": "いつも",
+    "back": "always, usually, every time, never (with neg. verb)",
+    "tags": "n5"
+  },
+  {
+    "front": "犬",
+    "reading": "いぬ",
+    "back": "dog",
+    "tags": "n5"
+  },
+  {
+    "front": "今",
+    "reading": "いま",
+    "back": "now",
+    "tags": "n5"
+  },
+  {
+    "front": "意味",
+    "reading": "いみ",
+    "back": "meaning, significance",
+    "tags": "n5"
+  },
+  {
+    "front": "妹",
+    "reading": "いもうと",
+    "back": "younger sister (humble)",
+    "tags": "n5"
+  },
+  {
+    "front": "嫌",
+    "reading": "いや",
+    "back": "disagreeable, detestable, unpleasant",
+    "tags": "n5"
+  },
+  {
+    "front": "入口",
+    "reading": "いりぐち",
+    "back": "entrance",
+    "tags": "n5"
+  },
+  {
+    "front": "居る",
+    "reading": "いる",
+    "back": "(humble) to be (animate), to exist",
+    "tags": "n5"
+  },
+  {
+    "front": "要る",
+    "reading": "いる",
+    "back": "to need",
+    "tags": "n5"
+  },
+  {
+    "front": "入れる",
+    "reading": "いれる",
+    "back": "to put in",
+    "tags": "n5"
+  },
+  {
+    "front": "色",
+    "reading": "いろ",
+    "back": "color",
+    "tags": "n5"
+  },
+  {
+    "front": "色々",
+    "reading": "いろいろ",
+    "back": "various",
+    "tags": "n5"
+  },
+  {
+    "front": "上",
+    "reading": "うえ",
+    "back": "above (up, top, etc.), over, on top of",
+    "tags": "n5"
+  },
+  {
+    "front": "後ろ",
+    "reading": "うしろ",
+    "back": "back, behind, rear",
+    "tags": "n5"
+  },
+  {
+    "front": "薄い",
+    "reading": "うすい",
+    "back": "thin, weak",
+    "tags": "n5"
+  },
+  {
+    "front": "歌",
+    "reading": "うた",
+    "back": "a song",
+    "tags": "n5"
+  },
+  {
+    "front": "歌う",
+    "reading": "うたう",
+    "back": "to sing",
+    "tags": "n5"
+  },
+  {
+    "front": "うち",
+    "reading": "うち",
+    "back": "home; house; my place",
+    "tags": "n5"
+  },
+  {
+    "front": "生まれる",
+    "reading": "うまれる",
+    "back": "to be born",
+    "tags": "n5"
+  },
+  {
+    "front": "海",
+    "reading": "うみ",
+    "back": "sea, beach",
+    "tags": "n5"
+  },
+  {
+    "front": "売る",
+    "reading": "うる",
+    "back": "to sell (v.t.)",
+    "tags": "n5"
+  },
+  {
+    "front": "うるさい",
+    "reading": "うるさい",
+    "back": "noisy; annoying",
+    "tags": "n5"
+  },
+  {
+    "front": "上着",
+    "reading": "うわぎ",
+    "back": "coat, jacket",
+    "tags": "n5"
+  },
+  {
+    "front": "絵",
+    "reading": "え",
+    "back": "a painting; a picture; a drawing",
+    "tags": "n5"
+  },
+  {
+    "front": "映画",
+    "reading": "えいが",
+    "back": "movie, film",
+    "tags": "n5"
+  },
+  {
+    "front": "映画館",
+    "reading": "えいがかん",
+    "back": "movie theater, cinema",
+    "tags": "n5"
+  },
+  {
+    "front": "英語",
+    "reading": "えいご",
+    "back": "English (language)",
+    "tags": "n5"
+  },
+  {
+    "front": "ええ",
+    "reading": "ええ",
+    "back": "yes",
+    "tags": "n5"
+  },
+  {
+    "front": "駅",
+    "reading": "えき",
+    "back": "station",
+    "tags": "n5"
+  },
+  {
+    "front": "エレベーター",
+    "reading": "エレベーター",
+    "back": "elevator",
+    "tags": "n5"
+  },
+  {
+    "front": "～円",
+    "reading": "～えん",
+    "back": "Yen",
+    "tags": "n5"
+  },
+  {
+    "front": "鉛筆",
+    "reading": "えんぴつ",
+    "back": "pencil",
+    "tags": "n5"
+  },
+  {
+    "front": "お～",
+    "reading": "お～",
+    "back": "honorable ~ (honorific)",
+    "tags": "n5"
+  },
+  {
+    "front": "美味しい",
+    "reading": "おいしい",
+    "back": "delicious, tasty",
+    "tags": "n5"
+  },
+  {
+    "front": "多い",
+    "reading": "おおい",
+    "back": "many; there are a lot",
+    "tags": "n5"
+  },
+  {
+    "front": "大きい",
+    "reading": "おおきい",
+    "back": "big, large",
+    "tags": "n5"
+  },
+  {
+    "front": "大きな",
+    "reading": "おおきな",
+    "back": "big",
+    "tags": "n5"
+  },
+  {
+    "front": "大勢",
+    "reading": "おおぜい",
+    "back": "great number of people",
+    "tags": "n5"
+  },
+  {
+    "front": "お母さん",
+    "reading": "おかあさん",
+    "back": "mother (formal)",
+    "tags": "n5"
+  },
+  {
+    "front": "お菓子",
+    "reading": "おかし",
+    "back": "confections, sweets, snack",
+    "tags": "n5"
+  },
+  {
+    "front": "お金",
+    "reading": "おかね",
+    "back": "money",
+    "tags": "n5"
+  },
+  {
+    "front": "起きる",
+    "reading": "おきる",
+    "back": "to get up (e.g., from sleeping); to happen",
+    "tags": "n5"
+  },
+  {
+    "front": "置く",
+    "reading": "おく",
+    "back": "to put; to lay; to place",
+    "tags": "n5"
+  },
+  {
+    "front": "奥さん",
+    "reading": "おくさん",
+    "back": "(someone else's) wife (hon.)",
+    "tags": "n5"
+  },
+  {
+    "front": "お酒",
+    "reading": "おさけ",
+    "back": "sake; alcohol",
+    "tags": "n5"
+  },
+  {
+    "front": "お皿",
+    "reading": "おさら",
+    "back": "plate, dish",
+    "tags": "n5"
+  },
+  {
+    "front": "伯父; 叔父さん",
+    "reading": "おじさん",
+    "back": "uncle, middle-aged man",
+    "tags": "n5"
+  },
+  {
+    "front": "おじいさん",
+    "reading": "おじいさん",
+    "back": "grandfather, male senior citizen",
+    "tags": "n5"
+  },
+  {
+    "front": "教える",
+    "reading": "おしえる",
+    "back": "to teach, to inform, to instruct",
+    "tags": "n5"
+  },
+  {
+    "front": "押す",
+    "reading": "おす",
+    "back": "to push, to press, to stamp (e.g., a passport)",
+    "tags": "n5"
+  },
+  {
+    "front": "遅い",
+    "reading": "おそい",
+    "back": "slow; (to be) late",
+    "tags": "n5"
+  },
+  {
+    "front": "お茶",
+    "reading": "おちゃ",
+    "back": "(green) tea",
+    "tags": "n5"
+  },
+  {
+    "front": "お手洗い",
+    "reading": "おてあらい",
+    "back": "toilet, restroom, bathroom (lit., a place to wash one's hands)",
+    "tags": "n5"
+  },
+  {
+    "front": "お父さん",
+    "reading": "おとうさん",
+    "back": "father (formal)",
+    "tags": "n5"
+  },
+  {
+    "front": "弟",
+    "reading": "おとうと",
+    "back": "younger brother",
+    "tags": "n5"
+  },
+  {
+    "front": "男",
+    "reading": "おとこ",
+    "back": "man, male",
+    "tags": "n5"
+  },
+  {
+    "front": "男の子",
+    "reading": "おとこのこ",
+    "back": "boy",
+    "tags": "n5"
+  },
+  {
+    "front": "一昨日",
+    "reading": "おととい",
+    "back": "the day before yesterday",
+    "tags": "n5"
+  },
+  {
+    "front": "おととし",
+    "reading": "おととし",
+    "back": "year before last",
+    "tags": "n5"
+  },
+  {
+    "front": "大人",
+    "reading": "おとな",
+    "back": "adult",
+    "tags": "n5"
+  },
+  {
+    "front": "お腹",
+    "reading": "おなか",
+    "back": "stomach",
+    "tags": "n5"
+  },
+  {
+    "front": "同じ",
+    "reading": "おなじ",
+    "back": "same, identical",
+    "tags": "n5"
+  },
+  {
+    "front": "お兄さん",
+    "reading": "おにいさん",
+    "back": "(someone else's) older brother (formal)",
+    "tags": "n5"
+  },
+  {
+    "front": "お姉さん",
+    "reading": "おねえさん",
+    "back": "older sister (formal)",
+    "tags": "n5"
+  },
+  {
+    "front": "伯母さん; 叔母さん",
+    "reading": "おばさん",
+    "back": "aunt",
+    "tags": "n5"
+  },
+  {
+    "front": "おばあさん",
+    "reading": "おばあさん",
+    "back": "grandmother, female senior-citizen",
+    "tags": "n5"
+  },
+  {
+    "front": "お風呂",
+    "reading": "おふろ",
+    "back": "a bath",
+    "tags": "n5"
+  },
+  {
+    "front": "お弁当",
+    "reading": "おべんとう",
+    "back": "a boxed lunch",
+    "tags": "n5"
+  },
+  {
+    "front": "覚える",
+    "reading": "おぼえる",
+    "back": "to learn, to commit to memory, to remember, to memorize",
+    "tags": "n5"
+  },
+  {
+    "front": "おまわりさん",
+    "reading": "おまわりさん",
+    "back": "policeman (friendly term)",
+    "tags": "n5"
+  },
+  {
+    "front": "重い",
+    "reading": "おもい",
+    "back": "heavy; serious",
+    "tags": "n5"
+  },
+  {
+    "front": "面白い",
+    "reading": "おもしろい",
+    "back": "interesting, amusing",
+    "tags": "n5"
+  },
+  {
+    "front": "泳ぐ",
+    "reading": "およぐ",
+    "back": "to swim",
+    "tags": "n5"
+  },
+  {
+    "front": "降りる",
+    "reading": "おりる",
+    "back": "to get off",
+    "tags": "n5"
+  },
+  {
+    "front": "終る",
+    "reading": "おわる",
+    "back": "to finish, to close",
+    "tags": "n5"
+  },
+  {
+    "front": "音楽",
+    "reading": "おんがく",
+    "back": "Music",
+    "tags": "n5"
+  },
+  {
+    "front": "女",
+    "reading": "おんな",
+    "back": "woman, female",
+    "tags": "n5"
+  },
+  {
+    "front": "女の子",
+    "reading": "おんなのこ",
+    "back": "girl",
+    "tags": "n5"
+  },
+  {
+    "front": "～回",
+    "reading": "～かい",
+    "back": "counter for occurrences (~ times)",
+    "tags": "n5"
+  },
+  {
+    "front": "～階",
+    "reading": "～かい",
+    "back": "counter for stories (floors) of a building",
+    "tags": "n5"
+  },
+  {
+    "front": "外国",
+    "reading": "がいこく",
+    "back": "foreign country; abroad",
+    "tags": "n5"
+  },
+  {
+    "front": "外国人",
+    "reading": "がいこくじん",
+    "back": "foreigner",
+    "tags": "n5"
+  },
+  {
+    "front": "会社",
+    "reading": "かいしゃ",
+    "back": "company, corporation",
+    "tags": "n5"
+  },
+  {
+    "front": "階段",
+    "reading": "かいだん",
+    "back": "stairs",
+    "tags": "n5"
+  },
+  {
+    "front": "買い物",
+    "reading": "かいもの",
+    "back": "shopping",
+    "tags": "n5"
+  },
+  {
+    "front": "買う",
+    "reading": "かう",
+    "back": "to buy",
+    "tags": "n5"
+  },
+  {
+    "front": "返す",
+    "reading": "かえす",
+    "back": "to return something",
+    "tags": "n5"
+  },
+  {
+    "front": "帰る",
+    "reading": "かえる",
+    "back": "to go back, to go home, to return",
+    "tags": "n5"
+  },
+  {
+    "front": "顔",
+    "reading": "かお",
+    "back": "face (body part)",
+    "tags": "n5"
+  },
+  {
+    "front": "かかる",
+    "reading": "かかる",
+    "back": "it takes (amount of time, money) (v.i.)",
+    "tags": "n5"
+  },
+  {
+    "front": "鍵",
+    "reading": "かぎ",
+    "back": "a lock; a key",
+    "tags": "n5"
+  },
+  {
+    "front": "書く",
+    "reading": "かく",
+    "back": "to write",
+    "tags": "n5"
+  },
+  {
+    "front": "学生",
+    "reading": "がくせい",
+    "back": "student",
+    "tags": "n5"
+  },
+  {
+    "front": "～か月",
+    "reading": "～かげつ",
+    "back": "(number of) months",
+    "tags": "n5"
+  },
+  {
+    "front": "掛ける",
+    "reading": "かける",
+    "back": "to put on (e.g., glasses); to hang (e.g., on a wall)",
+    "tags": "n5"
+  },
+  {
+    "front": "かける",
+    "reading": "かける",
+    "back": "to dial/call (e.g., phone); to sit down",
+    "tags": "n5"
+  },
+  {
+    "front": "傘",
+    "reading": "かさ",
+    "back": "umbrella, parasol",
+    "tags": "n5"
+  },
+  {
+    "front": "貸す",
+    "reading": "かす",
+    "back": "to lend",
+    "tags": "n5"
+  },
+  {
+    "front": "風",
+    "reading": "かぜ",
+    "back": "wind, breeze",
+    "tags": "n5"
+  },
+  {
+    "front": "風邪",
+    "reading": "かぜ",
+    "back": "cold, flu",
+    "tags": "n5"
+  },
+  {
+    "front": "方",
+    "reading": "かた",
+    "back": "-- honorific form for 人 (ひと) --; way of doing",
+    "tags": "n5"
+  },
+  {
+    "front": "家族",
+    "reading": "かぞく",
+    "back": "family, members of a family",
+    "tags": "n5"
+  },
+  {
+    "front": "片仮名",
+    "reading": "かたかな",
+    "back": "katakana",
+    "tags": "n5"
+  },
+  {
+    "front": "～月",
+    "reading": "～がつ",
+    "back": "month of year",
+    "tags": "n5"
+  },
+  {
+    "front": "学校",
+    "reading": "がっこう",
+    "back": "a school",
+    "tags": "n5"
+  },
+  {
+    "front": "カップ",
+    "reading": "カップ",
+    "back": "cup",
+    "tags": "n5"
+  },
+  {
+    "front": "家庭",
+    "reading": "かてい",
+    "back": "home; family",
+    "tags": "n5"
+  },
+  {
+    "front": "角",
+    "reading": "かど",
+    "back": "corner (e.g., desk, pavement)",
+    "tags": "n5"
+  },
+  {
+    "front": "かばん",
+    "reading": "かばん",
+    "back": "bag, basket",
+    "tags": "n5"
+  },
+  {
+    "front": "花瓶",
+    "reading": "かびん",
+    "back": "(flower) vase",
+    "tags": "n5"
+  },
+  {
+    "front": "かぶる",
+    "reading": "かぶる",
+    "back": "to wear, to put on (e.g., a hat on the head)",
+    "tags": "n5"
+  },
+  {
+    "front": "紙",
+    "reading": "かみ",
+    "back": "paper",
+    "tags": "n5"
+  },
+  {
+    "front": "カメラ",
+    "reading": "カメラ",
+    "back": "camera",
+    "tags": "n5"
+  },
+  {
+    "front": "火曜日",
+    "reading": "かようび",
+    "back": "Tuesday",
+    "tags": "n5"
+  },
+  {
+    "front": "辛い",
+    "reading": "からい",
+    "back": "hot and spicy; salty",
+    "tags": "n5"
+  },
+  {
+    "front": "体",
+    "reading": "からだ",
+    "back": "body; health",
+    "tags": "n5"
+  },
+  {
+    "front": "借りる",
+    "reading": "かりる",
+    "back": "to borrow, to owe",
+    "tags": "n5"
+  },
+  {
+    "front": "～がる",
+    "reading": "～がる",
+    "back": "feel",
+    "tags": "n5"
+  },
+  {
+    "front": "軽い",
+    "reading": "かるい",
+    "back": "light, non-serious, minor",
+    "tags": "n5"
+  },
+  {
+    "front": "カレー",
+    "reading": "カレー",
+    "back": "curry (abbr. for curry and rice)",
+    "tags": "n5"
+  },
+  {
+    "front": "カレンダー",
+    "reading": "カレンダー",
+    "back": "calendar",
+    "tags": "n5"
+  },
+  {
+    "front": "川; 河",
+    "reading": "かわ",
+    "back": "river",
+    "tags": "n5"
+  },
+  {
+    "front": "～側",
+    "reading": "～がわ",
+    "back": "~ side",
+    "tags": "n5"
+  },
+  {
+    "front": "可愛い",
+    "reading": "かわいい",
+    "back": "cute, adorable",
+    "tags": "n5"
+  },
+  {
+    "front": "漢字",
+    "reading": "かんじ",
+    "back": "kanji; Chinese character",
+    "tags": "n5"
+  },
+  {
+    "front": "木",
+    "reading": "き",
+    "back": "tree, wood, timber",
+    "tags": "n5"
+  },
+  {
+    "front": "黄色",
+    "reading": "きいろ",
+    "back": "yellow",
+    "tags": "n5"
+  },
+  {
+    "front": "黄色い",
+    "reading": "きいろい",
+    "back": "yellow",
+    "tags": "n5"
+  },
+  {
+    "front": "消える",
+    "reading": "きえる",
+    "back": "to vanish, to disappear",
+    "tags": "n5"
+  },
+  {
+    "front": "聞く",
+    "reading": "きく",
+    "back": "to hear, to listen, to ask",
+    "tags": "n5"
+  },
+  {
+    "front": "北",
+    "reading": "きた",
+    "back": "north",
+    "tags": "n5"
+  },
+  {
+    "front": "ギター",
+    "reading": "ギター",
+    "back": "guitar",
+    "tags": "n5"
+  },
+  {
+    "front": "汚い",
+    "reading": "きたない",
+    "back": "dirty, unclean, filthy",
+    "tags": "n5"
+  },
+  {
+    "front": "喫茶店",
+    "reading": "きっさてん",
+    "back": "café",
+    "tags": "n5"
+  },
+  {
+    "front": "切手",
+    "reading": "きって",
+    "back": "postal (postage) stamps",
+    "tags": "n5"
+  },
+  {
+    "front": "切符",
+    "reading": "きっぷ",
+    "back": "a ticket",
+    "tags": "n5"
+  },
+  {
+    "front": "昨日",
+    "reading": "きのう",
+    "back": "yesterday",
+    "tags": "n5"
+  },
+  {
+    "front": "九",
+    "reading": "きゅう",
+    "back": "nine",
+    "tags": "n5"
+  },
+  {
+    "front": "牛肉",
+    "reading": "ぎゅうにく",
+    "back": "beef",
+    "tags": "n5"
+  },
+  {
+    "front": "牛乳",
+    "reading": "ぎゅうにゅう",
+    "back": "milk",
+    "tags": "n5"
+  },
+  {
+    "front": "今日",
+    "reading": "きょう",
+    "back": "today, this day",
+    "tags": "n5"
+  },
+  {
+    "front": "教室",
+    "reading": "きょうしつ",
+    "back": "classroom",
+    "tags": "n5"
+  },
+  {
+    "front": "兄弟",
+    "reading": "きょうだい",
+    "back": "siblings (humble), brothers and sisters",
+    "tags": "n5"
+  },
+  {
+    "front": "去年",
+    "reading": "きょねん",
+    "back": "last year",
+    "tags": "n5"
+  },
+  {
+    "front": "嫌い",
+    "reading": "きらい",
+    "back": "dislike",
+    "tags": "n5"
+  },
+  {
+    "front": "切る",
+    "reading": "きる",
+    "back": "to cut; to hang up (a phone)",
+    "tags": "n5"
+  },
+  {
+    "front": "着る",
+    "reading": "きる",
+    "back": "to put on (clothes above your waist); to wear",
+    "tags": "n5"
+  },
+  {
+    "front": "綺麗",
+    "reading": "きれい",
+    "back": "pretty, clean, tidy",
+    "tags": "n5"
+  },
+  {
+    "front": "キロ; キログラム",
+    "reading": "キロ; キログラム",
+    "back": "(abbr.) kilo (kilogram)",
+    "tags": "n5"
+  },
+  {
+    "front": "キロ; キロメートル",
+    "reading": "キロ; キロメートル",
+    "back": "(abbr.) kilo (kilometer)",
+    "tags": "n5"
+  },
+  {
+    "front": "銀行",
+    "reading": "ぎんこう",
+    "back": "bank",
+    "tags": "n5"
+  },
+  {
+    "front": "金曜日",
+    "reading": "きんようび",
+    "back": "Friday",
+    "tags": "n5"
+  },
+  {
+    "front": "九",
+    "reading": "く",
+    "back": "nine",
+    "tags": "n5"
+  },
+  {
+    "front": "薬",
+    "reading": "くすり",
+    "back": "medicine",
+    "tags": "n5"
+  },
+  {
+    "front": "下さい",
+    "reading": "ください",
+    "back": "(with te-form verb) please do for me",
+    "tags": "n5"
+  },
+  {
+    "front": "果物",
+    "reading": "くだもの",
+    "back": "fruit",
+    "tags": "n5"
+  },
+  {
+    "front": "口",
+    "reading": "くち",
+    "back": "job opening; mouth",
+    "tags": "n5"
+  },
+  {
+    "front": "靴",
+    "reading": "くつ",
+    "back": "shoes, footwear",
+    "tags": "n5"
+  },
+  {
+    "front": "靴下",
+    "reading": "くつした",
+    "back": "socks",
+    "tags": "n5"
+  },
+  {
+    "front": "国",
+    "reading": "くに",
+    "back": "country; place of origin",
+    "tags": "n5"
+  },
+  {
+    "front": "曇り",
+    "reading": "くもり",
+    "back": "cloudiness, cloudy weather",
+    "tags": "n5"
+  },
+  {
+    "front": "曇る",
+    "reading": "くもる",
+    "back": "to become cloudy, to become dim",
+    "tags": "n5"
+  },
+  {
+    "front": "暗い",
+    "reading": "くらい",
+    "back": "dark, gloomy",
+    "tags": "n5"
+  },
+  {
+    "front": "～くらい; ぐらい",
+    "reading": "～くらい; ぐらい",
+    "back": "approximate (quantity)",
+    "tags": "n5"
+  },
+  {
+    "front": "クラス",
+    "reading": "クラス",
+    "back": "a class",
+    "tags": "n5"
+  },
+  {
+    "front": "グラム",
+    "reading": "グラム",
+    "back": "gram",
+    "tags": "n5"
+  },
+  {
+    "front": "来る",
+    "reading": "くる",
+    "back": "to come",
+    "tags": "n5"
+  },
+  {
+    "front": "車",
+    "reading": "くるま",
+    "back": "car, vehicle",
+    "tags": "n5"
+  },
+  {
+    "front": "黒",
+    "reading": "くろ",
+    "back": "black",
+    "tags": "n5"
+  },
+  {
+    "front": "黒い",
+    "reading": "くろい",
+    "back": "black; dark",
+    "tags": "n5"
+  },
+  {
+    "front": "警官",
+    "reading": "けいかん",
+    "back": "police officer",
+    "tags": "n5"
+  },
+  {
+    "front": "今朝",
+    "reading": "けさ",
+    "back": "this morning",
+    "tags": "n5"
+  },
+  {
+    "front": "消す",
+    "reading": "けす",
+    "back": "to erase, to delete, to turn off power",
+    "tags": "n5"
+  },
+  {
+    "front": "結構",
+    "reading": "けっこう",
+    "back": "splendid; enough, tolerably",
+    "tags": "n5"
+  },
+  {
+    "front": "結婚",
+    "reading": "けっこん (する)",
+    "back": "marriage (get married)",
+    "tags": "n5"
+  },
+  {
+    "front": "月曜日",
+    "reading": "げつようび",
+    "back": "Monday",
+    "tags": "n5"
+  },
+  {
+    "front": "玄関",
+    "reading": "げんかん",
+    "back": "entrance (to a house or a building)",
+    "tags": "n5"
+  },
+  {
+    "front": "元気",
+    "reading": "げんき",
+    "back": "health(y), energetic",
+    "tags": "n5"
+  },
+  {
+    "front": "～個",
+    "reading": "～こ",
+    "back": "counter for small items (e.g., fruits, cups)",
+    "tags": "n5"
+  },
+  {
+    "front": "五",
+    "reading": "ご",
+    "back": "five",
+    "tags": "n5"
+  },
+  {
+    "front": "～語",
+    "reading": "～ご",
+    "back": "word, language",
+    "tags": "n5"
+  },
+  {
+    "front": "公園",
+    "reading": "こうえん",
+    "back": "a park",
+    "tags": "n5"
+  },
+  {
+    "front": "交差点",
+    "reading": "こうさてん",
+    "back": "intersection",
+    "tags": "n5"
+  },
+  {
+    "front": "紅茶",
+    "reading": "こうちゃ",
+    "back": "black tea",
+    "tags": "n5"
+  },
+  {
+    "front": "交番",
+    "reading": "こうばん",
+    "back": "police box",
+    "tags": "n5"
+  },
+  {
+    "front": "声",
+    "reading": "こえ",
+    "back": "voice",
+    "tags": "n5"
+  },
+  {
+    "front": "コート",
+    "reading": "コート",
+    "back": "coat; court (e.g., tennis)",
+    "tags": "n5"
+  },
+  {
+    "front": "コーヒー",
+    "reading": "コーヒー",
+    "back": "coffee",
+    "tags": "n5"
+  },
+  {
+    "front": "ここ",
+    "reading": "ここ",
+    "back": "here, this place",
+    "tags": "n5"
+  },
+  {
+    "front": "午後",
+    "reading": "ごご",
+    "back": "afternoon, P.M.",
+    "tags": "n5"
+  },
+  {
+    "front": "九日",
+    "reading": "ここのか",
+    "back": "nine days; ninth day of the month",
+    "tags": "n5"
+  },
+  {
+    "front": "九つ",
+    "reading": "ここのつ",
+    "back": "nine things",
+    "tags": "n5"
+  },
+  {
+    "front": "午前",
+    "reading": "ごぜん",
+    "back": "morning, A.M.",
+    "tags": "n5"
+  },
+  {
+    "front": "答える",
+    "reading": "こたえる",
+    "back": "to answer, to reply",
+    "tags": "n5"
+  },
+  {
+    "front": "こちら",
+    "reading": "こちら",
+    "back": "this person (polite); this way (polite)",
+    "tags": "n5"
+  },
+  {
+    "front": "こっち",
+    "reading": "こっち",
+    "back": "this person; this direction; this side",
+    "tags": "n5"
+  },
+  {
+    "front": "コップ",
+    "reading": "コップ",
+    "back": "a tumbler; a glass",
+    "tags": "n5"
+  },
+  {
+    "front": "今年",
+    "reading": "ことし",
+    "back": "this year",
+    "tags": "n5"
+  },
+  {
+    "front": "言葉",
+    "reading": "ことば",
+    "back": "language; word(s); expression(s)",
+    "tags": "n5"
+  },
+  {
+    "front": "子供",
+    "reading": "こども",
+    "back": "child(ren)",
+    "tags": "n5"
+  },
+  {
+    "front": "この",
+    "reading": "この",
+    "back": "this",
+    "tags": "n5"
+  },
+  {
+    "front": "御飯",
+    "reading": "ごはん",
+    "back": "rice (cooked); meal",
+    "tags": "n5"
+  },
+  {
+    "front": "コピーする",
+    "reading": "コピーする",
+    "back": "to copy",
+    "tags": "n5"
+  },
+  {
+    "front": "困る",
+    "reading": "こまる",
+    "back": "to be bothered, to have difficulty",
+    "tags": "n5"
+  },
+  {
+    "front": "これ",
+    "reading": "これ",
+    "back": "this one",
+    "tags": "n5"
+  },
+  {
+    "front": "～ころ; ～ごろ",
+    "reading": "～ころ; ～ごろ",
+    "back": "about, toward, approximately (time)",
+    "tags": "n5"
+  },
+  {
+    "front": "今月",
+    "reading": "こんげつ",
+    "back": "this month",
+    "tags": "n5"
+  },
+  {
+    "front": "今週",
+    "reading": "こんしゅう",
+    "back": "this week",
+    "tags": "n5"
+  },
+  {
+    "front": "こんな",
+    "reading": "こんな",
+    "back": "such, like this",
+    "tags": "n5"
+  },
+  {
+    "front": "今晩",
+    "reading": "こんばん",
+    "back": "tonight, this evening",
+    "tags": "n5"
+  },
+  {
+    "front": "さあ",
+    "reading": "さあ",
+    "back": "come now, well",
+    "tags": "n5"
+  },
+  {
+    "front": "～歳",
+    "reading": "～さい",
+    "back": "~ years old",
+    "tags": "n5"
+  },
+  {
+    "front": "財布",
+    "reading": "さいふ",
+    "back": "wallet",
+    "tags": "n5"
+  },
+  {
+    "front": "魚",
+    "reading": "さかな",
+    "back": "fish",
+    "tags": "n5"
+  },
+  {
+    "front": "先",
+    "reading": "さき",
+    "back": "future; recent, previous",
+    "tags": "n5"
+  },
+  {
+    "front": "咲く",
+    "reading": "さく",
+    "back": "to bloom",
+    "tags": "n5"
+  },
+  {
+    "front": "作文",
+    "reading": "さくぶん",
+    "back": "essay; composition",
+    "tags": "n5"
+  },
+  {
+    "front": "差す",
+    "reading": "さす",
+    "back": "to raise (stretch out) hands, to raise (e.g., umbrella)",
+    "tags": "n5"
+  },
+  {
+    "front": "～冊",
+    "reading": "～さつ",
+    "back": "counter for books",
+    "tags": "n5"
+  },
+  {
+    "front": "雑誌",
+    "reading": "ざっし",
+    "back": "magazine, journal",
+    "tags": "n5"
+  },
+  {
+    "front": "砂糖",
+    "reading": "さとう",
+    "back": "sugar",
+    "tags": "n5"
+  },
+  {
+    "front": "寒い",
+    "reading": "さむい",
+    "back": "cold (in reference to weather)",
+    "tags": "n5"
+  },
+  {
+    "front": "さ来年",
+    "reading": "さらいねん",
+    "back": "year after next",
+    "tags": "n5"
+  },
+  {
+    "front": "～さん",
+    "reading": "～さん",
+    "back": "Mr. ~, Ms. ~",
+    "tags": "n5"
+  },
+  {
+    "front": "三",
+    "reading": "さん",
+    "back": "three",
+    "tags": "n5"
+  },
+  {
+    "front": "散歩",
+    "reading": "さんぽ (する)",
+    "back": "walk, stroll",
+    "tags": "n5"
+  },
+  {
+    "front": "四",
+    "reading": "し",
+    "back": "four",
+    "tags": "n5"
+  },
+  {
+    "front": "～時",
+    "reading": "～じ",
+    "back": "~ o'clock (time)",
+    "tags": "n5"
+  },
+  {
+    "front": "塩",
+    "reading": "しお",
+    "back": "salt",
+    "tags": "n5"
+  },
+  {
+    "front": "しかし",
+    "reading": "しかし",
+    "back": "however; but",
+    "tags": "n5"
+  },
+  {
+    "front": "時間",
+    "reading": "じかん",
+    "back": "time",
+    "tags": "n5"
+  },
+  {
+    "front": "～時間",
+    "reading": "～じかん",
+    "back": "~ hours",
+    "tags": "n5"
+  },
+  {
+    "front": "仕事",
+    "reading": "しごと",
+    "back": "work, job, occupation, employment",
+    "tags": "n5"
+  },
+  {
+    "front": "辞書",
+    "reading": "じしょ",
+    "back": "dictionary",
+    "tags": "n5"
+  },
+  {
+    "front": "静か",
+    "reading": "しずか",
+    "back": "quiet, calm",
+    "tags": "n5"
+  },
+  {
+    "front": "下",
+    "reading": "した",
+    "back": "under, below, beneath",
+    "tags": "n5"
+  },
+  {
+    "front": "七",
+    "reading": "しち",
+    "back": "seven",
+    "tags": "n5"
+  },
+  {
+    "front": "質問",
+    "reading": "しつもん",
+    "back": "question, inquiry",
+    "tags": "n5"
+  },
+  {
+    "front": "自転車",
+    "reading": "じてんしゃ",
+    "back": "bicycle",
+    "tags": "n5"
+  },
+  {
+    "front": "自動車",
+    "reading": "じどうしゃ",
+    "back": "automobile",
+    "tags": "n5"
+  },
+  {
+    "front": "死ぬ",
+    "reading": "しぬ",
+    "back": "to die",
+    "tags": "n5"
+  },
+  {
+    "front": "字引",
+    "reading": "じびき",
+    "back": "dictionary",
+    "tags": "n5"
+  },
+  {
+    "front": "自分",
+    "reading": "じぶん",
+    "back": "myself, oneself",
+    "tags": "n5"
+  },
+  {
+    "front": "閉まる",
+    "reading": "しまる",
+    "back": "to close, to be closed",
+    "tags": "n5"
+  },
+  {
+    "front": "閉める",
+    "reading": "しめる",
+    "back": "to close, to shut",
+    "tags": "n5"
+  },
+  {
+    "front": "締める",
+    "reading": "しめる",
+    "back": "to tie, to fasten, to tighten",
+    "tags": "n5"
+  },
+  {
+    "front": "じゃ; じゃあ",
+    "reading": "じゃ; じゃあ",
+    "back": "well, well then",
+    "tags": "n5"
+  },
+  {
+    "front": "写真",
+    "reading": "しゃしん",
+    "back": "a picture; a photograph",
+    "tags": "n5"
+  },
+  {
+    "front": "シャツ",
+    "reading": "シャツ",
+    "back": "shirt",
+    "tags": "n5"
+  },
+  {
+    "front": "シャワー",
+    "reading": "シャワー",
+    "back": "shower",
+    "tags": "n5"
+  },
+  {
+    "front": "十",
+    "reading": "じゅう",
+    "back": "ten",
+    "tags": "n5"
+  },
+  {
+    "front": "～中",
+    "reading": "～じゅう",
+    "back": "during, while",
+    "tags": "n5"
+  },
+  {
+    "front": "～週間",
+    "reading": "～しゅうかん",
+    "back": "~ weeks",
+    "tags": "n5"
+  },
+  {
+    "front": "授業",
+    "reading": "じゅぎょう",
+    "back": "a class (of school)",
+    "tags": "n5"
+  },
+  {
+    "front": "宿題",
+    "reading": "しゅくだい",
+    "back": "homework",
+    "tags": "n5"
+  },
+  {
+    "front": "上手",
+    "reading": "じょうず",
+    "back": "be good at, skillful",
+    "tags": "n5"
+  },
+  {
+    "front": "丈夫",
+    "reading": "じょうぶ",
+    "back": "strong, solid, durable",
+    "tags": "n5"
+  },
+  {
+    "front": "醤油",
+    "reading": "しょうゆ",
+    "back": "soy sauce",
+    "tags": "n5"
+  },
+  {
+    "front": "食堂",
+    "reading": "しょくどう",
+    "back": "cafeteria, dining hall",
+    "tags": "n5"
+  },
+  {
+    "front": "知る",
+    "reading": "しる",
+    "back": "to know, to understand",
+    "tags": "n5"
+  },
+  {
+    "front": "白",
+    "reading": "しろ",
+    "back": "white",
+    "tags": "n5"
+  },
+  {
+    "front": "白い",
+    "reading": "しろい",
+    "back": "white",
+    "tags": "n5"
+  },
+  {
+    "front": "～人",
+    "reading": "～じん",
+    "back": "counter for people",
+    "tags": "n5"
+  },
+  {
+    "front": "新聞",
+    "reading": "しんぶん",
+    "back": "newspaper",
+    "tags": "n5"
+  },
+  {
+    "front": "水曜日",
+    "reading": "すいようび",
+    "back": "Wednesday",
+    "tags": "n5"
+  },
+  {
+    "front": "吸う",
+    "reading": "すう",
+    "back": "to breathe in, to suck",
+    "tags": "n5"
+  },
+  {
+    "front": "スカート",
+    "reading": "スカート",
+    "back": "skirt",
+    "tags": "n5"
+  },
+  {
+    "front": "好き",
+    "reading": "すき",
+    "back": "liking, fondness, love",
+    "tags": "n5"
+  },
+  {
+    "front": "～すぎ",
+    "reading": "～すぎ",
+    "back": "past; to exceed, ~ too much",
+    "tags": "n5"
+  },
+  {
+    "front": "少ない",
+    "reading": "すくない",
+    "back": "a little; a few",
+    "tags": "n5"
+  },
+  {
+    "front": "すぐに",
+    "reading": "すぐに",
+    "back": "immediately, soon",
+    "tags": "n5"
+  },
+  {
+    "front": "少し",
+    "reading": "すこし",
+    "back": "little, few",
+    "tags": "n5"
+  },
+  {
+    "front": "涼しい",
+    "reading": "すずしい",
+    "back": "cool, refreshing (in reference to weather)",
+    "tags": "n5"
+  },
+  {
+    "front": "～ずつ",
+    "reading": "～ずつ",
+    "back": "at a time",
+    "tags": "n5"
+  },
+  {
+    "front": "ストーブ",
+    "reading": "ストーブ",
+    "back": "heater (lit: stove)",
+    "tags": "n5"
+  },
+  {
+    "front": "スプーン",
+    "reading": "スプーン",
+    "back": "spoon",
+    "tags": "n5"
+  },
+  {
+    "front": "スポーツ",
+    "reading": "スポーツ",
+    "back": "sport(s)",
+    "tags": "n5"
+  },
+  {
+    "front": "ズボン",
+    "reading": "ズボン",
+    "back": "trousers",
+    "tags": "n5"
+  },
+  {
+    "front": "住む",
+    "reading": "すむ",
+    "back": "to reside, to live in",
+    "tags": "n5"
+  },
+  {
+    "front": "する",
+    "reading": "する",
+    "back": "to do, to try; to wear small items (e.g., necktie, watch, etc.)",
+    "tags": "n5"
+  },
+  {
+    "front": "座る",
+    "reading": "すわる",
+    "back": "to sit",
+    "tags": "n5"
+  },
+  {
+    "front": "背",
+    "reading": "せい",
+    "back": "(one's) height, stature",
+    "tags": "n5"
+  },
+  {
+    "front": "生徒",
+    "reading": "せいと",
+    "back": "student; pupil",
+    "tags": "n5"
+  },
+  {
+    "front": "セーター",
+    "reading": "セーター",
+    "back": "sweater",
+    "tags": "n5"
+  },
+  {
+    "front": "石鹸",
+    "reading": "せっけん",
+    "back": "soap",
+    "tags": "n5"
+  },
+  {
+    "front": "背広",
+    "reading": "せびろ",
+    "back": "men's suit",
+    "tags": "n5"
+  },
+  {
+    "front": "狭い",
+    "reading": "せまい",
+    "back": "narrow; not spacious",
+    "tags": "n5"
+  },
+  {
+    "front": "ゼロ",
+    "reading": "ゼロ",
+    "back": "zero",
+    "tags": "n5"
+  },
+  {
+    "front": "千",
+    "reading": "せん",
+    "back": "thousand",
+    "tags": "n5"
+  },
+  {
+    "front": "先月",
+    "reading": "せんげつ",
+    "back": "last month",
+    "tags": "n5"
+  },
+  {
+    "front": "先週",
+    "reading": "せんしゅう",
+    "back": "last week",
+    "tags": "n5"
+  },
+  {
+    "front": "先生",
+    "reading": "せんせい",
+    "back": "teacher, professor; master; doctor",
+    "tags": "n5"
+  },
+  {
+    "front": "洗濯",
+    "reading": "せんたく",
+    "back": "washing, laundry",
+    "tags": "n5"
+  },
+  {
+    "front": "全部",
+    "reading": "ぜんぶ",
+    "back": "all, entire, whole",
+    "tags": "n5"
+  },
+  {
+    "front": "そう; そうです",
+    "reading": "そう; そうです",
+    "back": "yes; appears, to be the case",
+    "tags": "n5"
+  },
+  {
+    "front": "掃除",
+    "reading": "そうじ (する)",
+    "back": "cleaning, sweeping",
+    "tags": "n5"
+  },
+  {
+    "front": "そうして; そして",
+    "reading": "そうして; そして",
+    "back": "and, like that",
+    "tags": "n5"
+  },
+  {
+    "front": "そこ",
+    "reading": "そこ",
+    "back": "that place, there; bottom, sole",
+    "tags": "n5"
+  },
+  {
+    "front": "そちら",
+    "reading": "そちら",
+    "back": "over there",
+    "tags": "n5"
+  },
+  {
+    "front": "そっち",
+    "reading": "そっち",
+    "back": "over there",
+    "tags": "n5"
+  },
+  {
+    "front": "外",
+    "reading": "そと",
+    "back": "outside, exterior",
+    "tags": "n5"
+  },
+  {
+    "front": "その",
+    "reading": "その",
+    "back": "that",
+    "tags": "n5"
+  },
+  {
+    "front": "そば",
+    "reading": "そば",
+    "back": "near, close, beside; Japanese traditional buckwheat noodle",
+    "tags": "n5"
+  },
+  {
+    "front": "空",
+    "reading": "そら",
+    "back": "sky",
+    "tags": "n5"
+  },
+  {
+    "front": "それ",
+    "reading": "それ",
+    "back": "that one",
+    "tags": "n5"
+  },
+  {
+    "front": "それから",
+    "reading": "それから",
+    "back": "and then, after that",
+    "tags": "n5"
+  },
+  {
+    "front": "それでは",
+    "reading": "それでは",
+    "back": "in that situation, well then...",
+    "tags": "n5"
+  },
+  {
+    "front": "～台",
+    "reading": "～だい",
+    "back": "counter for vehicles; machines",
+    "tags": "n5"
+  },
+  {
+    "front": "大学",
+    "reading": "だいがく",
+    "back": "college; university",
+    "tags": "n5"
+  },
+  {
+    "front": "大使館",
+    "reading": "たいしかん",
+    "back": "embassy",
+    "tags": "n5"
+  },
+  {
+    "front": "大丈夫",
+    "reading": "だいじょうぶ",
+    "back": "It's ok (all right); No need to worry; Everything is under control",
+    "tags": "n5"
+  },
+  {
+    "front": "大好き",
+    "reading": "だいすき",
+    "back": "very like-able, like very much",
+    "tags": "n5"
+  },
+  {
+    "front": "大切",
+    "reading": "たいせつ",
+    "back": "important",
+    "tags": "n5"
+  },
+  {
+    "front": "台所",
+    "reading": "だいどころ",
+    "back": "kitchen",
+    "tags": "n5"
+  },
+  {
+    "front": "大変",
+    "reading": "たいへん",
+    "back": "very; difficult, hard",
+    "tags": "n5"
+  },
+  {
+    "front": "高い",
+    "reading": "たかい",
+    "back": "tall, high; expensive",
+    "tags": "n5"
+  },
+  {
+    "front": "～だけ",
+    "reading": "～だけ",
+    "back": "only ~, just ~, as ~",
+    "tags": "n5"
+  },
+  {
+    "front": "沢山",
+    "reading": "たくさん",
+    "back": "many, much",
+    "tags": "n5"
+  },
+  {
+    "front": "タクシー",
+    "reading": "タクシー",
+    "back": "taxi",
+    "tags": "n5"
+  },
+  {
+    "front": "出す",
+    "reading": "だす",
+    "back": "to take (something) out; to hand in (something)",
+    "tags": "n5"
+  },
+  {
+    "front": "～たち",
+    "reading": "～たち",
+    "back": "plural suffix",
+    "tags": "n5"
+  },
+  {
+    "front": "立つ",
+    "reading": "たつ",
+    "back": "to stand up",
+    "tags": "n5"
+  },
+  {
+    "front": "たて",
+    "reading": "たて",
+    "back": "length, height",
+    "tags": "n5"
+  },
+  {
+    "front": "建物",
+    "reading": "たてもの",
+    "back": "building",
+    "tags": "n5"
+  },
+  {
+    "front": "楽しい",
+    "reading": "たのしい",
+    "back": "enjoyable, fun",
+    "tags": "n5"
+  },
+  {
+    "front": "頼む",
+    "reading": "たのむ",
+    "back": "to request, to ask (a favor)",
+    "tags": "n5"
+  },
+  {
+    "front": "たばこ",
+    "reading": "たばこ",
+    "back": "tobacco, cigarettes",
+    "tags": "n5"
+  },
+  {
+    "front": "多分",
+    "reading": "たぶん",
+    "back": "perhaps, probably, maybe",
+    "tags": "n5"
+  },
+  {
+    "front": "食べ物",
+    "reading": "たべもの",
+    "back": "food",
+    "tags": "n5"
+  },
+  {
+    "front": "食べる",
+    "reading": "たべる",
+    "back": "to eat",
+    "tags": "n5"
+  },
+  {
+    "front": "卵",
+    "reading": "たまご",
+    "back": "egg",
+    "tags": "n5"
+  },
+  {
+    "front": "誰",
+    "reading": "だれ",
+    "back": "who",
+    "tags": "n5"
+  },
+  {
+    "front": "誰か",
+    "reading": "だれか",
+    "back": "someone",
+    "tags": "n5"
+  },
+  {
+    "front": "誕生日",
+    "reading": "たんじょうび",
+    "back": "birthday",
+    "tags": "n5"
+  },
+  {
+    "front": "段々",
+    "reading": "だんだん",
+    "back": "gradually, by degrees",
+    "tags": "n5"
+  },
+  {
+    "front": "小さい",
+    "reading": "ちいさい",
+    "back": "small, little",
+    "tags": "n5"
+  },
+  {
+    "front": "小さな",
+    "reading": "ちいさな",
+    "back": "small, little",
+    "tags": "n5"
+  },
+  {
+    "front": "近い",
+    "reading": "ちかい",
+    "back": "near, close by, short",
+    "tags": "n5"
+  },
+  {
+    "front": "違う",
+    "reading": "ちがう",
+    "back": "to be different; to differ; wrong",
+    "tags": "n5"
+  },
+  {
+    "front": "近く",
+    "reading": "ちかく",
+    "back": "nearby; in the neighborhood",
+    "tags": "n5"
+  },
+  {
+    "front": "地下鉄",
+    "reading": "ちかてつ",
+    "back": "underground train, subway",
+    "tags": "n5"
+  },
+  {
+    "front": "地図",
+    "reading": "ちず",
+    "back": "a map",
+    "tags": "n5"
+  },
+  {
+    "front": "父",
+    "reading": "ちち",
+    "back": "(my) father",
+    "tags": "n5"
+  },
+  {
+    "front": "茶色",
+    "reading": "ちゃいろ",
+    "back": "brown",
+    "tags": "n5"
+  },
+  {
+    "front": "茶碗",
+    "reading": "ちゃわん",
+    "back": "rice bowl",
+    "tags": "n5"
+  },
+  {
+    "front": "～中",
+    "reading": "～ちゅう",
+    "back": "during, while ~ing",
+    "tags": "n5"
+  },
+  {
+    "front": "丁度",
+    "reading": "ちょうど",
+    "back": "just, right, exactly",
+    "tags": "n5"
+  },
+  {
+    "front": "ちょっと",
+    "reading": "ちょっと",
+    "back": "a little, somewhat; just a little, somewhat",
+    "tags": "n5"
+  },
+  {
+    "front": "一日",
+    "reading": "ついたち",
+    "back": "one day; first day of the month",
+    "tags": "n5"
+  },
+  {
+    "front": "使う",
+    "reading": "つかう",
+    "back": "to use",
+    "tags": "n5"
+  },
+  {
+    "front": "疲れる",
+    "reading": "つかれる",
+    "back": "to get (become) tired; to become fatigued",
+    "tags": "n5"
+  },
+  {
+    "front": "次",
+    "reading": "つぎ",
+    "back": "next",
+    "tags": "n5"
+  },
+  {
+    "front": "着く",
+    "reading": "つく",
+    "back": "to arrive at, to reach",
+    "tags": "n5"
+  },
+  {
+    "front": "机",
+    "reading": "つくえ",
+    "back": "desk",
+    "tags": "n5"
+  },
+  {
+    "front": "作る",
+    "reading": "つくる",
+    "back": "to make, to create",
+    "tags": "n5"
+  },
+  {
+    "front": "つける",
+    "reading": "つける",
+    "back": "to turn on (e.g., a light); to take",
+    "tags": "n5"
+  },
+  {
+    "front": "勤める",
+    "reading": "つとめる",
+    "back": "to work (for)",
+    "tags": "n5"
+  },
+  {
+    "front": "つまらない",
+    "reading": "つまらない",
+    "back": "boring, dull; insignificant",
+    "tags": "n5"
+  },
+  {
+    "front": "冷たい",
+    "reading": "つめたい",
+    "back": "cold (things, people)",
+    "tags": "n5"
+  },
+  {
+    "front": "強い",
+    "reading": "つよい",
+    "back": "strong, powerful",
+    "tags": "n5"
+  },
+  {
+    "front": "手",
+    "reading": "て",
+    "back": "hand",
+    "tags": "n5"
+  },
+  {
+    "front": "テープ",
+    "reading": "テープ",
+    "back": "tape",
+    "tags": "n5"
+  },
+  {
+    "front": "テープレコーダー",
+    "reading": "テープレコーダー",
+    "back": "tape recorder",
+    "tags": "n5"
+  },
+  {
+    "front": "テーブル",
+    "reading": "テーブル",
+    "back": "table",
+    "tags": "n5"
+  },
+  {
+    "front": "出かける",
+    "reading": "でかける",
+    "back": "to go out; to depart",
+    "tags": "n5"
+  },
+  {
+    "front": "手紙",
+    "reading": "てがみ",
+    "back": "letter",
+    "tags": "n5"
+  },
+  {
+    "front": "できる",
+    "reading": "できる",
+    "back": "to be able to (to accomplish)",
+    "tags": "n5"
+  },
+  {
+    "front": "出口",
+    "reading": "でぐち",
+    "back": "an exit",
+    "tags": "n5"
+  },
+  {
+    "front": "テスト",
+    "reading": "テスト",
+    "back": "test",
+    "tags": "n5"
+  },
+  {
+    "front": "では",
+    "reading": "では",
+    "back": "then, well, so",
+    "tags": "n5"
+  },
+  {
+    "front": "デパート",
+    "reading": "デパート",
+    "back": "(abbr.) department store",
+    "tags": "n5"
+  },
+  {
+    "front": "でも",
+    "reading": "でも",
+    "back": "but, however",
+    "tags": "n5"
+  },
+  {
+    "front": "出る",
+    "reading": "でる",
+    "back": "to appear, to leave",
+    "tags": "n5"
+  },
+  {
+    "front": "テレビ",
+    "reading": "テレビ",
+    "back": "television, TV",
+    "tags": "n5"
+  },
+  {
+    "front": "天気",
+    "reading": "てんき",
+    "back": "weather",
+    "tags": "n5"
+  },
+  {
+    "front": "電気",
+    "reading": "でんき",
+    "back": "electricity, (electric) light",
+    "tags": "n5"
+  },
+  {
+    "front": "電車",
+    "reading": "でんしゃ",
+    "back": "electric train",
+    "tags": "n5"
+  },
+  {
+    "front": "電話",
+    "reading": "でんわ",
+    "back": "a telephone",
+    "tags": "n5"
+  },
+  {
+    "front": "戸",
+    "reading": "と",
+    "back": "door (Japanese style)",
+    "tags": "n5"
+  },
+  {
+    "front": "～度",
+    "reading": "～ど",
+    "back": "counter for occurrences; ~ degree; ~ point",
+    "tags": "n5"
+  },
+  {
+    "front": "ドア",
+    "reading": "ドア",
+    "back": "door (Western style)",
+    "tags": "n5"
+  },
+  {
+    "front": "トイレ",
+    "reading": "トイレ",
+    "back": "bathroom; toilet",
+    "tags": "n5"
+  },
+  {
+    "front": "どう",
+    "reading": "どう",
+    "back": "how, in what way",
+    "tags": "n5"
+  },
+  {
+    "front": "どうして",
+    "reading": "どうして",
+    "back": "why, for what reason",
+    "tags": "n5"
+  },
+  {
+    "front": "どうぞ",
+    "reading": "どうぞ",
+    "back": "please, kindly, by all means",
+    "tags": "n5"
+  },
+  {
+    "front": "動物",
+    "reading": "どうぶつ",
+    "back": "animal",
+    "tags": "n5"
+  },
+  {
+    "front": "どうも",
+    "reading": "どうも",
+    "back": "Thank you; somehow; no matter how hard one may try",
+    "tags": "n5"
+  },
+  {
+    "front": "十",
+    "reading": "(〜を) とお",
+    "back": "ten (~)",
+    "tags": "n5"
+  },
+  {
+    "front": "遠い",
+    "reading": "とおい",
+    "back": "far (away), distant",
+    "tags": "n5"
+  },
+  {
+    "front": "十日",
+    "reading": "とおか",
+    "back": "ten days; tenth day of the month",
+    "tags": "n5"
+  },
+  {
+    "front": "～時",
+    "reading": "～とき",
+    "back": "at the time of ~",
+    "tags": "n5"
+  },
+  {
+    "front": "時々",
+    "reading": "ときどき",
+    "back": "sometimes",
+    "tags": "n5"
+  },
+  {
+    "front": "時計",
+    "reading": "とけい",
+    "back": "a watch; a clock",
+    "tags": "n5"
+  },
+  {
+    "front": "どこ",
+    "reading": "どこ",
+    "back": "where, what place",
+    "tags": "n5"
+  },
+  {
+    "front": "所",
+    "reading": "ところ",
+    "back": "place",
+    "tags": "n5"
+  },
+  {
+    "front": "年",
+    "reading": "とし",
+    "back": "year, age",
+    "tags": "n5"
+  },
+  {
+    "front": "図書館",
+    "reading": "としょかん",
+    "back": "library",
+    "tags": "n5"
+  },
+  {
+    "front": "どちら",
+    "reading": "どちら",
+    "back": "which (one) (way); where (polite)",
+    "tags": "n5"
+  },
+  {
+    "front": "どっち",
+    "reading": "どっち",
+    "back": "which one, which way",
+    "tags": "n5"
+  },
+  {
+    "front": "とても",
+    "reading": "とても",
+    "back": "very (much), greatly, exceedingly",
+    "tags": "n5"
+  },
+  {
+    "front": "どなた",
+    "reading": "どなた",
+    "back": "who",
+    "tags": "n5"
+  },
+  {
+    "front": "隣",
+    "reading": "となり",
+    "back": "next to, next door to",
+    "tags": "n5"
+  },
+  {
+    "front": "どの",
+    "reading": "どの",
+    "back": "which",
+    "tags": "n5"
+  },
+  {
+    "front": "飛ぶ",
+    "reading": "とぶ",
+    "back": "to fly, to hop",
+    "tags": "n5"
+  },
+  {
+    "front": "止まる",
+    "reading": "とまる",
+    "back": "to come to a halt",
+    "tags": "n5"
+  },
+  {
+    "front": "友達",
+    "reading": "ともだち",
+    "back": "friend",
+    "tags": "n5"
+  },
+  {
+    "front": "土曜日",
+    "reading": "どようび",
+    "back": "Saturday",
+    "tags": "n5"
+  },
+  {
+    "front": "鳥",
+    "reading": "とり",
+    "back": "chicken (lit., bird)",
+    "tags": "n5"
+  },
+  {
+    "front": "鶏肉",
+    "reading": "とりにく",
+    "back": "chicken meat",
+    "tags": "n5"
+  },
+  {
+    "front": "取る",
+    "reading": "とる",
+    "back": "to take (a class); to get (a grade)",
+    "tags": "n5"
+  },
+  {
+    "front": "撮る",
+    "reading": "とる",
+    "back": "to take (a photo), to make (a film)",
+    "tags": "n5"
+  },
+  {
+    "front": "どれ",
+    "reading": "どれ",
+    "back": "which one",
+    "tags": "n5"
+  },
+  {
+    "front": "どんな",
+    "reading": "どんな",
+    "back": "what, what kind of",
+    "tags": "n5"
+  },
+  {
+    "front": "ない",
+    "reading": "ない",
+    "back": "there isn't, doesn't have",
+    "tags": "n5"
+  },
+  {
+    "front": "ナイフ",
+    "reading": "ナイフ",
+    "back": "knife",
+    "tags": "n5"
+  },
+  {
+    "front": "中",
+    "reading": "なか",
+    "back": "inside, middle, among",
+    "tags": "n5"
+  },
+  {
+    "front": "長い",
+    "reading": "ながい",
+    "back": "long, lengthy",
+    "tags": "n5"
+  },
+  {
+    "front": "鳴く",
+    "reading": "なく",
+    "back": "to make sound (animal)",
+    "tags": "n5"
+  },
+  {
+    "front": "無くす",
+    "reading": "なくす",
+    "back": "to lose something",
+    "tags": "n5"
+  },
+  {
+    "front": "なぜ",
+    "reading": "なぜ",
+    "back": "why (same as どうして)",
+    "tags": "n5"
+  },
+  {
+    "front": "夏",
+    "reading": "なつ",
+    "back": "summer",
+    "tags": "n5"
+  },
+  {
+    "front": "夏休み",
+    "reading": "なつやすみ",
+    "back": "summer vacation",
+    "tags": "n5"
+  },
+  {
+    "front": "～など",
+    "reading": "～など",
+    "back": "et cetera",
+    "tags": "n5"
+  },
+  {
+    "front": "七つ",
+    "reading": "ななつ",
+    "back": "seven things",
+    "tags": "n5"
+  },
+  {
+    "front": "何",
+    "reading": "なん; なに",
+    "back": "what",
+    "tags": "n5"
+  },
+  {
+    "front": "七日",
+    "reading": "なのか",
+    "back": "seven days; seventh day (of the month)",
+    "tags": "n5"
+  },
+  {
+    "front": "名前",
+    "reading": "なまえ",
+    "back": "name",
+    "tags": "n5"
+  },
+  {
+    "front": "習う",
+    "reading": "ならう",
+    "back": "to learn",
+    "tags": "n5"
+  },
+  {
+    "front": "並ぶ",
+    "reading": "ならぶ",
+    "back": "to line up, to stand in a line (v.i.)",
+    "tags": "n5"
+  },
+  {
+    "front": "並べる",
+    "reading": "ならべる",
+    "back": "to put (things) side by side; to line up",
+    "tags": "n5"
+  },
+  {
+    "front": "なる",
+    "reading": "なる",
+    "back": "to become",
+    "tags": "n5"
+  },
+  {
+    "front": "何～",
+    "reading": "なん～",
+    "back": "what sort of ~",
+    "tags": "n5"
+  },
+  {
+    "front": "二",
+    "reading": "に",
+    "back": "two",
+    "tags": "n5"
+  },
+  {
+    "front": "にぎやか",
+    "reading": "にぎやか",
+    "back": "bustling, busy",
+    "tags": "n5"
+  },
+  {
+    "front": "肉",
+    "reading": "にく",
+    "back": "meat",
+    "tags": "n5"
+  },
+  {
+    "front": "西",
+    "reading": "にし",
+    "back": "west",
+    "tags": "n5"
+  },
+  {
+    "front": "～日",
+    "reading": "～にち",
+    "back": "~ day of the month, for ~ days",
+    "tags": "n5"
+  },
+  {
+    "front": "日曜日",
+    "reading": "にちようび",
+    "back": "Sunday",
+    "tags": "n5"
+  },
+  {
+    "front": "荷物",
+    "reading": "にもつ",
+    "back": "luggage; baggage",
+    "tags": "n5"
+  },
+  {
+    "front": "ニュース",
+    "reading": "ニュース",
+    "back": "news",
+    "tags": "n5"
+  },
+  {
+    "front": "庭",
+    "reading": "にわ",
+    "back": "garden",
+    "tags": "n5"
+  },
+  {
+    "front": "～人",
+    "reading": "～にん",
+    "back": "counter for people",
+    "tags": "n5"
+  },
+  {
+    "front": "脱ぐ",
+    "reading": "ぬぐ",
+    "back": "to take off (clothes)",
+    "tags": "n5"
+  },
+  {
+    "front": "温い",
+    "reading": "ぬるい",
+    "back": "lukewarm",
+    "tags": "n5"
+  },
+  {
+    "front": "ネクタイ",
+    "reading": "ネクタイ",
+    "back": "tie, necktie",
+    "tags": "n5"
+  },
+  {
+    "front": "猫",
+    "reading": "ねこ",
+    "back": "cat",
+    "tags": "n5"
+  },
+  {
+    "front": "寝る",
+    "reading": "ねる",
+    "back": "to sleep; to go to sleep; to go to bed",
+    "tags": "n5"
+  },
+  {
+    "front": "～年",
+    "reading": "～ねん",
+    "back": "~ years",
+    "tags": "n5"
+  },
+  {
+    "front": "ノート",
+    "reading": "ノート",
+    "back": "notebook",
+    "tags": "n5"
+  },
+  {
+    "front": "登る",
+    "reading": "のぼる",
+    "back": "to climb",
+    "tags": "n5"
+  },
+  {
+    "front": "飲み物",
+    "reading": "のみもの",
+    "back": "drink, beverage",
+    "tags": "n5"
+  },
+  {
+    "front": "飲む",
+    "reading": "のむ",
+    "back": "to drink",
+    "tags": "n5"
+  },
+  {
+    "front": "乗る",
+    "reading": "のる",
+    "back": "to get on, to ride in, to board",
+    "tags": "n5"
+  },
+  {
+    "front": "歯",
+    "reading": "は",
+    "back": "tooth",
+    "tags": "n5"
+  },
+  {
+    "front": "パーティー",
+    "reading": "パーティー",
+    "back": "a party",
+    "tags": "n5"
+  },
+  {
+    "front": "はい",
+    "reading": "はい",
+    "back": "yes",
+    "tags": "n5"
+  },
+  {
+    "front": "～杯",
+    "reading": "～はい",
+    "back": "counter for cupfuls",
+    "tags": "n5"
+  },
+  {
+    "front": "灰皿",
+    "reading": "はいざら",
+    "back": "ashtray",
+    "tags": "n5"
+  },
+  {
+    "front": "入る",
+    "reading": "はいる",
+    "back": "to enter, to contain, to hold",
+    "tags": "n5"
+  },
+  {
+    "front": "葉書",
+    "reading": "はがき",
+    "back": "postcard",
+    "tags": "n5"
+  },
+  {
+    "front": "はく",
+    "reading": "はく",
+    "back": "to put on (items below your waist)",
+    "tags": "n5"
+  },
+  {
+    "front": "箱",
+    "reading": "はこ",
+    "back": "box",
+    "tags": "n5"
+  },
+  {
+    "front": "橋",
+    "reading": "はし",
+    "back": "bridge",
+    "tags": "n5"
+  },
+  {
+    "front": "箸",
+    "reading": "はし",
+    "back": "chopsticks",
+    "tags": "n5"
+  },
+  {
+    "front": "始まる",
+    "reading": "はじまる",
+    "back": "(something) begins",
+    "tags": "n5"
+  },
+  {
+    "front": "初め; 始め",
+    "reading": "はじめ",
+    "back": "beginning, start",
+    "tags": "n5"
+  },
+  {
+    "front": "初めて",
+    "reading": "はじめて",
+    "back": "for the first time",
+    "tags": "n5"
+  },
+  {
+    "front": "走る",
+    "reading": "はしる",
+    "back": "to run",
+    "tags": "n5"
+  },
+  {
+    "front": "バス",
+    "reading": "バス",
+    "back": "bus; bath; bass",
+    "tags": "n5"
+  },
+  {
+    "front": "バター",
+    "reading": "バター",
+    "back": "butter",
+    "tags": "n5"
+  },
+  {
+    "front": "二十歳",
+    "reading": "はたち",
+    "back": "20 years old",
+    "tags": "n5"
+  },
+  {
+    "front": "働く",
+    "reading": "はたらく",
+    "back": "to work",
+    "tags": "n5"
+  },
+  {
+    "front": "八",
+    "reading": "はち",
+    "back": "eight",
+    "tags": "n5"
+  },
+  {
+    "front": "二十日",
+    "reading": "はつか",
+    "back": "twenty days, twentieth (day of the month)",
+    "tags": "n5"
+  },
+  {
+    "front": "花",
+    "reading": "はな",
+    "back": "flower",
+    "tags": "n5"
+  },
+  {
+    "front": "鼻",
+    "reading": "はな",
+    "back": "nose",
+    "tags": "n5"
+  },
+  {
+    "front": "話",
+    "reading": "はなし",
+    "back": "talk (chat), story",
+    "tags": "n5"
+  },
+  {
+    "front": "話す",
+    "reading": "はなす",
+    "back": "to speak",
+    "tags": "n5"
+  },
+  {
+    "front": "母",
+    "reading": "はは",
+    "back": "(my) mother",
+    "tags": "n5"
+  },
+  {
+    "front": "早い",
+    "reading": "はやい",
+    "back": "early",
+    "tags": "n5"
+  },
+  {
+    "front": "速い",
+    "reading": "はやい",
+    "back": "fast, quick",
+    "tags": "n5"
+  },
+  {
+    "front": "春",
+    "reading": "はる",
+    "back": "spring",
+    "tags": "n5"
+  },
+  {
+    "front": "貼る",
+    "reading": "はる",
+    "back": "to post; to paste; to attach",
+    "tags": "n5"
+  },
+  {
+    "front": "晴れ",
+    "reading": "はれ",
+    "back": "clear (sunny) weather",
+    "tags": "n5"
+  },
+  {
+    "front": "晴れる",
+    "reading": "はれる",
+    "back": "to be sunny",
+    "tags": "n5"
+  },
+  {
+    "front": "半",
+    "reading": "はん",
+    "back": "half (e.g., にじはん | half-past two)",
+    "tags": "n5"
+  },
+  {
+    "front": "晩",
+    "reading": "ばん",
+    "back": "evening",
+    "tags": "n5"
+  },
+  {
+    "front": "～番",
+    "reading": "～ばん",
+    "back": "~st; ~th best",
+    "tags": "n5"
+  },
+  {
+    "front": "パン",
+    "reading": "パン",
+    "back": "bread",
+    "tags": "n5"
+  },
+  {
+    "front": "ハンカチ",
+    "reading": "ハンカチ",
+    "back": "handkerchief",
+    "tags": "n5"
+  },
+  {
+    "front": "番号",
+    "reading": "ばんごう",
+    "back": "number, series of digits",
+    "tags": "n5"
+  },
+  {
+    "front": "晩御飯",
+    "reading": "ばんごはん",
+    "back": "dinner, evening meal",
+    "tags": "n5"
+  },
+  {
+    "front": "半分",
+    "reading": "はんぶん",
+    "back": "half",
+    "tags": "n5"
+  },
+  {
+    "front": "東",
+    "reading": "ひがし",
+    "back": "east",
+    "tags": "n5"
+  },
+  {
+    "front": "～匹",
+    "reading": "～ひき",
+    "back": "counter for small animals",
+    "tags": "n5"
+  },
+  {
+    "front": "引く",
+    "reading": "ひく",
+    "back": "to pull, to draw; subtract",
+    "tags": "n5"
+  },
+  {
+    "front": "弾く",
+    "reading": "ひく",
+    "back": "to play (a string instrument or piano)",
+    "tags": "n5"
+  },
+  {
+    "front": "低い",
+    "reading": "ひくい",
+    "back": "short, low",
+    "tags": "n5"
+  },
+  {
+    "front": "飛行機",
+    "reading": "ひこうき",
+    "back": "airplane",
+    "tags": "n5"
+  },
+  {
+    "front": "左",
+    "reading": "ひだり",
+    "back": "left hand side",
+    "tags": "n5"
+  },
+  {
+    "front": "人",
+    "reading": "ひと",
+    "back": "man, person",
+    "tags": "n5"
+  },
+  {
+    "front": "一つ",
+    "reading": "ひとつ",
+    "back": "one thing",
+    "tags": "n5"
+  },
+  {
+    "front": "一月",
+    "reading": "ひとつき",
+    "back": "one month",
+    "tags": "n5"
+  },
+  {
+    "front": "一人",
+    "reading": "ひとり",
+    "back": "one person",
+    "tags": "n5"
+  },
+  {
+    "front": "暇",
+    "reading": "ひま",
+    "back": "free time, leisure",
+    "tags": "n5"
+  },
+  {
+    "front": "百",
+    "reading": "ひゃく",
+    "back": "hundred",
+    "tags": "n5"
+  },
+  {
+    "front": "病院",
+    "reading": "びょういん",
+    "back": "hospital",
+    "tags": "n5"
+  },
+  {
+    "front": "病気",
+    "reading": "びょうき",
+    "back": "illness; sickness",
+    "tags": "n5"
+  },
+  {
+    "front": "平仮名",
+    "reading": "ひらがな",
+    "back": "hiragana",
+    "tags": "n5"
+  },
+  {
+    "front": "昼",
+    "reading": "ひる",
+    "back": "noon, daytime",
+    "tags": "n5"
+  },
+  {
+    "front": "昼御飯",
+    "reading": "ひるごはん",
+    "back": "lunch, midday meal",
+    "tags": "n5"
+  },
+  {
+    "front": "広い",
+    "reading": "ひろい",
+    "back": "spacious; wide; broad",
+    "tags": "n5"
+  },
+  {
+    "front": "フィルム",
+    "reading": "フィルム",
+    "back": "film (roll of)",
+    "tags": "n5"
+  },
+  {
+    "front": "封筒",
+    "reading": "ふうとう",
+    "back": "envelope",
+    "tags": "n5"
+  },
+  {
+    "front": "プール",
+    "reading": "プール",
+    "back": "swimming pool",
+    "tags": "n5"
+  },
+  {
+    "front": "フォーク",
+    "reading": "フォーク",
+    "back": "fork",
+    "tags": "n5"
+  },
+  {
+    "front": "吹く",
+    "reading": "ふく",
+    "back": "to blow (wind, etc.)",
+    "tags": "n5"
+  },
+  {
+    "front": "服",
+    "reading": "ふく",
+    "back": "clothes",
+    "tags": "n5"
+  },
+  {
+    "front": "二つ",
+    "reading": "ふたつ",
+    "back": "two things",
+    "tags": "n5"
+  },
+  {
+    "front": "豚肉",
+    "reading": "ぶたにく",
+    "back": "pork",
+    "tags": "n5"
+  },
+  {
+    "front": "二人",
+    "reading": "ふたり",
+    "back": "two people",
+    "tags": "n5"
+  },
+  {
+    "front": "二日",
+    "reading": "ふつか",
+    "back": "two days; second day of the month",
+    "tags": "n5"
+  },
+  {
+    "front": "太い",
+    "reading": "ふとい",
+    "back": "fat, thick",
+    "tags": "n5"
+  },
+  {
+    "front": "冬",
+    "reading": "ふゆ",
+    "back": "winter",
+    "tags": "n5"
+  },
+  {
+    "front": "降る",
+    "reading": "ふる",
+    "back": "to precipitate, to fall (e.g., rain, snow, etc.)",
+    "tags": "n5"
+  },
+  {
+    "front": "古い",
+    "reading": "ふるい",
+    "back": "old (in reference to objects, not people), aged, ancient",
+    "tags": "n5"
+  },
+  {
+    "front": "～分",
+    "reading": "～ふん",
+    "back": "~ minutes",
+    "tags": "n5"
+  },
+  {
+    "front": "文章",
+    "reading": "ぶんしょう",
+    "back": "sentence, text",
+    "tags": "n5"
+  },
+  {
+    "front": "ページ",
+    "reading": "ページ",
+    "back": "a page",
+    "tags": "n5"
+  },
+  {
+    "front": "下手",
+    "reading": "へた",
+    "back": "unskillful, poor",
+    "tags": "n5"
+  },
+  {
+    "front": "ベッド",
+    "reading": "ベッド",
+    "back": "bed",
+    "tags": "n5"
+  },
+  {
+    "front": "ペット",
+    "reading": "ペット",
+    "back": "pet",
+    "tags": "n5"
+  },
+  {
+    "front": "部屋",
+    "reading": "へや",
+    "back": "a room",
+    "tags": "n5"
+  },
+  {
+    "front": "辺",
+    "reading": "へん",
+    "back": "area, vicinity",
+    "tags": "n5"
+  },
+  {
+    "front": "ペン",
+    "reading": "ペン",
+    "back": "pen",
+    "tags": "n5"
+  },
+  {
+    "front": "勉強",
+    "reading": "べんきょう (する)",
+    "back": "study",
+    "tags": "n5"
+  },
+  {
+    "front": "便利",
+    "reading": "べんり",
+    "back": "convenient, handy",
+    "tags": "n5"
+  },
+  {
+    "front": "帽子",
+    "reading": "ぼうし",
+    "back": "hat; cap",
+    "tags": "n5"
+  },
+  {
+    "front": "ボールペン",
+    "reading": "ボールペン",
+    "back": "ball-point pen",
+    "tags": "n5"
+  },
+  {
+    "front": "外",
+    "reading": "ほか",
+    "back": "other, the rest",
+    "tags": "n5"
+  },
+  {
+    "front": "ポケット",
+    "reading": "ポケット",
+    "back": "pocket",
+    "tags": "n5"
+  },
+  {
+    "front": "欲しい",
+    "reading": "ほしい",
+    "back": "to want, in need of",
+    "tags": "n5"
+  },
+  {
+    "front": "ポスト",
+    "reading": "ポスト",
+    "back": "mailbox; post, position",
+    "tags": "n5"
+  },
+  {
+    "front": "細い",
+    "reading": "ほそい",
+    "back": "thin, slender, fine",
+    "tags": "n5"
+  },
+  {
+    "front": "ボタン",
+    "reading": "ボタン",
+    "back": "button",
+    "tags": "n5"
+  },
+  {
+    "front": "ホテル",
+    "reading": "ホテル",
+    "back": "hotel",
+    "tags": "n5"
+  },
+  {
+    "front": "本",
+    "reading": "ほん",
+    "back": "book",
+    "tags": "n5"
+  },
+  {
+    "front": "～本",
+    "reading": "～ほん",
+    "back": "counter for long cylindrical things",
+    "tags": "n5"
+  },
+  {
+    "front": "本棚",
+    "reading": "ほんだな",
+    "back": "bookshelf",
+    "tags": "n5"
+  },
+  {
+    "front": "本当",
+    "reading": "ほんとう",
+    "back": "real, true",
+    "tags": "n5"
+  },
+  {
+    "front": "～枚",
+    "reading": "～まい",
+    "back": "counter for flat things",
+    "tags": "n5"
+  },
+  {
+    "front": "毎朝",
+    "reading": "まいあさ",
+    "back": "every morning",
+    "tags": "n5"
+  },
+  {
+    "front": "毎月",
+    "reading": "まいげつ; まいつき",
+    "back": "every month, monthly",
+    "tags": "n5"
+  },
+  {
+    "front": "毎週",
+    "reading": "まいしゅう",
+    "back": "every week",
+    "tags": "n5"
+  },
+  {
+    "front": "毎日",
+    "reading": "まいにち",
+    "back": "every day",
+    "tags": "n5"
+  },
+  {
+    "front": "毎年",
+    "reading": "まいねん; まいとし",
+    "back": "every year, yearly, annually",
+    "tags": "n5"
+  },
+  {
+    "front": "毎晩",
+    "reading": "まいばん",
+    "back": "every night",
+    "tags": "n5"
+  },
+  {
+    "front": "前",
+    "reading": "まえ",
+    "back": "before, in front",
+    "tags": "n5"
+  },
+  {
+    "front": "～前",
+    "reading": "～まえ",
+    "back": "in front of ~",
+    "tags": "n5"
+  },
+  {
+    "front": "曲る",
+    "reading": "まがる",
+    "back": "to turn, to bend",
+    "tags": "n5"
+  },
+  {
+    "front": "まずい",
+    "reading": "まずい",
+    "back": "terrible (in reference to food), unappetizing, unpleasant (taste)",
+    "tags": "n5"
+  },
+  {
+    "front": "また",
+    "reading": "また",
+    "back": "and; furthermore",
+    "tags": "n5"
+  },
+  {
+    "front": "まだ",
+    "reading": "まだ",
+    "back": "yet, still, besides",
+    "tags": "n5"
+  },
+  {
+    "front": "町",
+    "reading": "まち",
+    "back": "town; city",
+    "tags": "n5"
+  },
+  {
+    "front": "待つ",
+    "reading": "まつ",
+    "back": "to wait",
+    "tags": "n5"
+  },
+  {
+    "front": "まっすぐ",
+    "reading": "まっすぐ",
+    "back": "straight (ahead), direct",
+    "tags": "n5"
+  },
+  {
+    "front": "マッチ",
+    "reading": "マッチ",
+    "back": "match",
+    "tags": "n5"
+  },
+  {
+    "front": "窓",
+    "reading": "まど",
+    "back": "window",
+    "tags": "n5"
+  },
+  {
+    "front": "丸い; 円い",
+    "reading": "まるい",
+    "back": "round, circular",
+    "tags": "n5"
+  },
+  {
+    "front": "万",
+    "reading": "まん",
+    "back": "ten thousand",
+    "tags": "n5"
+  },
+  {
+    "front": "万年筆",
+    "reading": "まんねんひつ",
+    "back": "fountain pen",
+    "tags": "n5"
+  },
+  {
+    "front": "磨く",
+    "reading": "みがく",
+    "back": "to brush (teeth); to polish",
+    "tags": "n5"
+  },
+  {
+    "front": "右",
+    "reading": "みぎ",
+    "back": "right hand side",
+    "tags": "n5"
+  },
+  {
+    "front": "短い",
+    "reading": "みじかい",
+    "back": "short (length)",
+    "tags": "n5"
+  },
+  {
+    "front": "水",
+    "reading": "みず",
+    "back": "water",
+    "tags": "n5"
+  },
+  {
+    "front": "店",
+    "reading": "みせ",
+    "back": "store, shop",
+    "tags": "n5"
+  },
+  {
+    "front": "見せる",
+    "reading": "みせる",
+    "back": "to show, to display",
+    "tags": "n5"
+  },
+  {
+    "front": "道",
+    "reading": "みち",
+    "back": "road, street; way, directions",
+    "tags": "n5"
+  },
+  {
+    "front": "三日",
+    "reading": "みっか",
+    "back": "three days, third day of the month",
+    "tags": "n5"
+  },
+  {
+    "front": "三つ",
+    "reading": "みっつ",
+    "back": "three things",
+    "tags": "n5"
+  },
+  {
+    "front": "緑",
+    "reading": "みどり",
+    "back": "green",
+    "tags": "n5"
+  },
+  {
+    "front": "皆さん",
+    "reading": "みなさん",
+    "back": "all of you, everyone",
+    "tags": "n5"
+  },
+  {
+    "front": "南",
+    "reading": "みなみ",
+    "back": "South",
+    "tags": "n5"
+  },
+  {
+    "front": "耳",
+    "reading": "みみ",
+    "back": "ear",
+    "tags": "n5"
+  },
+  {
+    "front": "見る",
+    "reading": "みる",
+    "back": "to see, to look",
+    "tags": "n5"
+  },
+  {
+    "front": "みんな",
+    "reading": "みんな",
+    "back": "all, everyone, everybody",
+    "tags": "n5"
+  },
+  {
+    "front": "六日",
+    "reading": "むいか",
+    "back": "six days; sixth day of month",
+    "tags": "n5"
+  },
+  {
+    "front": "向こう",
+    "reading": "むこう",
+    "back": "beyond, over there",
+    "tags": "n5"
+  },
+  {
+    "front": "難しい",
+    "reading": "むずかしい",
+    "back": "difficult",
+    "tags": "n5"
+  },
+  {
+    "front": "六つ",
+    "reading": "むっつ",
+    "back": "six things",
+    "tags": "n5"
+  },
+  {
+    "front": "村",
+    "reading": "むら",
+    "back": "village",
+    "tags": "n5"
+  },
+  {
+    "front": "目",
+    "reading": "め",
+    "back": "eye(s)",
+    "tags": "n5"
+  },
+  {
+    "front": "メートル",
+    "reading": "メートル",
+    "back": "meter",
+    "tags": "n5"
+  },
+  {
+    "front": "眼鏡",
+    "reading": "めがね",
+    "back": "eye glasses",
+    "tags": "n5"
+  },
+  {
+    "front": "もう",
+    "reading": "もう",
+    "back": "already; again; more",
+    "tags": "n5"
+  },
+  {
+    "front": "木曜日",
+    "reading": "もくようび",
+    "back": "Thursday",
+    "tags": "n5"
+  },
+  {
+    "front": "もしもし",
+    "reading": "もしもし",
+    "back": "Hello? (used on the phone)",
+    "tags": "n5"
+  },
+  {
+    "front": "持つ",
+    "reading": "もつ",
+    "back": "to hold, to carry; to possess",
+    "tags": "n5"
+  },
+  {
+    "front": "もっと",
+    "reading": "もっと",
+    "back": "more",
+    "tags": "n5"
+  },
+  {
+    "front": "物",
+    "reading": "もの",
+    "back": "thing (concrete object)",
+    "tags": "n5"
+  },
+  {
+    "front": "門",
+    "reading": "もん",
+    "back": "gate",
+    "tags": "n5"
+  },
+  {
+    "front": "問題",
+    "reading": "もんだい",
+    "back": "a problem",
+    "tags": "n5"
+  },
+  {
+    "front": "～屋",
+    "reading": "～や",
+    "back": "~ shop",
+    "tags": "n5"
+  },
+  {
+    "front": "八百屋",
+    "reading": "やおや",
+    "back": "greengrocer",
+    "tags": "n5"
+  },
+  {
+    "front": "野菜",
+    "reading": "やさい",
+    "back": "vegetable",
+    "tags": "n5"
+  },
+  {
+    "front": "易しい",
+    "reading": "やさしい",
+    "back": "easy, plain, simple",
+    "tags": "n5"
+  },
+  {
+    "front": "安い",
+    "reading": "やすい",
+    "back": "inexpensive; cheap (things)",
+    "tags": "n5"
+  },
+  {
+    "front": "休み",
+    "reading": "やすみ",
+    "back": "holiday; day off; absence",
+    "tags": "n5"
+  },
+  {
+    "front": "休む",
+    "reading": "やすむ",
+    "back": "to rest, to have a break, to get time off",
+    "tags": "n5"
+  },
+  {
+    "front": "八つ",
+    "reading": "やっつ",
+    "back": "eight things",
+    "tags": "n5"
+  },
+  {
+    "front": "山",
+    "reading": "やま",
+    "back": "mountain",
+    "tags": "n5"
+  },
+  {
+    "front": "やる",
+    "reading": "やる",
+    "back": "to do; to give (to pets, parents, siblings, etc.)",
+    "tags": "n5"
+  },
+  {
+    "front": "夕方",
+    "reading": "ゆうがた",
+    "back": "late afternoon (typically just before dinner time), evening",
+    "tags": "n5"
+  },
+  {
+    "front": "夕飯",
+    "reading": "ゆうはん",
+    "back": "dinner, supper, evening meal",
+    "tags": "n5"
+  },
+  {
+    "front": "郵便局",
+    "reading": "ゆうびんきょく",
+    "back": "post office",
+    "tags": "n5"
+  },
+  {
+    "front": "昨夜",
+    "reading": "ゆうべ",
+    "back": "last night",
+    "tags": "n5"
+  },
+  {
+    "front": "有名",
+    "reading": "ゆうめい",
+    "back": "famous",
+    "tags": "n5"
+  },
+  {
+    "front": "雪",
+    "reading": "ゆき",
+    "back": "snow",
+    "tags": "n5"
+  },
+  {
+    "front": "ゆっくりと",
+    "reading": "ゆっくりと",
+    "back": "slowly, at ease",
+    "tags": "n5"
+  },
+  {
+    "front": "八日",
+    "reading": "ようか",
+    "back": "eight days; eighth day of the month",
+    "tags": "n5"
+  },
+  {
+    "front": "洋服",
+    "reading": "ようふく",
+    "back": "Western-style clothes",
+    "tags": "n5"
+  },
+  {
+    "front": "よく",
+    "reading": "よく",
+    "back": "frequently, often (much); well, skillfully",
+    "tags": "n5"
+  },
+  {
+    "front": "横",
+    "reading": "よこ",
+    "back": "beside; side; width",
+    "tags": "n5"
+  },
+  {
+    "front": "四日",
+    "reading": "よっか",
+    "back": "four days; fourth day of the month",
+    "tags": "n5"
+  },
+  {
+    "front": "四つ",
+    "reading": "よっつ",
+    "back": "four things",
+    "tags": "n5"
+  },
+  {
+    "front": "呼ぶ",
+    "reading": "よぶ",
+    "back": "to call (one's name); to invite",
+    "tags": "n5"
+  },
+  {
+    "front": "読む",
+    "reading": "よむ",
+    "back": "to read",
+    "tags": "n5"
+  },
+  {
+    "front": "夜",
+    "reading": "よる",
+    "back": "evening, night",
+    "tags": "n5"
+  },
+  {
+    "front": "弱い",
+    "reading": "よわい",
+    "back": "weak",
+    "tags": "n5"
+  },
+  {
+    "front": "来月",
+    "reading": "らいげつ",
+    "back": "next month",
+    "tags": "n5"
+  },
+  {
+    "front": "来週",
+    "reading": "らいしゅう",
+    "back": "next week",
+    "tags": "n5"
+  },
+  {
+    "front": "来年",
+    "reading": "らいねん",
+    "back": "next year",
+    "tags": "n5"
+  },
+  {
+    "front": "ラジオ",
+    "reading": "ラジオ",
+    "back": "radio",
+    "tags": "n5"
+  },
+  {
+    "front": "ラジオカセ",
+    "reading": "ラジオカセ",
+    "back": "radio cassette player",
+    "tags": "n5"
+  },
+  {
+    "front": "りっぱ",
+    "reading": "りっぱ",
+    "back": "splendid, fine",
+    "tags": "n5"
+  },
+  {
+    "front": "留学生",
+    "reading": "りゅうがくせい",
+    "back": "international student",
+    "tags": "n5"
+  },
+  {
+    "front": "両親",
+    "reading": "りょうしん",
+    "back": "parents (lit., both parents)",
+    "tags": "n5"
+  },
+  {
+    "front": "料理",
+    "reading": "りょうり",
+    "back": "cooking; cuisine",
+    "tags": "n5"
+  },
+  {
+    "front": "旅行",
+    "reading": "りょこう",
+    "back": "travel, trip",
+    "tags": "n5"
+  },
+  {
+    "front": "零",
+    "reading": "れい",
+    "back": "zero, nought",
+    "tags": "n5"
+  },
+  {
+    "front": "冷蔵庫",
+    "reading": "れいぞうこ",
+    "back": "refrigerator",
+    "tags": "n5"
+  },
+  {
+    "front": "レコード",
+    "reading": "レコード",
+    "back": "record",
+    "tags": "n5"
+  },
+  {
+    "front": "レストラン",
+    "reading": "レストラン",
+    "back": "restaurant",
+    "tags": "n5"
+  },
+  {
+    "front": "練習",
+    "reading": "れんしゅう (する)",
+    "back": "(to) practice",
+    "tags": "n5"
+  },
+  {
+    "front": "廊下",
+    "reading": "ろうか",
+    "back": "corridor",
+    "tags": "n5"
+  },
+  {
+    "front": "六",
+    "reading": "ろく",
+    "back": "six",
+    "tags": "n5"
+  },
+  {
+    "front": "ワイシャツ",
+    "reading": "ワイシャツ",
+    "back": "shirt (lit: white shirt), business shirt",
+    "tags": "n5"
+  },
+  {
+    "front": "若い",
+    "reading": "わかい",
+    "back": "young",
+    "tags": "n5"
+  },
+  {
+    "front": "分かる",
+    "reading": "わかる",
+    "back": "to understand",
+    "tags": "n5"
+  },
+  {
+    "front": "忘れる",
+    "reading": "わすれる",
+    "back": "to forget",
+    "tags": "n5"
+  },
+  {
+    "front": "私",
+    "reading": "わたし",
+    "back": "I, myself",
+    "tags": "n5"
+  },
+  {
+    "front": "私",
+    "reading": "わたくし",
+    "back": "I (formal), myself, private affairs",
+    "tags": "n5"
+  },
+  {
+    "front": "渡す",
+    "reading": "わたす",
+    "back": "to hand (something) over (v.t.); to get across",
+    "tags": "n5"
+  },
+  {
+    "front": "渡る",
+    "reading": "わたる",
+    "back": "to cross over, to go across",
+    "tags": "n5"
+  },
+  {
+    "front": "悪い",
+    "reading": "わるい",
+    "back": "bad, sinful; inferior",
+    "tags": "n5"
+  }
+]

@@ -1,0 +1,15 @@
+{
+  "name": "@choomfie/tutor",
+  "version": "0.4.0",
+  "type": "module",
+  "main": "index.ts",
+  "license": "MIT",
+  "dependencies": {
+    "@choomfie/shared": "workspace:*",
+    "discord.js": "^14.16.0",
+    "ts-fsrs": "^5.3.1",
+    "wanakana": "^5.3.1",
+    "kuroshiro": "^1.2.0",
+    "@sglkc/kuroshiro-analyzer-kuromoji": "^1.0.1"
+  }
+}
