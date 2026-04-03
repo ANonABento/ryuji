@@ -403,29 +403,26 @@ After implementation, remove all "restart for full effect" / "restart to apply" 
 
 ## Future Phases
 
-### Phase 3: Voice Auto-Rejoin
+> **Note:** Daemon mode (`choomfie --daemon`) now handles session cycling and handoff summaries via `daemon.ts`. See [architecture-v2.md](architecture-v2.md) for the full daemon architecture. These phases are for the interactive (supervisor/worker) mode.
+
+### Voice Auto-Rejoin
 - Supervisor tracks active voice channels (join_voice / leave_voice via IPC)
 - On worker respawn, send saved voice state → worker auto-joins
 
-### Phase 4: Restart Handoff (basic compaction)
-- Supervisor tracks last 10 messages (user full, bot truncated to ~500 chars)
-- On restart: save handoff to memory/file
-- On new session: inject handoff as context
-
-### Phase 5: Idle Compaction (LLM-powered)
+### Idle Compaction (LLM-powered)
 - Track message count since last compaction
 - On idle (5 min + 50+ messages): ask Claude to triage via MCP notification
 - 3 buckets: store to memory / compact to summary / toss
 
-### Phase 6: Graceful Shutdown with Compaction
+### Graceful Shutdown with Compaction
 - Supervisor detects stdin close → sends compact request → timeout (10s) → skip if slow
 - Cancel on new session (PID guard kills old supervisor)
 
-### Phase 7: Multi-Bot (choomfie-sim)
+### Multi-Bot (choomfie-sim)
 - Supervisor manages worker pool (one per bot/persona)
 - Each worker = different Discord token
 - Claude sees messages from all bots, tagged with source
 
-### Phase 8: Multi-Brain
+### Multi-Brain
 - One bot, multiple Claude connections
 - Route by channel, topic, or load

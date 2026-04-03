@@ -326,6 +326,9 @@ async function startSession(
   state.state = "ACTIVE";
   log("Session active");
 
+  // Persist state for worker /status reads
+  writeDaemonState(state);
+
   // Start periodic context usage checks
   startContextMonitor(state);
 
@@ -343,6 +346,24 @@ async function startSession(
 
   // Reset backoff on successful start
   state.restartBackoff = INITIAL_RESTART_BACKOFF;
+
+  // After a cycle (not first boot), notify Discord
+  if (handoffSummary && state.totalCycles > 0) {
+    log("Notifying Discord of session cycle...");
+    push({
+      type: "user",
+      message: {
+        role: "user",
+        content:
+          "Your daemon session was just cycled (fresh context). " +
+          "Send a brief message to the most recently active Discord channel " +
+          "letting them know you're back online. Keep it casual and short — " +
+          "something like 'Back online, fresh brain. What were we doing?' " +
+          "If no channel was active, skip this.",
+      },
+      parent_tool_use_id: null,
+    });
+  }
 }
 
 async function consumeSessionStream(state: MetaState): Promise<void> {
@@ -422,14 +443,13 @@ function handleSessionMessage(state: MetaState, message: SDKMessage): void {
 
         const usage = successResult.usage;
         if (usage) {
-          state.totalInputTokens = usage.input_tokens ?? 0;
-          state.totalOutputTokens = usage.output_tokens ?? 0;
+          state.totalInputTokens += usage.input_tokens ?? 0;
+          state.totalOutputTokens += usage.output_tokens ?? 0;
         }
 
         log(
-          `Turn complete: ${state.turnCount} turns, ` +
-            `${state.totalInputTokens}/${TOKEN_THRESHOLD} input tokens, ` +
-            `$${state.totalCostUsd.toFixed(4)}`
+          `Turn ${state.turnCount}: +${usage?.input_tokens ?? 0}in/+${usage?.output_tokens ?? 0}out tokens, ` +
+            `${state.totalInputTokens} total, $${state.totalCostUsd.toFixed(4)}`
         );
 
         verbose(`Result text (first 200 chars): ${successResult.result?.slice(0, 200)}`);
@@ -490,6 +510,8 @@ function startContextMonitor(state: MetaState): void {
           `$${state.totalCostUsd.toFixed(4)}`
       );
 
+      writeDaemonState(state);
+
       if (shouldCycle(state, tokens)) {
         log("Threshold reached — initiating session cycle");
         await cycleSession(state, tokens);
@@ -518,9 +540,8 @@ function shouldCycle(state: MetaState, contextTokens?: number): boolean {
   // Check turn count
   if (state.turnCount >= TURN_THRESHOLD) return true;
 
-  // Check token count (from context usage if available, otherwise from result tracking)
-  const tokens = contextTokens ?? state.totalInputTokens;
-  if (tokens >= TOKEN_THRESHOLD) return true;
+  // Check context tokens (only from getContextUsage, not cumulative API usage)
+  if (contextTokens !== undefined && contextTokens >= TOKEN_THRESHOLD) return true;
 
   return false;
 }
@@ -540,12 +561,15 @@ async function captureHandoffSummary(state: MetaState): Promise<string> {
     message: {
       role: "user",
       content:
-        "Generate a handoff summary for session transition. Include: " +
-        "1) Current conversation state and active persona " +
-        "2) Recent topics discussed and with whom " +
-        "3) Any pending tasks or ongoing work " +
-        "4) Important context that should carry over " +
-        "Keep it concise (under 500 words).",
+        "[DAEMON] Session cycling — generate a handoff summary. This will be injected into the next session's system prompt. Include:\n" +
+        "1. Active persona name and key\n" +
+        "2. Who you were talking to recently (Discord user IDs/names) and what about\n" +
+        "3. Any active voice channels and who's in them\n" +
+        "4. Ongoing conversations or tasks (what was the user asking for?)\n" +
+        "5. Important things you learned this session (user preferences, facts to remember)\n" +
+        "6. Any promises you made ('I'll remind you', 'I'll check on that')\n" +
+        "Keep it under 500 words. Use structured format. Skip sections with nothing to report.\n" +
+        "Do NOT use any tools — just output the summary text.",
     },
     parent_tool_use_id: null,
   });
@@ -900,56 +924,42 @@ function stopWorkerHealthMonitor(state: MetaState): void {
   }
 }
 
-// --- Daemon Tools ---
+// --- Daemon State File ---
+
+const DAEMON_STATE_PATH = `${META_DIR}/daemon-state.json`;
 
 /**
- * Tools owned by the daemon itself.
- * These are injected into the Claude session's system prompt so Claude knows about them.
- * They're triggered by pushing a specific message to the session.
+ * Write daemon state to a JSON file so the worker can read it for /status.
+ * Called periodically from the context monitor and after session lifecycle events.
  */
-
-/**
- * Trigger a manual session cycle. Called when Claude or the user wants to refresh context.
- * This is the Phase 3 equivalent of the old "restart" tool — but instead of just restarting
- * the worker, it cycles the entire Claude session (which also restarts the worker via the
- * plugin system).
- */
-async function handleCycleRequest(state: MetaState, reason: string): Promise<void> {
-  if (state.state !== "ACTIVE") {
-    log(`Cannot cycle: state is ${state.state}, not ACTIVE`);
-    return;
-  }
-
-  log(`Manual cycle requested: ${reason}`);
-  state.lastCycleReason = reason;
-  await cycleSession(state, state.totalInputTokens);
-}
-
-/**
- * Get the current daemon status including worker health.
- */
-function getMetaStatus(state: MetaState): string {
+async function writeDaemonState(state: MetaState): Promise<void> {
   const uptime = state.sessionStartTime > 0
     ? Math.round((Date.now() - state.sessionStartTime) / 1000)
     : 0;
 
-  const lines = [
-    `Daemon Status`,
-    `  State: ${state.state}`,
-    `  Session: ${state.sessionId}`,
-    `  Session uptime: ${uptime}s`,
-    `  Turns: ${state.turnCount}/${TURN_THRESHOLD}`,
-    `  Input tokens: ${state.totalInputTokens}/${TOKEN_THRESHOLD}`,
-    `  Cost: $${state.totalCostUsd.toFixed(4)}`,
-    `  Total cycles: ${state.totalCycles}`,
-    `  Last cycle reason: ${state.lastCycleReason || "none"}`,
-    `  Worker health:`,
-    `    Process alive: ${state.workerHealth.processAlive}`,
-    `    Last healthy: ${state.workerHealth.lastHealthyAt ? new Date(state.workerHealth.lastHealthyAt).toISOString() : "never"}`,
-    `    Consecutive failures: ${state.workerHealth.consecutiveFailures}`,
-  ];
+  const data = {
+    mode: "daemon",
+    state: state.state,
+    sessionId: state.sessionId,
+    sessionUptimeSeconds: uptime,
+    turns: { current: state.turnCount, threshold: TURN_THRESHOLD },
+    tokens: { current: state.totalInputTokens, threshold: TOKEN_THRESHOLD },
+    costUsd: state.totalCostUsd,
+    totalCycles: state.totalCycles,
+    lastCycleReason: state.lastCycleReason,
+    workerHealth: {
+      processAlive: state.workerHealth.processAlive,
+      lastHealthyAt: state.workerHealth.lastHealthyAt || null,
+      consecutiveFailures: state.workerHealth.consecutiveFailures,
+    },
+    updatedAt: new Date().toISOString(),
+  };
 
-  return lines.join("\n");
+  try {
+    await writeFile(DAEMON_STATE_PATH, JSON.stringify(data, null, 2));
+  } catch (err: any) {
+    verbose(`Failed to write daemon state: ${err.message}`);
+  }
 }
 
 // --- Helpers ---
@@ -992,6 +1002,9 @@ async function cleanup(state: MetaState): Promise<void> {
   try {
     state.closeGenerator?.();
     state.session?.close();
+  } catch {}
+  try {
+    await unlink(DAEMON_STATE_PATH);
   } catch {}
   await releasePid();
 }

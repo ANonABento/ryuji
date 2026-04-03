@@ -6,6 +6,7 @@ import type { ToolDef } from "../types.ts";
 import { text } from "../types.ts";
 import { formatUptime } from "../conversation.ts";
 import { VERSION } from "../version.ts";
+import { readFile } from "node:fs/promises";
 
 export const statusTools: ToolDef[] = [
   {
@@ -54,6 +55,29 @@ export const statusTools: ToolDef[] = [
         .map(([uid, count]) => `<@${uid}>: ${count}`)
         .join(", ");
 
+      // Daemon mode detection
+      let daemonLines: string[] = [];
+      try {
+        const daemonState = JSON.parse(
+          await readFile(`${ctx.DATA_DIR}/meta/daemon-state.json`, "utf-8")
+        );
+        const sessionUptime = formatUptime(daemonState.sessionUptimeSeconds * 1000);
+        daemonLines = [
+          "",
+          "## Daemon Mode",
+          `  State: ${daemonState.state}`,
+          `  Session: ${daemonState.sessionId}`,
+          `  Session uptime: ${sessionUptime}`,
+          `  Turns: ${daemonState.turns.current}/${daemonState.turns.threshold}`,
+          `  Cost: $${daemonState.costUsd?.toFixed(4) ?? "0.0000"}`,
+          `  Total cycles: ${daemonState.totalCycles}`,
+          daemonState.lastCycleReason ? `  Last cycle reason: ${daemonState.lastCycleReason}` : null,
+          `  Worker alive: ${daemonState.workerHealth.processAlive}`,
+        ].filter(Boolean) as string[];
+      } catch {
+        // Not running in daemon mode — no state file
+      }
+
       const lines = [
         "# Choomfie Status",
         "",
@@ -62,8 +86,9 @@ export const statusTools: ToolDef[] = [
         `  Version: ${VERSION}`,
         `  Runtime: Bun ${Bun.version}`,
         `  Uptime: ${uptimeStr} (since ${startedAtStr})`,
-        `  Server: Claude Code Plugin (MCP)`,
+        `  Server: ${daemonLines.length > 0 ? "Daemon Mode (Agent SDK)" : "Claude Code Plugin (MCP)"}`,
         `  Data dir: ${ctx.DATA_DIR}`,
+        ...daemonLines,
         "",
         "## Message Stats",
         `  Received: ${ctx.messageStats.received}`,

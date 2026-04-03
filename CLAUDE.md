@@ -80,6 +80,25 @@ Claude Code ← MCP stdio → supervisor.ts (immortal)
 Shared state flows through a single `AppContext` object (defined in `packages/core/lib/types.ts`, extends `PluginContext` from `@choomfie/shared`).
 Tools colocate their JSON schema definition + handler in one file as `ToolDef[]` arrays.
 
+### Daemon Mode (`choomfie --daemon`)
+
+Autonomous mode — see [docs/architecture-v2.md](docs/architecture-v2.md) for full design.
+
+```
+daemon.ts (always running)
+  └→ Claude Session (Agent SDK, disposable)
+       └→ supervisor.ts (MCP stdio) → worker.ts (Discord)
+```
+
+- **daemon.ts** uses the Agent SDK to spawn Claude Code sessions programmatically
+- Sessions are cycled when context gets heavy (~120k tokens or 80 turns)
+- Before cycling: captures a handoff summary from Claude, persists to `meta/handoffs.json`
+- New session gets handoff context injected into system prompt
+- Worker health monitored via PID file checks every 30s
+- Daemon state written to `meta/daemon-state.json` for `/status` integration
+- ~12s gap during cycling where Discord messages are lost (known limitation)
+- Crash recovery with exponential backoff (2s → 60s max)
+
 ### Plugin System
 
 Plugins live in `packages/<name>/index.ts` and export a `Plugin` interface:
