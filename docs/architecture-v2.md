@@ -1,6 +1,6 @@
 # Architecture V2: Daemon Mode
 
-## Status: Planning — Last Updated 2026-03-30
+## Status: Implemented (Phase 3) — Last Updated 2026-04-02
 
 ## TL;DR
 
@@ -74,27 +74,29 @@ The current supervisor's ONLY job is keeping the MCP pipe alive. If daemon manag
 - Disposable — daemon can kill and respawn for code reload
 - Same as current worker, but IPC goes to daemon instead of MCP supervisor
 
-### What We Remove
+### What Changed (Phase 3 — current implementation)
 
-- `packages/core/supervisor.ts` — no longer needed. Meta-supervisor handles both Claude and worker lifecycle.
+Daemon wraps the existing supervisor/worker stack via the Agent SDK's plugin system. Nothing was removed — the supervisor and worker run inside the Claude session as an MCP plugin, same as interactive mode. The daemon adds session lifecycle management on top.
+
+```
+daemon.ts (Agent SDK) → Claude Session → supervisor.ts (MCP plugin) → worker.ts (Discord)
+```
+
+### What Would Change (Phase 4 — future sibling architecture)
+
+- `packages/core/supervisor.ts` — removed. Daemon handles both Claude and worker lifecycle.
 - MCP stdio transport — replaced by Agent SDK's programmatic interface.
-- MCP server creation — tools registered directly with the Agent SDK.
-
-### What We Keep
-
-- `packages/core/worker.ts` — same Discord worker, same plugins, same tools. Just different IPC parent.
-- All plugin packages in `plugins/` (voice, browser, tutor, socials) — unchanged.
-- All tool definitions — unchanged, but registered differently.
+- Worker becomes a direct child of daemon, survives session cycles.
 
 ## Communication
 
 | From → To | Channel | Data |
 |-----------|---------|------|
-| Worker → Meta | IPC (Bun.spawn) | Discord messages, voice transcripts, interaction events |
-| Meta → Claude | Agent SDK (stdin stream) | User messages, tool results, system prompts |
-| Claude → Meta | Agent SDK (stdout stream) | Responses, tool calls, token usage |
-| Meta → Worker | IPC (Bun.spawn) | Tool calls to execute (reply, browse, etc.) |
-| Worker → Meta | IPC | Tool results (message sent, screenshot path, etc.) |
+| Worker → Daemon | IPC (Bun.spawn) | Discord messages, voice transcripts, interaction events |
+| Daemon → Claude | Agent SDK (stdin stream) | User messages, tool results, system prompts |
+| Claude → Daemon | Agent SDK (stdout stream) | Responses, tool calls, token usage |
+| Daemon → Worker | IPC (Bun.spawn) | Tool calls to execute (reply, browse, etc.) |
+| Worker → Daemon | IPC | Tool results (message sent, screenshot path, etc.) |
 
 ## Lifecycle Events
 
@@ -224,8 +226,8 @@ query({
 
 ## Design Decisions
 
-### Worker is a sibling, not a child
-Meta-supervisor spawns BOTH Claude session and worker directly. They're siblings, not nested. This means cycling Claude does NOT kill the worker — Discord stays connected.
+### Worker is a sibling, not a child (Phase 4)
+In the future sibling architecture, daemon would spawn BOTH Claude session and worker directly. They're siblings, not nested. This means cycling Claude would NOT kill the worker — Discord stays connected. Currently (Phase 3), worker runs inside the Claude session via the plugin system, so it dies on cycle.
 
 ```
 Daemon
@@ -236,8 +238,8 @@ Daemon
 ### Message bus over direct IPC
 Instead of point-to-point routing, use a simple event emitter inside daemon. Worker publishes events ("discord_message", "voice_transcript"), daemon subscribes and routes to Claude. Makes it easy to add consumers later (logging, analytics, parallel sessions).
 
-### Model routing at the meta level
-Meta-supervisor sees every message before Claude. Could route simple messages (reactions, short replies) to Haiku and complex ones to Opus via SDK's `setModel()`. Not for Phase 1, but the architecture supports it naturally.
+### Model routing at the daemon level
+Daemon sees every message before Claude. Could route simple messages (reactions, short replies) to Haiku and complex ones to Opus via SDK's `setModel()`. Not implemented yet, but the architecture supports it naturally.
 
 ### No fallback during session cycling
 Session swap takes ~12s. During this time, Discord messages queue in daemon and replay when the new session is ready. No special "degradation mode" needed — the queue handles it.
@@ -245,20 +247,20 @@ Session swap takes ~12s. During this time, Discord messages queue in daemon and 
 ### Keep supervisor in Phase 1
 Don't refactor the current supervisor/worker system yet. Phase 1 wraps the existing architecture. Prove session cycling works first. Collapse later.
 
-## Open Questions
+## Answered Questions
 
-1. **Can the Agent SDK load plugins that register MCP tools?** If yes, Option A is simplest.
-2. **What's the latency of Agent SDK tool calls vs MCP?** If SDK adds overhead per tool call, it could affect voice responsiveness.
-3. **Does the Discord bot stay connected during session cycling?** If the worker is spawned by Claude session (Option C/D), cycling kills the worker too. Need the worker to be independent.
-4. **Do we need code reloading?** If the daemon always cycles Claude sessions (which respawn the worker), the current "restart tool" becomes a "cycle session" tool.
+1. **Can the Agent SDK load plugins that register MCP tools?** Yes — `plugins: [{ type: "local", path: PLUGIN_DIR }]` works. This is the current implementation.
+2. **What's the latency of Agent SDK tool calls vs MCP?** Benchmark shows ~7-10s per turn including tool calls. Acceptable for Discord chat, may need optimization for voice.
+3. **Does the Discord bot stay connected during session cycling?** No — worker dies with the session (~12s reconnect). Accepted as a known limitation. Phase 4 would fix this.
+4. **Do we need code reloading?** Session cycling gives free code reload — fresh `import()` on every cycle. The `restart` tool still works for worker-only restarts within a session.
 
 ## Recommended Path Forward
 
-**Phase 1: Meta-supervisor wrapper (don't refactor yet)**
-- Build `daemon.ts` using Agent SDK
-- Spawn current architecture as-is (supervisor as MCP plugin)
-- Add session monitoring + cycling
-- Validate everything works
+**Phase 1: Daemon wrapper** ✅
+- Built `daemon.ts` using Agent SDK
+- Spawns current architecture as-is (supervisor as MCP plugin)
+- Session monitoring + cycling via `getContextUsage()`
+- Validated with `--test-cycle` smoke test
 
 **Phase 2: Harden daemon** ✅
 - Fixed handoff summary capture (proper result-based extraction)
@@ -269,14 +271,15 @@ Don't refactor the current supervisor/worker system yet. Phase 1 wraps the exist
 - `--verbose` flag for debug output
 - Context check fallback (turn-based after 5 failures)
 
-**Phase 3: Supervisor collapse (Option A)** ✅
-- Meta-supervisor adds worker health monitoring
-- Worker stays managed by plugin system (supervisor spawns worker inside Claude session)
-- Meta-supervisor detects worker failures via PID file health checks
-- On worker death: triggers session cycle to respawn everything
-- Session cycle tool replaces manual restart for context refresh
-- Worker restarts on cycle (~3s Discord reconnect, acceptable tradeoff)
-- Full worker-as-sibling architecture (Option B) deferred — only needed if 3s reconnect is unacceptable
+**Phase 3: Production hardening** ✅
+- Worker health monitoring via PID file checks (30s interval, 3 failures → cycle)
+- Daemon state file (`daemon-state.json`) for `/status` integration with PID staleness check
+- Discord notification after session cycle
+- Improved handoff summary prompt (structured sections: persona, users, voice, tasks, learnings, promises)
+- Bounded error recovery (max 10 retries with exponential backoff, then fatal exit)
+- Token tracking fix (cumulative API usage, context monitor uses `getContextUsage()`)
+- `choomfie --daemon` launcher flag with tmux/always-on composition
+- Worker restarts on cycle (~12s Discord reconnect, acceptable tradeoff)
 
 **Phase 4 (future): Full sibling architecture**
 - If 3s Discord reconnect on cycle is unacceptable:
@@ -296,14 +299,21 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 const session = query({
   prompt: messageGenerator, // AsyncGenerator yields messages on demand
   options: {
-    model: "claude-sonnet-4-6",
     permissionMode: "bypassPermissions",
     allowDangerouslySkipPermissions: true,
-    plugins: [{ directory: "/path/to/choomfie" }],
+    plugins: [{ type: "local", path: PLUGIN_DIR }],
     systemPrompt: { type: "preset", preset: "claude_code", append: handoffSummary },
     persistSession: true,
+    includePartialMessages: false,
+    settingSources: ["user", "project"],
+    cwd: PLUGIN_DIR,
   }
 });
+
+// session is an AsyncGenerator<SDKMessage> with control methods:
+// session.getContextUsage() — token breakdown by category
+// session.close() — terminate session
+// session.setModel() — change model mid-session
 ```
 
 ### Session Cycling Protocol
@@ -311,7 +321,7 @@ const session = query({
 **State machine:** `ACTIVE` → `DRAINING` → `CYCLING` → `ACTIVE`
 
 1. **ACTIVE:** Normal operation. Track tokens/turns from SDK messages.
-2. **DRAINING:** Threshold reached (~120K tokens or 80 turns). Queue new messages, wait for in-flight tool calls, generate handoff summary, store in SQLite.
+2. **DRAINING:** Threshold reached (~120K tokens or 80 turns). Generate handoff summary from Claude, store in `meta/handoffs.json` (last 20 kept).
 3. **CYCLING:** Close old session (`query.close()`), start new one with summary as system prompt.
 4. **ACTIVE:** Replay queued messages, resume.
 
@@ -329,6 +339,7 @@ claude \
 
 ### Caveats
 
-- ~12s overhead per new `query()` call — use streaming input to keep session alive
+- ~12s overhead per session cycle (new `query()` + Discord reconnect)
+- Discord messages lost during the cycle gap (no buffer in current architecture)
 - No programmatic `/compact` — must cycle sessions instead
-- `stream-json` stdin format poorly documented (GitHub #24594)
+- `getContextUsage()` can fail intermittently — daemon falls back to turn-count after 5 failures

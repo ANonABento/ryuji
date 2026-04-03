@@ -171,14 +171,28 @@
 - [ ] Webhook channel (generic HTTP inbound)
 - [ ] Web UI channel
 
-## Phase 14: Autonomy
+## Phase 14: Daemon Mode (Done)
 
-- [ ] Background tasks — agent works while you're away
+> See [architecture-v2.md](architecture-v2.md) for full design
+
+- [x] `daemon.ts` — Agent SDK entry point for autonomous operation
+- [x] Session cycling — auto-cycle Claude sessions at ~120K tokens or 80 turns
+- [x] Handoff summaries — capture and inject context across session cycles
+- [x] Worker health monitoring — PID-based health checks, auto-recovery
+- [x] Daemon state file — `/status` integration with PID staleness check
+- [x] Discord notification on session cycle
+- [x] Bounded error recovery — max 10 retries with exponential backoff
+- [x] `choomfie --daemon` launcher flag (composable with `--tmux`, `--always-on`)
+- [x] `--test-cycle`, `--benchmark`, `--verbose` flags
+- [ ] Full sibling architecture — worker survives session cycles (Phase 4 in architecture-v2)
+
+## Phase 15: Extended Autonomy
+
 - [ ] Cron scheduling via Claude Code's `/schedule` feature
 - [ ] Proactive messages — agent notices patterns and reaches out
 - [ ] Learning loop — agent creates memories from repeated patterns
 
-## Phase 15: Simulation (Dead Internet Theory)
+## Phase 16: Simulation (Dead Internet Theory)
 
 - [ ] choomfie-sim — individual persona bots that simulate real people
   - [ ] Each clone is a separate Discord bot with its own Choomfie instance
@@ -218,4 +232,3 @@
 
 - **Multi-user isolation** — Choomfie is a personal assistant
 - **Custom model training** — use Claude as-is
-- **Standalone mode** — Plugin system is the path, not a separate bot

@@ -107,6 +107,7 @@ In servers, `@mention` the bot or reply to its messages. In DMs, just talk -- no
 
 ## Architecture
 
+**Interactive mode** (`choomfie`):
 ```
 Claude Code <-- MCP stdio --> supervisor.ts (immortal)
                                   |  Bun IPC
@@ -115,11 +116,17 @@ Claude Code <-- MCP stdio --> supervisor.ts (immortal)
                     Discord + Plugins + Tools
 ```
 
-- **Supervisor** owns the MCP connection. Never restarts.
-- **Worker** owns Discord, plugins, and tools. Hot-reloadable via restart.
-- Tool calls route through IPC. Notifications forward back to Claude.
+**Daemon mode** (`choomfie --daemon`):
+```
+daemon.ts (immortal, Agent SDK)
+  └→ Claude Session (disposable, auto-cycled)
+       └→ supervisor.ts → worker.ts → Discord
+```
 
-See [docs/supervisor-architecture.md](docs/supervisor-architecture.md) for details.
+- **Interactive**: you get a Claude Code terminal + Discord. Supervisor keeps MCP alive through worker restarts.
+- **Daemon**: Discord-only, no terminal. Sessions auto-cycle at ~120K tokens with handoff summaries.
+
+See [docs/supervisor-architecture.md](docs/supervisor-architecture.md) and [docs/architecture-v2.md](docs/architecture-v2.md) for details.
 
 ## Plugin Setup
 
