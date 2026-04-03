@@ -85,7 +85,6 @@ type MetaState = {
   sessionId: string;
   turnCount: number;
   totalInputTokens: number;
-  totalOutputTokens: number;
   totalCostUsd: number;
   sessionStartTime: number;
   messageQueue: SDKUserMessage[];
@@ -275,7 +274,6 @@ async function startSession(
   state.state = "STARTING";
   state.turnCount = 0;
   state.totalInputTokens = 0;
-  state.totalOutputTokens = 0;
   state.totalCostUsd = 0;
   state.sessionStartTime = Date.now();
   state.contextCheckFailures = 0;
@@ -446,11 +444,10 @@ function handleSessionMessage(state: MetaState, message: SDKMessage): void {
         const usage = successResult.usage;
         if (usage) {
           state.totalInputTokens += usage.input_tokens ?? 0;
-          state.totalOutputTokens += usage.output_tokens ?? 0;
         }
 
         log(
-          `Turn ${state.turnCount}: +${usage?.input_tokens ?? 0}in/+${usage?.output_tokens ?? 0}out tokens, ` +
+          `Turn ${state.turnCount}: +${usage?.input_tokens ?? 0} tokens, ` +
             `${state.totalInputTokens} total, $${state.totalCostUsd.toFixed(4)}`
         );
 
@@ -961,7 +958,7 @@ async function writeDaemonState(state: MetaState): Promise<void> {
   try {
     await writeFile(DAEMON_STATE_PATH, JSON.stringify(data, null, 2));
   } catch (err: any) {
-    verbose(`Failed to write daemon state: ${err.message}`);
+    log(`Failed to write daemon state: ${err.message}`);
   }
 }
 
@@ -974,7 +971,6 @@ function createInitialState(): MetaState {
     sessionId: generateSessionId(),
     turnCount: 0,
     totalInputTokens: 0,
-    totalOutputTokens: 0,
     totalCostUsd: 0,
     sessionStartTime: 0,
     messageQueue: [],

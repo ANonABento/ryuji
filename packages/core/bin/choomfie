@@ -14,7 +14,7 @@ CHOOMFIE_DIR="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || realpath "$0")"
 # Ensure dependencies are installed
 if [ ! -d "$CHOOMFIE_DIR/node_modules" ]; then
   echo "Installing dependencies..."
-  (cd "$CHOOMFIE_DIR" && bun install --no-summary)
+  (cd "$CHOOMFIE_DIR" && bun install --no-summary) || { echo "Error: bun install failed"; exit 1; }
 fi
 
 # Parse flags
@@ -34,14 +34,13 @@ done
 
 # Build the inner command for tmux (string form required by tmux new-session)
 if [ "$USE_DAEMON" = true ]; then
-  # Quote each extra arg for safe embedding in the tmux command string
   QUOTED_ARGS=""
   for a in "${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}"; do
-    QUOTED_ARGS="$QUOTED_ARGS '${a//\'/\'\\\'\'}'"
+    QUOTED_ARGS="$QUOTED_ARGS $(printf %q "$a")"
   done
-  INNER_CMD="cd '$CHOOMFIE_DIR' && exec bun packages/core/daemon.ts$QUOTED_ARGS"
+  INNER_CMD="cd $(printf %q "$CHOOMFIE_DIR") && exec bun packages/core/daemon.ts$QUOTED_ARGS"
 else
-  INNER_CMD="cd '$CHOOMFIE_DIR' && exec claude --plugin-dir '$CHOOMFIE_DIR' --dangerously-load-development-channels server:choomfie"
+  INNER_CMD="cd $(printf %q "$CHOOMFIE_DIR") && exec claude --plugin-dir $(printf %q "$CHOOMFIE_DIR") --dangerously-load-development-channels server:choomfie"
 fi
 
 # Run in tmux or foreground
