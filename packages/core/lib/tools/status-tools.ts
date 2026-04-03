@@ -55,25 +55,32 @@ export const statusTools: ToolDef[] = [
         .map(([uid, count]) => `<@${uid}>: ${count}`)
         .join(", ");
 
-      // Daemon mode detection
+      // Daemon mode detection — only show if daemon process is still alive
       let daemonLines: string[] = [];
       try {
         const daemonState = JSON.parse(
           await readFile(`${ctx.DATA_DIR}/meta/daemon-state.json`, "utf-8")
         );
-        const sessionUptime = formatUptime(daemonState.sessionUptimeSeconds * 1000);
-        daemonLines = [
-          "",
-          "## Daemon Mode",
-          `  State: ${daemonState.state}`,
-          `  Session: ${daemonState.sessionId}`,
-          `  Session uptime: ${sessionUptime}`,
-          `  Turns: ${daemonState.turns.current}/${daemonState.turns.threshold}`,
-          `  Cost: $${daemonState.costUsd?.toFixed(4) ?? "0.0000"}`,
-          `  Total cycles: ${daemonState.totalCycles}`,
-          daemonState.lastCycleReason ? `  Last cycle reason: ${daemonState.lastCycleReason}` : null,
-          `  Worker alive: ${daemonState.workerHealth.processAlive}`,
-        ].filter(Boolean) as string[];
+        // Verify daemon PID is still running to avoid stale state
+        let daemonAlive = false;
+        if (daemonState.pid) {
+          try { process.kill(daemonState.pid, 0); daemonAlive = true; } catch {}
+        }
+        if (daemonAlive) {
+          const sessionUptime = formatUptime(daemonState.sessionUptimeSeconds * 1000);
+          daemonLines = [
+            "",
+            "## Daemon Mode",
+            `  State: ${daemonState.state}`,
+            `  Session: ${daemonState.sessionId}`,
+            `  Session uptime: ${sessionUptime}`,
+            `  Turns: ${daemonState.turns.current}/${daemonState.turns.threshold}`,
+            `  Cost: $${daemonState.costUsd?.toFixed(4) ?? "0.0000"}`,
+            `  Total cycles: ${daemonState.totalCycles}`,
+            daemonState.lastCycleReason ? `  Last cycle reason: ${daemonState.lastCycleReason}` : null,
+            `  Worker alive: ${daemonState.workerHealth.processAlive}`,
+          ].filter(Boolean) as string[];
+        }
       } catch {
         // Not running in daemon mode — no state file
       }

@@ -27,7 +27,6 @@ import {
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import { readFile, writeFile, unlink, mkdir } from "node:fs/promises";
-import { existsSync } from "node:fs";
 import { findMonorepoRoot } from "@choomfie/shared";
 
 // --- Constants ---
@@ -384,8 +383,11 @@ async function consumeSessionStream(state: MetaState): Promise<void> {
   log("Session stream closed");
 }
 
+const MAX_ERROR_RETRIES = 10;
+
 /**
  * Handle session stream errors with auto-restart and exponential backoff.
+ * Uses a loop instead of recursion to prevent stack overflow on persistent failures.
  */
 async function handleStreamError(state: MetaState, err: any): Promise<void> {
   if (state.state === "CYCLING" || state.state === "DRAINING") {
@@ -393,43 +395,43 @@ async function handleStreamError(state: MetaState, err: any): Promise<void> {
     return;
   }
 
-  log(`Session stream failed unexpectedly: ${err.message || err}`);
+  for (let attempt = 1; attempt <= MAX_ERROR_RETRIES; attempt++) {
+    log(`Session stream failed: ${err.message || err} (attempt ${attempt}/${MAX_ERROR_RETRIES})`);
 
-  // Clean up current session and stop monitoring
-  stopWorkerHealthMonitor(state);
-  try {
-    state.closeGenerator?.();
-    state.session?.close();
-  } catch {}
-  state.session = null;
-  state.pushMessage = null;
-  state.closeGenerator = null;
+    // Clean up current session and stop monitoring
+    stopWorkerHealthMonitor(state);
+    try {
+      state.closeGenerator?.();
+      state.session?.close();
+    } catch {}
+    state.session = null;
+    state.pushMessage = null;
+    state.closeGenerator = null;
+    state.resultWaiters = [];
 
-  // Notify any waiting result consumers
-  for (const waiter of state.resultWaiters) {
-    // They'll get nothing — their timeout will handle it
+    // Exponential backoff
+    const delay = state.restartBackoff;
+    state.restartBackoff = Math.min(state.restartBackoff * 2, MAX_RESTART_BACKOFF);
+
+    log(`Restarting session in ${delay}ms...`);
+    await new Promise((r) => setTimeout(r, delay));
+
+    // Get last handoff summary for continuity
+    const handoffs = await loadHandoffs();
+    const lastSummary = getLastHandoffSummary(handoffs);
+
+    try {
+      await startSession(state, lastSummary);
+      log("Session restarted successfully after error");
+      return; // Success — exit retry loop
+    } catch (restartErr: any) {
+      err = restartErr; // Use this error for the next iteration's log
+    }
   }
-  state.resultWaiters = [];
 
-  // Exponential backoff restart
-  const delay = state.restartBackoff;
-  state.restartBackoff = Math.min(state.restartBackoff * 2, MAX_RESTART_BACKOFF);
-
-  log(`Restarting session in ${delay}ms (backoff: ${state.restartBackoff}ms)...`);
-  await new Promise((r) => setTimeout(r, delay));
-
-  // Get last handoff summary for continuity
-  const handoffs = await loadHandoffs();
-  const lastSummary = getLastHandoffSummary(handoffs);
-
-  try {
-    await startSession(state, lastSummary);
-    log("Session restarted successfully after error");
-  } catch (restartErr: any) {
-    log(`Restart failed: ${restartErr.message || restartErr}`);
-    // Try again with more backoff
-    handleStreamError(state, restartErr);
-  }
+  log(`FATAL: Failed to restart session after ${MAX_ERROR_RETRIES} attempts. Exiting.`);
+  await cleanup(state);
+  process.exit(1);
 }
 
 function handleSessionMessage(state: MetaState, message: SDKMessage): void {
@@ -882,7 +884,7 @@ async function checkWorkerHealth(state: MetaState): Promise<void> {
       log("Worker appears dead — triggering session cycle to respawn");
       state.lastCycleReason = "worker_dead";
       stopWorkerHealthMonitor(state); // Prevent re-entry during cycle
-      await cycleSession(state, state.totalInputTokens);
+      await cycleSession(state);
     }
     return;
   }
@@ -939,6 +941,7 @@ async function writeDaemonState(state: MetaState): Promise<void> {
 
   const data = {
     mode: "daemon",
+    pid: process.pid,
     state: state.state,
     sessionId: state.sessionId,
     sessionUptimeSeconds: uptime,

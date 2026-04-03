@@ -32,9 +32,14 @@ for arg in "$@"; do
   esac
 done
 
-# Build the inner command
+# Build the inner command for tmux (string form required by tmux new-session)
 if [ "$USE_DAEMON" = true ]; then
-  INNER_CMD="cd '$CHOOMFIE_DIR' && exec bun packages/core/daemon.ts ${EXTRA_ARGS[*]:-}"
+  # Quote each extra arg for safe embedding in the tmux command string
+  QUOTED_ARGS=""
+  for a in "${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}"; do
+    QUOTED_ARGS="$QUOTED_ARGS '${a//\'/\'\\\'\'}'"
+  done
+  INNER_CMD="cd '$CHOOMFIE_DIR' && exec bun packages/core/daemon.ts$QUOTED_ARGS"
 else
   INNER_CMD="cd '$CHOOMFIE_DIR' && exec claude --plugin-dir '$CHOOMFIE_DIR' --dangerously-load-development-channels server:choomfie"
 fi
@@ -71,7 +76,7 @@ if [ "$USE_TMUX" = true ]; then
 else
   cd "$CHOOMFIE_DIR"
   if [ "$USE_DAEMON" = true ]; then
-    exec bun packages/core/daemon.ts "${EXTRA_ARGS[@]:-}"
+    exec bun packages/core/daemon.ts "${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}"
   else
     exec claude --plugin-dir "$CHOOMFIE_DIR" --dangerously-load-development-channels server:choomfie
   fi
