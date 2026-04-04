@@ -5,7 +5,7 @@
  * Auth: username + password + email → session cookie stored locally.
  * No developer account, no API key, no OAuth flow, $0.
  *
- * Supports: post tweets, post with images, threads, like, retweet.
+ * Supports: post tweets, post with images, threads.
  */
 
 import { Rettiwt } from "rettiwt-api";
@@ -29,7 +29,6 @@ export interface TweetResult {
 export class TwitterClient {
   private rettiwt: InstanceType<typeof Rettiwt> | null = null;
   private cookiePath: string;
-  private config: TwitterConfig | null = null;
   private username: string = "";
 
   constructor(dataDir: string) {
@@ -37,7 +36,7 @@ export class TwitterClient {
     if (!existsSync(socialsDir)) {
       mkdirSync(socialsDir, { recursive: true });
     }
-    this.cookiePath = `${socialsDir}/twitter-cookies.json`;
+    this.cookiePath = `${socialsDir}/twitter-session`;
   }
 
   // --- Auth ---
@@ -46,7 +45,6 @@ export class TwitterClient {
    * Login with username/password/email. Stores session cookies for reuse.
    */
   async login(config: TwitterConfig): Promise<string> {
-    this.config = config;
     this.username = config.username;
 
     try {
@@ -99,9 +97,33 @@ export class TwitterClient {
     };
   }
 
+  /**
+   * Try to restore session from cached cookies (called automatically on first tool use).
+   */
+  tryRestoreSession(): boolean {
+    if (this.rettiwt) return true;
+
+    try {
+      if (existsSync(this.cookiePath)) {
+        const cookieStr = readFileSync(this.cookiePath, "utf-8");
+        if (cookieStr) {
+          this.rettiwt = new Rettiwt({ apiKey: cookieStr });
+          return true;
+        }
+      }
+    } catch {
+      // Can't restore — user needs to run twitter_auth
+    }
+    return false;
+  }
+
   private ensureClient(): InstanceType<typeof Rettiwt> {
     if (!this.rettiwt) {
-      throw new Error("Not logged in. Run twitter_auth first with your X username/password/email.");
+      // Try cached session before giving up
+      this.tryRestoreSession();
+    }
+    if (!this.rettiwt) {
+      throw new Error("Not logged in. Run twitter_auth first.");
     }
     return this.rettiwt;
   }
