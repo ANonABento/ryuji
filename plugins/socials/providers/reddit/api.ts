@@ -274,6 +274,71 @@ export class RedditClient implements RedditWriteProvider {
     return parseSubmitResponse(data);
   }
 
+  async submitImage(
+    subreddit: string,
+    title: string,
+    imagePath: string,
+    text?: string,
+  ): Promise<RedditSubmitResult> {
+    // Reddit image posts use the media upload flow:
+    // 1. Request upload lease from /api/media/asset
+    // 2. Upload to S3
+    // 3. Submit with the uploaded URL
+    // For simplicity, post as a link to the image if it's a URL,
+    // or use the crosspost flow. Reddit's image API is complex.
+    // Fallback: post as self-text with image link.
+    const { readFileSync } = await import("node:fs");
+
+    // Upload via Reddit's media upload endpoint
+    const fileName = imagePath.split("/").pop() || "image.png";
+    const mimeType = imagePath.endsWith(".png") ? "image/png"
+      : imagePath.endsWith(".gif") ? "image/gif"
+      : "image/jpeg";
+
+    // Step 1: Request upload lease
+    const leaseData = await this.apiPost("/api/media/asset.json", {
+      filepath: fileName,
+      mimetype: mimeType,
+    });
+
+    const uploadUrl = `https:${leaseData?.args?.action}`;
+    const fields = leaseData?.args?.fields || [];
+    const assetId = leaseData?.asset?.asset_id;
+
+    if (!uploadUrl || !assetId) {
+      throw new Error("Failed to get Reddit upload lease");
+    }
+
+    // Step 2: Upload to S3
+    const fileData = readFileSync(imagePath);
+    const formData = new FormData();
+    for (const field of fields) {
+      formData.append(field.name, field.value);
+    }
+    formData.append("file", new Blob([fileData], { type: mimeType }), fileName);
+
+    const uploadResp = await fetch(uploadUrl, { method: "POST", body: formData });
+    if (!uploadResp.ok && uploadResp.status !== 201) {
+      throw new Error(`Reddit S3 upload failed: ${uploadResp.status}`);
+    }
+
+    // Step 3: Submit with uploaded asset URL
+    const imageUrl = `${uploadUrl}/${fields.find((f: any) => f.name === "key")?.value}`;
+    const submitPayload: Record<string, string> = {
+      sr: subreddit,
+      kind: "image",
+      title,
+      url: imageUrl,
+      api_type: "json",
+    };
+    if (text) {
+      submitPayload.text = text;
+    }
+
+    const data = await this.apiPost("/api/submit", submitPayload);
+    return parseSubmitResponse(data);
+  }
+
   async comment(
     parentFullname: string,
     text: string

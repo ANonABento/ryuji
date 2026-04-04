@@ -7,6 +7,7 @@ import { text, err } from "@choomfie/shared";
 import { getYouTubeProvider, getRedditProvider, getRedditClient, getYouTubeCommentClient } from "./providers/index.ts";
 import { LinkedInClient } from "./providers/linkedin/api.ts";
 import { TwitterClient } from "./providers/twitter/api.ts";
+import { withRetry } from "./providers/retry.ts";
 import { LinkedInMonitor } from "./providers/linkedin/monitor.ts";
 import { LinkedInScheduler } from "./providers/linkedin/scheduler.ts";
 import type { NewComment } from "./providers/linkedin/monitor.ts";
@@ -475,7 +476,7 @@ export const socialsTools: ToolDef[] = [
     definition: {
       name: "reddit_post",
       description:
-        "Submit a text post to a subreddit. Owner only. " +
+        "Submit a post to a subreddit. Supports text, link, and image posts. Owner only. " +
         "Returns the post URL on success.",
       inputSchema: {
         type: "object" as const,
@@ -491,12 +492,16 @@ export const socialsTools: ToolDef[] = [
           },
           kind: {
             type: "string",
-            enum: ["self", "link"],
-            description: "Post type: 'self' for text post (default), 'link' for link post",
+            enum: ["self", "link", "image"],
+            description: "Post type: 'self' for text (default), 'link' for link, 'image' for image post",
           },
           url: {
             type: "string",
             description: "URL for link posts (required when kind=link)",
+          },
+          image: {
+            type: "string",
+            description: "Absolute file path to image for image posts (PNG/JPG/GIF, required when kind=image)",
           },
         },
         required: ["subreddit", "title"],
@@ -516,7 +521,12 @@ export const socialsTools: ToolDef[] = [
         const kind = (args.kind as string) || "self";
 
         let result;
-        if (kind === "link") {
+        if (kind === "image") {
+          const imagePath = args.image as string;
+          if (!imagePath) return err("Image path is required for image posts.");
+          const postText = (args.text as string) || undefined;
+          result = await client.submitImage(subreddit, title, imagePath, postText);
+        } else if (kind === "link") {
           const url = args.url as string;
           if (!url) return err("URL is required for link posts.");
           result = await client.submitLink(subreddit, title, url);
@@ -1345,7 +1355,10 @@ export const socialsTools: ToolDef[] = [
     handler: async (args: any, ctx: PluginContext) => {
       try {
         const client = getTwitterClient(ctx);
-        const result = await client.postTweet(args.text);
+        const result = await withRetry(
+          () => client.postTweet(args.text),
+          { label: "twitter_post", maxAttempts: 2 },
+        );
         return text(`Tweet posted!\nURL: ${result.url}\nID: ${result.id}`);
       } catch (e: any) {
         return err(`Tweet failed: ${e.message}`);
@@ -1367,7 +1380,10 @@ export const socialsTools: ToolDef[] = [
     handler: async (args: any, ctx: PluginContext) => {
       try {
         const client = getTwitterClient(ctx);
-        const result = await client.postTweetWithMedia(args.text, args.image);
+        const result = await withRetry(
+          () => client.postTweetWithMedia(args.text, args.image),
+          { label: "twitter_post_image", maxAttempts: 2 },
+        );
         return text(`Tweet with image posted!\nURL: ${result.url}\nID: ${result.id}`);
       } catch (e: any) {
         return err(`Tweet with image failed: ${e.message}`);
