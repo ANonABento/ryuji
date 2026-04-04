@@ -24,19 +24,26 @@ let twitterClient: TwitterClient | null = null;
 
 function getTwitterClient(ctx: PluginContext): TwitterClient {
   if (twitterClient) return twitterClient;
+  twitterClient = new TwitterClient(ctx.DATA_DIR);
+  return twitterClient;
+}
 
+function getTwitterConfig(ctx: PluginContext): { username: string; password: string; email: string } {
   const config = ctx.config.getConfig();
   const socialsConfig = (config as any).socials?.twitter;
 
-  if (!socialsConfig?.clientId) {
+  if (!socialsConfig?.username || !socialsConfig?.password || !socialsConfig?.email) {
     throw new Error(
-      "Twitter not configured. Add socials.twitter.clientId to config.json. " +
-      "Create an app at https://developer.x.com first."
+      "Twitter not configured. Add to config.json:\n" +
+      '  "socials": { "twitter": { "username": "...", "password": "...", "email": "..." } }'
     );
   }
 
-  twitterClient = new TwitterClient(ctx.DATA_DIR, socialsConfig.clientId);
-  return twitterClient;
+  return {
+    username: socialsConfig.username,
+    password: socialsConfig.password,
+    email: socialsConfig.email,
+  };
 }
 
 export function destroyTwitterClient(): void {
@@ -1311,16 +1318,14 @@ export const socialsTools: ToolDef[] = [
 
   {
     name: "twitter_auth",
-    description: "Connect a Twitter/X account via OAuth 2.0 PKCE. Opens a browser auth flow. Owner only.",
+    description: "Login to Twitter/X using credentials from config.json. Caches session cookies for reuse. Owner only.",
     schema: {},
     handler: async (_args: unknown, ctx: PluginContext) => {
       try {
+        const twitterConfig = getTwitterConfig(ctx);
         const client = getTwitterClient(ctx);
-        const { authUrl, port } = await client.startAuth();
-        return text(
-          `Open this URL to connect your X account:\n\n${authUrl}\n\n` +
-          `Callback server running on port ${port}. The URL must be opened on the same machine running Choomfie.`
-        );
+        const result = await client.login(twitterConfig);
+        return text(`Twitter: ${result}`);
       } catch (e: any) {
         return err(`Twitter auth failed: ${e.message}`);
       }
@@ -1408,18 +1413,13 @@ export const socialsTools: ToolDef[] = [
         const status = client.getStatus();
 
         if (!status.authenticated) {
-          return text("Twitter: **Not connected**\n\nRun `twitter_auth` to connect.");
+          return text("Twitter: **Not connected**\n\nRun `twitter_auth` to login.");
         }
-
-        const expiresIn = status.expiresAt
-          ? Math.round((status.expiresAt - Date.now()) / 60000)
-          : "unknown";
 
         return text(
           `Twitter: **Connected**\n` +
           `Username: @${status.username || "unknown"}\n` +
-          `User ID: ${status.userId || "unknown"}\n` +
-          `Token expires in: ~${expiresIn} minutes`
+          `Session: cookie-based (no expiry)`
         );
       } catch (e: any) {
         return err(`Twitter status check failed: ${e.message}`);
