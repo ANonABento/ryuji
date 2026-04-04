@@ -10,7 +10,7 @@
  */
 
 import type { Plugin } from "@choomfie/shared";
-import { socialsTools, destroyLinkedInClient, getLinkedInMonitor, getLinkedInScheduler } from "./tools.ts";
+import { socialsTools, destroyLinkedInClient, destroyTwitterClient, getLinkedInMonitor, getLinkedInScheduler } from "./tools.ts";
 import {
   initRedditProvider,
   destroyRedditClient,
@@ -75,6 +75,17 @@ const socialsPlugin: Plugin = {
     "LinkedIn auth link must be opened on the same machine running Choomfie (localhost callback). Uses standard OAuth, not PKCE.",
     "",
     "When sharing YouTube links, post the full URL so Discord auto-embeds the video.",
+    "",
+    "**Twitter/X:**",
+    "- `twitter_auth` — connect an X account (OAuth 2.0 PKCE, owner only)",
+    "- `twitter_post` — post a tweet (max 280 chars)",
+    "- `twitter_post_image` — post a tweet with an image (PNG/JPG/GIF file path)",
+    "- `twitter_thread` — post a thread (array of tweet texts, chained as replies)",
+    "- `twitter_status` — check if X is connected and token status",
+    "",
+    "Twitter/X uses Free tier API (500 tweets/month, 85 media uploads/day).",
+    "Setup: create an app at https://developer.x.com, set callback URL to `http://localhost:9877/callback`,",
+    "add client ID to config.json under socials.twitter.clientId. Uses OAuth 2.0 PKCE (no client secret needed).",
   ],
 
   userTools: [
@@ -152,6 +163,7 @@ const socialsPlugin: Plugin = {
 
   async destroy() {
     destroyLinkedInClient();
+    destroyTwitterClient();
     destroyRedditClient();
     destroyYouTubeCommentClient();
   },

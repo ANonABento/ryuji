@@ -6,6 +6,7 @@ import type { ToolDef, PluginContext } from "@choomfie/shared";
 import { text, err } from "@choomfie/shared";
 import { getYouTubeProvider, getRedditProvider, getRedditClient, getYouTubeCommentClient } from "./providers/index.ts";
 import { LinkedInClient } from "./providers/linkedin/api.ts";
+import { TwitterClient } from "./providers/twitter/api.ts";
 import { LinkedInMonitor } from "./providers/linkedin/monitor.ts";
 import { LinkedInScheduler } from "./providers/linkedin/scheduler.ts";
 import type { NewComment } from "./providers/linkedin/monitor.ts";
@@ -17,6 +18,33 @@ const reddit = getRedditProvider();
 
 /** LinkedIn client — lazily initialized when first tool is called (needs ctx.DATA_DIR + config) */
 let linkedInClient: LinkedInClient | null = null;
+
+/** Twitter client — lazily initialized */
+let twitterClient: TwitterClient | null = null;
+
+function getTwitterClient(ctx: PluginContext): TwitterClient {
+  if (twitterClient) return twitterClient;
+
+  const config = ctx.config.getConfig();
+  const socialsConfig = (config as any).socials?.twitter;
+
+  if (!socialsConfig?.clientId) {
+    throw new Error(
+      "Twitter not configured. Add socials.twitter.clientId to config.json. " +
+      "Create an app at https://developer.x.com first."
+    );
+  }
+
+  twitterClient = new TwitterClient(ctx.DATA_DIR, socialsConfig.clientId);
+  return twitterClient;
+}
+
+export function destroyTwitterClient(): void {
+  if (twitterClient) {
+    twitterClient.destroy();
+    twitterClient = null;
+  }
+}
 let linkedInMonitor: LinkedInMonitor | null = null;
 let linkedInScheduler: LinkedInScheduler | null = null;
 
@@ -1275,6 +1303,126 @@ export const socialsTools: ToolDef[] = [
         );
       } catch (e: any) {
         return err(`LinkedIn status check failed: ${e.message}`);
+      }
+    },
+  },
+
+  // ─── Twitter/X Tools ──────────────────────────────────────────────────────
+
+  {
+    name: "twitter_auth",
+    description: "Connect a Twitter/X account via OAuth 2.0 PKCE. Opens a browser auth flow. Owner only.",
+    schema: {},
+    handler: async (_args: unknown, ctx: PluginContext) => {
+      try {
+        const client = getTwitterClient(ctx);
+        const { authUrl, port } = await client.startAuth();
+        return text(
+          `Open this URL to connect your X account:\n\n${authUrl}\n\n` +
+          `Callback server running on port ${port}. The URL must be opened on the same machine running Choomfie.`
+        );
+      } catch (e: any) {
+        return err(`Twitter auth failed: ${e.message}`);
+      }
+    },
+  },
+
+  {
+    name: "twitter_post",
+    description: "Post a tweet to the connected X account.",
+    schema: {
+      type: "object" as const,
+      properties: {
+        text: { type: "string", description: "Tweet text (max 280 chars)" },
+      },
+      required: ["text"],
+    },
+    handler: async (args: any, ctx: PluginContext) => {
+      try {
+        const client = getTwitterClient(ctx);
+        const result = await client.postTweet(args.text);
+        return text(`Tweet posted!\nURL: ${result.url}\nID: ${result.id}`);
+      } catch (e: any) {
+        return err(`Tweet failed: ${e.message}`);
+      }
+    },
+  },
+
+  {
+    name: "twitter_post_image",
+    description: "Post a tweet with an image to the connected X account.",
+    schema: {
+      type: "object" as const,
+      properties: {
+        text: { type: "string", description: "Tweet text (max 280 chars)" },
+        image: { type: "string", description: "Absolute file path to image (PNG/JPG/GIF)" },
+      },
+      required: ["text", "image"],
+    },
+    handler: async (args: any, ctx: PluginContext) => {
+      try {
+        const client = getTwitterClient(ctx);
+        const result = await client.postTweetWithMedia(args.text, args.image);
+        return text(`Tweet with image posted!\nURL: ${result.url}\nID: ${result.id}`);
+      } catch (e: any) {
+        return err(`Tweet with image failed: ${e.message}`);
+      }
+    },
+  },
+
+  {
+    name: "twitter_thread",
+    description: "Post a thread (multiple chained tweets) to the connected X account.",
+    schema: {
+      type: "object" as const,
+      properties: {
+        tweets: {
+          type: "array",
+          items: { type: "string" },
+          description: "Array of tweet texts, posted in order as a thread",
+        },
+      },
+      required: ["tweets"],
+    },
+    handler: async (args: any, ctx: PluginContext) => {
+      try {
+        const client = getTwitterClient(ctx);
+        const results = await client.postThread(args.tweets);
+        const summary = results
+          .map((r, i) => `${i + 1}. ${r.url}`)
+          .join("\n");
+        return text(`Thread posted! (${results.length} tweets)\n${summary}`);
+      } catch (e: any) {
+        return err(`Thread failed: ${e.message}`);
+      }
+    },
+  },
+
+  {
+    name: "twitter_status",
+    description: "Check Twitter/X authentication status.",
+    schema: {},
+    handler: async (_args: unknown, ctx: PluginContext) => {
+      try {
+        const client = getTwitterClient(ctx);
+        const status = client.getStatus();
+
+        if (!status.authenticated) {
+          return text("Twitter: **Not connected**\n\nRun `twitter_auth` to connect.");
+        }
+
+        const expiresIn = status.expiresAt
+          ? Math.round((status.expiresAt - Date.now()) / 60000)
+          : "unknown";
+
+        return text(
+          `Twitter: **Connected**\n` +
+          `Username: @${status.username || "unknown"}\n` +
+          `User ID: ${status.userId || "unknown"}\n` +
+          `Token expires in: ~${expiresIn} minutes`
+        );
+      } catch (e: any) {
+        return err(`Twitter status check failed: ${e.message}`);
       }
     },
   },
