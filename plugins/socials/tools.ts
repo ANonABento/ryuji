@@ -23,9 +23,9 @@ let linkedInClient: LinkedInClient | null = null;
 /** Twitter client — lazily initialized */
 let twitterClient: TwitterClient | null = null;
 
-function getTwitterClient(ctx: PluginContext): TwitterClient {
+function getTwitterClient(): TwitterClient {
   if (twitterClient) return twitterClient;
-  twitterClient = new TwitterClient(ctx.DATA_DIR);
+  twitterClient = new TwitterClient();
   return twitterClient;
 }
 
@@ -1333,7 +1333,7 @@ export const socialsTools: ToolDef[] = [
     handler: async (_args: unknown, ctx: PluginContext) => {
       try {
         const twitterConfig = getTwitterConfig(ctx);
-        const client = getTwitterClient(ctx);
+        const client = getTwitterClient();
         const result = await client.login(twitterConfig);
         return text(`Twitter: ${result}`);
       } catch (e: any) {
@@ -1354,7 +1354,7 @@ export const socialsTools: ToolDef[] = [
     },
     handler: async (args: any, ctx: PluginContext) => {
       try {
-        const client = getTwitterClient(ctx);
+        const client = getTwitterClient();
         const result = await withRetry(
           () => client.postTweet(args.text),
           { label: "twitter_post", maxAttempts: 2 },
@@ -1379,7 +1379,7 @@ export const socialsTools: ToolDef[] = [
     },
     handler: async (args: any, ctx: PluginContext) => {
       try {
-        const client = getTwitterClient(ctx);
+        const client = getTwitterClient();
         const result = await withRetry(
           () => client.postTweetWithMedia(args.text, args.image),
           { label: "twitter_post_image", maxAttempts: 2 },
@@ -1407,7 +1407,7 @@ export const socialsTools: ToolDef[] = [
     },
     handler: async (args: any, ctx: PluginContext) => {
       try {
-        const client = getTwitterClient(ctx);
+        const client = getTwitterClient();
         const results = await client.postThread(args.tweets);
         const summary = results
           .map((r, i) => `${i + 1}. ${r.url}`)
@@ -1425,7 +1425,7 @@ export const socialsTools: ToolDef[] = [
     schema: {},
     handler: async (_args: unknown, ctx: PluginContext) => {
       try {
-        const client = getTwitterClient(ctx);
+        const client = getTwitterClient();
         const status = client.getStatus();
 
         if (!status.authenticated) {
