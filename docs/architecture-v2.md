@@ -287,6 +287,17 @@ Don't refactor the current supervisor/worker system yet. Phase 1 wraps the exist
   - Worker survives session cycles (Discord stays connected)
   - Custom MCP server in daemon exposes worker tools to Agent SDK
 
+**Phase 5 (future): Multi-brain daemon**
+- BrainPoolManager: spawn N independent Claude sessions
+- Message router: server_id/DM → brain mapping, complexity-based model routing
+- Per-brain persona, system prompt, model, and tool restrictions
+- Independent cycling per brain (hot-swap without downtime)
+- Brain-to-brain event bus (shared context without shared context windows)
+- Background brain for silent automation (cron, monitoring, digest)
+- Model ladder: reactions → no brain, simple → Haiku, normal → Sonnet, complex → Opus
+- Bento-ya bridge: brains claim tasks from kanban, report progress to Discord
+- See roadmap.md Phase 15 for detailed breakdown (~25-30hr total)
+
 ## Agent SDK Reference
 
 ```bash

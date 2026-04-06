@@ -186,16 +186,59 @@
 - [x] `--test-cycle`, `--benchmark`, `--verbose` flags
 - [ ] Full sibling architecture — worker survives session cycles (Phase 4 in architecture-v2)
 
-## Phase 15: Extended Autonomy
+## Phase 15: Multi-Brain Daemon
+
+> Single daemon process, multiple Claude sessions, intelligent message routing.
+
+### 15a: Brain Pool (~4-6hr)
+- [ ] `BrainPoolManager` class — spawn N independent Claude sessions
+- [ ] Per-brain lifecycle — independent cycling, health monitoring, crash recovery
+- [ ] Per-brain persona and system prompt injection
+- [ ] Hot-swap brains — cycle one without affecting others (eliminates 12s gap)
+
+### 15b: Message Router (~3-4hr)
+- [ ] Config-driven routing: `server_id → brain`, `DM → brain`, fallback brain
+- [ ] Route table in config.json: `{ "brains": [{ "id": "main", "servers": [...], "persona": "choomfie" }] }`
+- [ ] Dedicated DM brain (always snappy, never bogged by server noise)
+
+### 15c: Model Ladder (~2-3hr)
+- [ ] Complexity classifier in daemon (simple → Haiku, normal → Sonnet, complex → Opus)
+- [ ] Per-brain model override in config
+- [ ] Reactions/emojis handled by worker directly (no brain needed)
+- [ ] Voice → Haiku with streaming (latency-critical)
+
+### 15d: Specialist Brains (~4hr)
+- [ ] Background brain — silent, runs scheduled tasks (GitHub checks, LinkedIn posts, reminders, digest)
+- [ ] Tutor brain — dedicated to language learning with tutor system prompt
+- [ ] Code brain — Opus, full tool access, for complex reasoning
+- [ ] Per-brain tool restrictions (background brain can't reply, tutor brain can't browse, etc.)
+
+### 15e: Brain-to-Brain Communication (~3hr)
+- [ ] Event bus in daemon — brains publish events, other brains subscribe
+- [ ] Cross-brain context sharing (tutor brain: "user learned 50 kanji" → main brain: "congrats!")
+- [ ] Shared memory layer — all brains read/write same SQLite DB (already WAL-compatible)
+
+### 15f: Bento-ya Bridge (~8hr)
+- [ ] Connect daemon brains to bento-ya task board via MCP
+- [ ] Each brain claims a task from the kanban, works on it, reports progress
+- [ ] Daemon monitors and load-balances across brains
+- [ ] Discord progress reporting from each brain
+
+## Phase 16: Extended Autonomy
 
 - [ ] Cron scheduling via Claude Code's `/schedule` feature
 - [ ] Proactive messages — agent notices patterns and reaches out
 - [ ] Learning loop — agent creates memories from repeated patterns
 
-## Phase 16: Simulation (Dead Internet Theory)
+## Phase 17: Simulation (Dead Internet Theory)
+
+> Multi-bot simulation. Each sim is its own Discord bot + Choomfie brain.
+> Can be implemented as additional bots in the multi-brain daemon pool,
+> or as separate processes managed by bento-ya.
 
 - [ ] choomfie-sim — individual persona bots that simulate real people
-  - [ ] Each clone is a separate Discord bot with its own Choomfie instance
+  - [ ] Each clone is a separate Discord bot (own token, own presence)
+  - [ ] Can run as a brain in the multi-brain daemon OR as a standalone daemon
   - [ ] Persona prompts scraped/reverse-engineered from real chat history
   - [ ] Per-clone memory context (key facts, relationships, opinions from their real messages)
   - [ ] Bot-to-bot interaction — clones react to each other's messages, not just the user
@@ -209,6 +252,9 @@
   - [ ] Passive — clones chat among themselves, user observes
   - [ ] Active — user participates alongside clones
   - [ ] Scenario — seed a topic and watch clones react
+- [ ] Bento-ya orchestration — use bento-ya to manage sim bot development in parallel
+  - [ ] Each sim bot as a task, agents build them concurrently
+  - [ ] Pipeline: scrape → train persona → deploy bot → monitor
 
 ## Smart Memory (Ongoing)
 
