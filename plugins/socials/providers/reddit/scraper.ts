@@ -6,6 +6,7 @@
  */
 
 import type { RedditProvider, RedditPost, RedditComment } from "../types.ts";
+import { mapCommentChildren, mapPostChildren, normalizeCommentsUrl } from "./common.ts";
 
 const REDDIT_BASE = "https://www.reddit.com";
 const HEADERS = {
@@ -29,7 +30,7 @@ export const redditScraperProvider: RedditProvider = {
     if (!response.ok) throw new Error(`Reddit error (${response.status})`);
 
     const data = (await response.json()) as any;
-    return (data.data?.children || []).map((c: any) => postToResult(c.data));
+    return mapPostChildren(data);
   },
 
   async getPosts(
@@ -45,7 +46,7 @@ export const redditScraperProvider: RedditProvider = {
     if (!response.ok) throw new Error(`Reddit error (${response.status})`);
 
     const data = (await response.json()) as any;
-    return (data.data?.children || []).map((c: any) => postToResult(c.data));
+    return mapPostChildren(data);
   },
 
   async getComments(
@@ -53,11 +54,7 @@ export const redditScraperProvider: RedditProvider = {
     limit: number = 10
   ): Promise<RedditComment[]> {
     // Normalize URL: strip query params, ensure .json suffix
-    let cleanUrl = postUrl.split("?")[0].replace(/\/+$/, "");
-    if (!cleanUrl.endsWith(".json")) cleanUrl += ".json";
-    const fullUrl = cleanUrl.startsWith("http")
-      ? cleanUrl
-      : `${REDDIT_BASE}${cleanUrl}`;
+    const fullUrl = normalizeCommentsUrl(postUrl);
 
     const response = await fetch(`${fullUrl}?limit=${limit}`, {
       headers: HEADERS,
@@ -67,28 +64,6 @@ export const redditScraperProvider: RedditProvider = {
     const data = (await response.json()) as any;
     const comments = data[1]?.data?.children || [];
 
-    return comments
-      .filter((c: any) => c.kind === "t1")
-      .slice(0, limit)
-      .map((c: any) => ({
-        author: c.data.author || "[deleted]",
-        body: c.data.body || "",
-        score: c.data.score || 0,
-        created: new Date(c.data.created_utc * 1000).toISOString(),
-      }));
+    return mapCommentChildren(comments, limit);
   },
 };
-
-function postToResult(data: any): RedditPost {
-  return {
-    title: data.title,
-    url: data.url,
-    subreddit: data.subreddit || "",
-    author: data.author || "[deleted]",
-    score: data.score || 0,
-    comments: data.num_comments || 0,
-    selftext: data.selftext?.slice(0, 500) || undefined,
-    created: new Date(data.created_utc * 1000).toISOString(),
-    permalink: `https://reddit.com${data.permalink}`,
-  };
-}

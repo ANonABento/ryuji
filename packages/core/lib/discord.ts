@@ -22,6 +22,8 @@ import {
   refreshChannel,
   isRateLimited,
 } from "./conversation.ts";
+import { deployGuildCommands } from "./command-deploy.ts";
+import { isAllowed, isOwner } from "./access.ts";
 
 const PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i;
 
@@ -132,12 +134,7 @@ export function createDiscordClient(ctx: AppContext): Client {
         const { REST, Routes } = await import("discord.js");
         const rest = new REST().setToken(ctx.discord.token!);
         const appId = c.application.id;
-
-        for (const [id, guild] of c.guilds.cache) {
-          await rest.put(Routes.applicationGuildCommands(appId, id), {
-            body: commands,
-          });
-        }
+        await deployGuildCommands(rest, appId, c.guilds.cache.keys(), commands);
         await Bun.write(hashFile, hash);
         console.error(`Slash commands deployed (${commands.length} commands to ${c.guilds.cache.size} guild(s))`);
       }
@@ -240,9 +237,7 @@ export function createDiscordClient(ctx: AppContext): Client {
     // Only forward messages from allowlisted users
     // (bootstrap mode: accept all if no users allowlisted yet)
     // Note: !pair handler above is intentionally before this check
-    if (!ctx.allowedUsers.has(userId)) {
-      if (ctx.allowedUsers.size > 0) return;
-    }
+    if (!isAllowed(ctx, userId)) return;
 
     // Rate limit check
     if (
@@ -257,9 +252,7 @@ export function createDiscordClient(ctx: AppContext): Client {
     // Build metadata
     const isMentionedHere =
       !isDM && message.mentions.has(discord.user!.id);
-    const isOwner = ctx.ownerUserId
-      ? userId === ctx.ownerUserId
-      : ctx.allowedUsers.size === 0;
+    const owner = isOwner(ctx, userId) || (!ctx.ownerUserId && ctx.allowedUsers.size === 0);
     const meta: Record<string, string> = {
       chat_id: message.channelId,
       message_id: message.id,
@@ -267,7 +260,7 @@ export function createDiscordClient(ctx: AppContext): Client {
       user_id: userId,
       ts: message.createdAt.toISOString(),
       is_dm: message.guild ? "false" : "true",
-      role: isOwner ? "owner" : "user",
+      role: owner ? "owner" : "user",
     };
 
     // Mark conversation mode messages

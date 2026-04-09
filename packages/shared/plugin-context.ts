@@ -5,12 +5,45 @@
  * When running standalone, they receive a minimal implementation of this interface.
  */
 
+import type { Client } from "discord.js";
+
+export interface SocialsPlatformConfig {
+  [key: string]: string | number | boolean | undefined;
+}
+
+export interface SocialsConfig {
+  youtube?: SocialsPlatformConfig;
+  reddit?: SocialsPlatformConfig;
+  linkedin?: SocialsPlatformConfig;
+  twitter?: SocialsPlatformConfig;
+  [key: string]: SocialsPlatformConfig | undefined;
+}
+
+export interface ChoomfieConfig {
+  socials?: SocialsConfig;
+  [key: string]: unknown;
+}
+
+export interface NotificationMessage {
+  method: string;
+  params: Record<string, unknown>;
+}
+
+export interface McpTransport {
+  notification?(msg: NotificationMessage): void;
+  requestRestart?(reason: string, chat_id?: string): void;
+  setNotificationHandler?(
+    schema: unknown,
+    handler: (msg: { params: Record<string, unknown> }) => Promise<void>,
+  ): void;
+}
+
 /** Minimal config interface plugins can depend on (no ConfigManager class import). */
 export interface PluginConfig {
-  getConfig(): Record<string, any>;
+  getConfig(): ChoomfieConfig;
   getEnabledPlugins(): string[];
   getVoiceConfig(): { stt: string; tts: string; ttsSpeed?: number };
-  getSocialsConfig(): Record<string, any> | undefined;
+  getSocialsConfig(): SocialsConfig | undefined;
 }
 
 export interface PluginContext {
@@ -19,11 +52,9 @@ export interface PluginContext {
   /** Config manager (typed interface, not the class) */
   config: PluginConfig;
   /** MCP server or proxy for sending notifications */
-  mcp?: {
-    notification?(msg: { method: string; params: Record<string, unknown> }): void;
-  };
+  mcp?: McpTransport;
   /** Discord client (only if running inside Choomfie) */
-  discord?: any;
+  discord?: Client;
   /** Owner user ID (for permission checks) */
   ownerUserId?: string | null;
 }

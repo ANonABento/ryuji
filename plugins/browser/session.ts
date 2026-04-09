@@ -200,7 +200,7 @@ export async function closeAll(): Promise<void> {
 }
 
 /** List active session names. */
-export function listSessions(): string[] {
+function listSessions(): string[] {
   return Array.from(sessions.keys()).filter((name) => {
     const s = sessions.get(name);
     return s && !s.page.isClosed();

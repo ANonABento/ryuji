@@ -45,7 +45,7 @@ describe("plugin tool registration", () => {
     expect(names.length).toBe(11);
   });
 
-  test("socials plugin exports 28 tools", async () => {
+  test("socials plugin exports 33 tools", async () => {
     const mod = await import("@choomfie/socials");
     const plugin = mod.default;
     const names = (plugin.tools ?? []).map((t: any) => t.definition.name);
@@ -63,6 +63,6 @@ describe("plugin tool registration", () => {
     expect(names).toContain("linkedin_auth");
     expect(names).toContain("linkedin_post");
     expect(names).toContain("linkedin_status");
-    expect(names.length).toBe(28);
+    expect(names.length).toBe(33);
   });
 });
