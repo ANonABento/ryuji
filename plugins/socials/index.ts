@@ -10,7 +10,9 @@
  */
 
 import type { Plugin } from "@choomfie/shared";
-import { socialsTools, destroyLinkedInClient, destroyTwitterClient, getLinkedInMonitor, getLinkedInScheduler } from "./tools.ts";
+import { socialsTools } from "./tools.ts";
+import { destroyLinkedInClient, getLinkedInMonitor, getLinkedInScheduler } from "./linkedin-runtime.ts";
+import { destroyTwitterClient } from "./twitter-tools.ts";
 import {
   initRedditProvider,
   destroyRedditClient,

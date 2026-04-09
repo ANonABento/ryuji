@@ -26,7 +26,7 @@ ctx.plugins = await loadPlugins(ctx.config);
 
 // Create MCP proxy (forwards notifications to supervisor via IPC)
 const mcpProxy = new McpProxy();
-ctx.mcp = mcpProxy as any;
+ctx.mcp = mcpProxy;
 
 // Register permission relay (uses mcpProxy.setNotificationHandler)
 registerPermissionRelay(ctx);

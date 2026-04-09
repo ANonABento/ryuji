@@ -11,6 +11,7 @@
 
 import { REST, Routes } from "discord.js";
 import { getCommandDefs } from "../lib/interactions.ts";
+import { deployGuildCommands } from "../lib/command-deploy.ts";
 import { readFile } from "node:fs/promises";
 
 const DATA_DIR =
@@ -71,10 +72,7 @@ if (isGlobal) {
     client.once("ready", async (c) => {
       const guilds = c.guilds.cache;
       for (const [id, guild] of guilds) {
-        await rest.put(
-          Routes.applicationGuildCommands(applicationId, id),
-          { body: commands }
-        );
+        await deployGuildCommands(rest, applicationId, [id], commands);
         console.log(`  Deployed to: ${guild.name} (${id})`);
       }
       console.log(`\nDeployed ${commands.length} commands to ${guilds.size} guild(s) (instant).`);
