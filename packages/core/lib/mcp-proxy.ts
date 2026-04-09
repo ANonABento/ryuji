@@ -9,18 +9,19 @@
  * by assigning this proxy to ctx.mcp.
  */
 
+import type { McpTransport, NotificationMessage } from "@choomfie/shared";
 import type { SupervisorMessage } from "./ipc-types.ts";
 
 type NotificationHandler = (msg: { params: Record<string, unknown> }) => Promise<void>;
 
-export class McpProxy {
+export class McpProxy implements McpTransport {
   private notificationHandlers = new Map<string, NotificationHandler>();
 
   /**
    * Send a notification to Claude via supervisor IPC.
    * Matches the MCP Server.notification() signature used in discord.ts and voice manager.
    */
-  notification(msg: { method: string; params: Record<string, unknown> }) {
+  notification(msg: NotificationMessage) {
     if (!process.send) {
       console.error("McpProxy: no IPC channel (not running as child process)");
       return;

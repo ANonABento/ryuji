@@ -5,17 +5,9 @@
 import { MessageFlags, type ChatInputCommandInteraction } from "discord.js";
 import type { AppContext } from "../types.ts";
 import { dateToSQLite } from "../time.ts";
+import { isOwner } from "../access.ts";
 
-/** Check if a Discord user is the owner */
-export function isOwner(ctx: AppContext, userId: string): boolean {
-  return ctx.ownerUserId ? userId === ctx.ownerUserId : false;
-}
-
-/** Check if a Discord user is allowed (on the allowlist or owner) */
-export function isAllowed(ctx: AppContext, userId: string): boolean {
-  if (ctx.allowedUsers.size === 0) return true; // bootstrap mode
-  return ctx.allowedUsers.has(userId);
-}
+export { isOwner } from "../access.ts";
 
 /** Reply with "owner only" error. Returns true if blocked. */
 export async function requireOwner(

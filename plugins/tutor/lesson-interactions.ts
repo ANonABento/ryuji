@@ -554,6 +554,6 @@ export function hasActiveTypingExercise(userId: string): boolean {
 }
 
 /** Get active session for a user */
-export function getActiveSession(userId: string): ActiveSession | undefined {
+function getActiveSession(userId: string): ActiveSession | undefined {
   return activeSessions.get(userId);
 }

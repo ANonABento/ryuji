@@ -13,6 +13,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { VERSION, type PluginContext } from "@choomfie/shared";
 import type { RedditProvider, RedditWriteProvider, RedditPost, RedditComment, RedditSubmitResult } from "../types.ts";
+import { mapCommentChildren, mapPostChildren } from "./common.ts";
 
 // --- Constants ---
 
@@ -204,7 +205,7 @@ export class RedditClient implements RedditWriteProvider {
     if (subreddit) params.restrict_sr = "on";
 
     const data = await this.apiGet(path, params);
-    return (data.data?.children || []).map((c: any) => postToResult(c.data));
+    return mapPostChildren(data);
   }
 
   async getPosts(
@@ -216,7 +217,7 @@ export class RedditClient implements RedditWriteProvider {
     if (sort === "top") params.t = "week";
 
     const data = await this.apiGet(`/r/${subreddit}/${sort}`, params);
-    return (data.data?.children || []).map((c: any) => postToResult(c.data));
+    return mapPostChildren(data);
   }
 
   async getComments(
@@ -234,10 +235,7 @@ export class RedditClient implements RedditWriteProvider {
 
     // Reddit returns [post, comments] array
     const comments = data[1]?.data?.children || [];
-    return comments
-      .filter((c: any) => c.kind === "t1")
-      .slice(0, limit)
-      .map((c: any) => commentToResult(c.data));
+    return mapCommentChildren(comments, limit);
   }
 
   // --- Write Methods ---
@@ -280,63 +278,12 @@ export class RedditClient implements RedditWriteProvider {
     imagePath: string,
     text?: string,
   ): Promise<RedditSubmitResult> {
-    // Reddit image posts use the media upload flow:
-    // 1. Request upload lease from /api/media/asset
-    // 2. Upload to S3
-    // 3. Submit with the uploaded URL
-    // For simplicity, post as a link to the image if it's a URL,
-    // or use the crosspost flow. Reddit's image API is complex.
-    // Fallback: post as self-text with image link.
-    const { readFileSync } = await import("node:fs");
-
-    // Upload via Reddit's media upload endpoint
-    const fileName = imagePath.split("/").pop() || "image.png";
-    const mimeType = imagePath.endsWith(".png") ? "image/png"
-      : imagePath.endsWith(".gif") ? "image/gif"
-      : "image/jpeg";
-
-    // Step 1: Request upload lease
-    const leaseData = await this.apiPost("/api/media/asset.json", {
-      filepath: fileName,
-      mimetype: mimeType,
-    });
-
-    const uploadUrl = `https:${leaseData?.args?.action}`;
-    const fields = leaseData?.args?.fields || [];
-    const assetId = leaseData?.asset?.asset_id;
-
-    if (!uploadUrl || !assetId) {
-      throw new Error("Failed to get Reddit upload lease");
+    if (/^https?:\/\//i.test(imagePath)) {
+      return this.submitLink(subreddit, title, imagePath);
     }
-
-    // Step 2: Upload to S3
-    const fileData = readFileSync(imagePath);
-    const formData = new FormData();
-    for (const field of fields) {
-      formData.append(field.name, field.value);
-    }
-    formData.append("file", new Blob([fileData], { type: mimeType }), fileName);
-
-    const uploadResp = await fetch(uploadUrl, { method: "POST", body: formData });
-    if (!uploadResp.ok && uploadResp.status !== 201) {
-      throw new Error(`Reddit S3 upload failed: ${uploadResp.status}`);
-    }
-
-    // Step 3: Submit with uploaded asset URL
-    const imageUrl = `${uploadUrl}/${fields.find((f: any) => f.name === "key")?.value}`;
-    const submitPayload: Record<string, string> = {
-      sr: subreddit,
-      kind: "image",
-      title,
-      url: imageUrl,
-      api_type: "json",
-    };
-    if (text) {
-      submitPayload.text = text;
-    }
-
-    const data = await this.apiPost("/api/submit", submitPayload);
-    return parseSubmitResponse(data);
+    throw new Error(
+      "Reddit local image uploads are not supported reliably yet. Pass a public image URL instead.",
+    );
   }
 
   async comment(
@@ -374,31 +321,6 @@ export class RedditClient implements RedditWriteProvider {
       dir: String(direction),
     });
   }
-}
-
-// --- Helpers ---
-
-function postToResult(data: any): RedditPost {
-  return {
-    title: data.title || "",
-    url: data.url || "",
-    subreddit: data.subreddit || "",
-    author: data.author || "[deleted]",
-    score: data.score || 0,
-    comments: data.num_comments || 0,
-    selftext: data.selftext?.slice(0, 500) || undefined,
-    created: new Date((data.created_utc || 0) * 1000).toISOString(),
-    permalink: `https://reddit.com${data.permalink}`,
-  };
-}
-
-function commentToResult(data: any): RedditComment {
-  return {
-    author: data.author || "[deleted]",
-    body: data.body || "",
-    score: data.score || 0,
-    created: new Date((data.created_utc || 0) * 1000).toISOString(),
-  };
 }
 
 function parseSubmitResponse(data: any): RedditSubmitResult {

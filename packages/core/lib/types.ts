@@ -7,7 +7,7 @@
  */
 
 import type { Client } from "discord.js";
-import type { PluginContext } from "@choomfie/shared";
+import type { McpTransport, PluginContext } from "@choomfie/shared";
 import type { MemoryStore } from "./memory.ts";
 import type { ConfigManager } from "./config.ts";
 import type { ReminderScheduler } from "./reminders.ts";
@@ -18,8 +18,8 @@ export { text, err } from "@choomfie/shared";
 
 export interface AppContext extends PluginContext {
   discord: Client;
-  /** MCP Server (supervisor) or McpProxy (worker). Using any to avoid union type issues. */
-  mcp: any;
+  /** MCP Server (supervisor) or McpProxy (worker). */
+  mcp: McpTransport;
   memory: MemoryStore;
   config: ConfigManager;
   plugins: import("@choomfie/shared").Plugin[];

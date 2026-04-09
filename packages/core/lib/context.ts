@@ -73,8 +73,8 @@ export async function createContext(): Promise<{
 
   const ctx: AppContext = {
     // discord, mcp, plugins are set after creation
-    discord: null as any,
-    mcp: null as any,
+    discord: null as unknown as AppContext["discord"],
+    mcp: null as unknown as AppContext["mcp"],
     memory,
     config,
     plugins: [],
