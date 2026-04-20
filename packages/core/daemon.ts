@@ -12,6 +12,8 @@
  *
  * Usage:
  *   choomfie --daemon            # Normal operation
+ *   bun daemon.ts --stop         # Stop running daemon (SIGTERM + cleanup)
+ *   bun daemon.ts --status       # Show daemon status (PID, uptime, tokens, etc.)
  *   bun daemon.ts --test-cycle   # Test session cycling
  *   bun daemon.ts --benchmark    # Measure latency
  *   bun daemon.ts --verbose      # Debug output
@@ -56,6 +58,8 @@ const ARGS = new Set(process.argv.slice(2));
 const FLAG_TEST_CYCLE = ARGS.has("--test-cycle");
 const FLAG_BENCHMARK = ARGS.has("--benchmark");
 const FLAG_VERBOSE = ARGS.has("--verbose");
+const FLAG_STOP = ARGS.has("--stop");
+const FLAG_STATUS = ARGS.has("--status");
 
 // --- Types ---
 
@@ -130,16 +134,40 @@ async function acquirePid(): Promise<void> {
     const oldPid = parseInt(await readFile(PID_PATH, "utf-8"), 10);
     if (oldPid && oldPid !== process.pid) {
       try {
-        const proc = Bun.spawn(["ps", "-p", String(oldPid), "-o", "command="], {
+        const proc = Bun.spawn(["ps", "-p", String(oldPid), "-o", "ppid=,command="], {
           stdout: "pipe",
           stderr: "pipe",
         });
-        const command = (await new Response(proc.stdout).text()).trim();
+        const output = (await new Response(proc.stdout).text()).trim();
         await proc.exited;
-        if (command && (command.includes("daemon.ts") || command.includes("choomfie"))) {
-          log(`Killing old daemon (PID ${oldPid})`);
+
+        if (output && (output.includes("daemon.ts") || output.includes("meta.ts"))) {
+          // Check if it's orphaned (parent = 1 = launchd)
+          const ppid = parseInt(output.trim(), 10);
+          const isOrphaned = ppid === 1;
+
+          log(`Found old daemon (PID ${oldPid}${isOrphaned ? ", ORPHANED" : ""})`);
+          log(`Killing old daemon...`);
           process.kill(oldPid, "SIGTERM");
-          await new Promise((r) => setTimeout(r, 500));
+
+          // Wait for graceful shutdown, then force kill if needed
+          for (let i = 0; i < 6; i++) {
+            await new Promise((r) => setTimeout(r, 500));
+            try {
+              process.kill(oldPid, 0);
+            } catch {
+              break; // Process died
+            }
+          }
+
+          // Force kill if still alive
+          try {
+            process.kill(oldPid, 0);
+            log("Old daemon didn't stop gracefully, sending SIGKILL");
+            process.kill(oldPid, "SIGKILL");
+          } catch {
+            // Already dead
+          }
         }
       } catch {
         // Process already dead
@@ -1024,10 +1052,116 @@ function setupShutdown(state: MetaState): void {
   process.on("SIGHUP", shutdown);
 }
 
+// --- Stop / Status Commands ---
+
+async function stopDaemon(): Promise<void> {
+  try {
+    const pidStr = await readFile(PID_PATH, "utf-8");
+    const pid = parseInt(pidStr.trim(), 10);
+    if (!pid || isNaN(pid)) {
+      console.error("No daemon PID found");
+      process.exit(1);
+    }
+
+    // Check if it's actually running
+    try {
+      process.kill(pid, 0); // Signal 0 = check existence
+    } catch {
+      console.error(`Daemon PID ${pid} is not running (stale PID file)`);
+      await unlink(PID_PATH).catch(() => {});
+      process.exit(1);
+    }
+
+    console.error(`Sending SIGTERM to daemon (PID ${pid})...`);
+    process.kill(pid, "SIGTERM");
+
+    // Wait up to 5s for graceful shutdown
+    for (let i = 0; i < 10; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+      try {
+        process.kill(pid, 0);
+      } catch {
+        console.error("Daemon stopped");
+        process.exit(0);
+      }
+    }
+
+    // Force kill
+    console.error("Daemon didn't stop gracefully, sending SIGKILL...");
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {}
+    await unlink(PID_PATH).catch(() => {});
+    console.error("Daemon killed");
+    process.exit(0);
+  } catch (err: any) {
+    console.error(`Failed to stop daemon: ${err.message}`);
+    process.exit(1);
+  }
+}
+
+async function showStatus(): Promise<void> {
+  // Check PID
+  let daemonPid: number | null = null;
+  let running = false;
+  try {
+    const pidStr = await readFile(PID_PATH, "utf-8");
+    daemonPid = parseInt(pidStr.trim(), 10);
+    try {
+      process.kill(daemonPid, 0);
+      running = true;
+    } catch {
+      running = false;
+    }
+  } catch {
+    console.error("Daemon: not running (no PID file)");
+    process.exit(0);
+  }
+
+  if (!running) {
+    console.error(`Daemon: not running (stale PID ${daemonPid})`);
+    process.exit(0);
+  }
+
+  // Check if the process is actually the daemon (not something else reusing the PID)
+  try {
+    const proc = Bun.spawn(["ps", "-p", String(daemonPid), "-o", "etime=,rss=,command="], {
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const output = (await new Response(proc.stdout).text()).trim();
+    await proc.exited;
+
+    console.error(`Daemon: running (PID ${daemonPid})`);
+    console.error(`  Process: ${output}`);
+  } catch {}
+
+  // Read daemon state file
+  try {
+    const stateData = await readFile(`${META_DIR}/daemon-state.json`, "utf-8");
+    const state = JSON.parse(stateData);
+    console.error(`  State: ${state.state}`);
+    console.error(`  Session: ${state.sessionId}`);
+    console.error(`  Uptime: ${state.sessionUptimeSeconds}s`);
+    console.error(`  Turns: ${state.turns?.current}/${state.turns?.threshold}`);
+    console.error(`  Tokens: ${state.tokens?.current}/${state.tokens?.threshold}`);
+    console.error(`  Cost: $${state.costUsd?.toFixed(4)}`);
+    console.error(`  Cycles: ${state.totalCycles}`);
+    console.error(`  Worker: ${state.workerHealth?.processAlive ? "alive" : "dead"}`);
+    console.error(`  Updated: ${state.updatedAt}`);
+  } catch {
+    console.error("  State file not found");
+  }
+
+  process.exit(0);
+}
+
 // --- Main ---
 
 async function main(): Promise<void> {
   // Handle special modes
+  if (FLAG_STOP) return stopDaemon();
+  if (FLAG_STATUS) return showStatus();
   if (FLAG_TEST_CYCLE) return testCycle();
   if (FLAG_BENCHMARK) return benchmark();
 
