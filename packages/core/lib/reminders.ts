@@ -105,7 +105,10 @@ export class ReminderScheduler {
 
     this.clearNagTimer(reminder.id);
 
-    const targetMs = Date.now() + reminder.nagInterval * MS_PER_MIN;
+    const lastNagMs = reminder.lastNagAt
+      ? fromSQLiteDatetime(reminder.lastNagAt).getTime()
+      : Date.now();
+    const targetMs = lastNagMs + reminder.nagInterval * MS_PER_MIN;
     this.setLongTimeout(this.nagTimers, reminder.id, targetMs, () => {
       void this.fireNag(reminder);
     });
@@ -206,7 +209,8 @@ export class ReminderScheduler {
     this.ctx.memory.updateNagTime(current.id);
 
     // Schedule next nag using fresh state
-    this.scheduleNag(current);
+    const updated = this.ctx.memory.getReminder(current.id);
+    if (updated) this.scheduleNag(updated);
   }
 
   /** Cancel a reminder's timer */

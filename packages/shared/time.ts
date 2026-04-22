@@ -22,7 +22,18 @@ export const MS_PER_DAY = 86_400_000;
  * '2026-03-25 15:28:12'      → '2026-03-25 15:28:12' (no-op)
  */
 export function toSQLiteDatetime(iso: string): string {
-  return iso.replace("T", " ").replace(/\.\d+Z?$/, "").replace(/Z$/, "").trim();
+  const trimmed = iso.trim();
+
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 19).replace("T", " ");
+  }
+
+  return trimmed.replace("T", " ").replace(/\.\d+Z?$/, "").replace(/Z$/, "");
 }
 
 /**
