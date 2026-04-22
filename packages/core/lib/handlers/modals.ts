@@ -10,13 +10,28 @@ import {
   TextInputStyle,
 } from "discord.js";
 import { registerModalHandler } from "../interactions.ts";
-import { parseNaturalTime, isValidCron } from "../time.ts";
+import { formatTimeInTimeZone, isValidCron, parseNaturalTime } from "../time.ts";
 import { createAndScheduleReminder } from "./shared.ts";
 
 // --- Modal builders ---
 
 /** Build a reminder creation modal */
-export function buildReminderModal(): ModalBuilder {
+export function getReminderTimeLabel(timeZone?: string | null, now: Date = new Date()): string {
+  return timeZone ? `When (${formatTimeInTimeZone(now, timeZone)})` : "When";
+}
+
+export function getReminderTimePlaceholder(timeZone?: string | null): string {
+  if (!timeZone) return "e.g. 30m, 2h, in 30 min, tomorrow 9am";
+  return `e.g. 30m, 2h, tomorrow 9am (${timeZone})`;
+}
+
+export function buildReminderModal(opts?: {
+  timeZone?: string | null;
+  now?: Date;
+}): ModalBuilder {
+  const timeZone = opts?.timeZone ?? null;
+  const now = opts?.now ?? new Date();
+
   return new ModalBuilder()
     .setCustomId("modal-remind")
     .setTitle("Set a Reminder")
@@ -33,9 +48,9 @@ export function buildReminderModal(): ModalBuilder {
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder()
           .setCustomId("time")
-          .setLabel("When")
+          .setLabel(getReminderTimeLabel(timeZone, now))
           .setStyle(TextInputStyle.Short)
-          .setPlaceholder("e.g. 30m, 2h, in 30 min, tomorrow 9am")
+          .setPlaceholder(getReminderTimePlaceholder(timeZone))
           .setRequired(true)
           .setMaxLength(50)
       ),
@@ -131,8 +146,9 @@ registerModalHandler("modal-remind", async (interaction, _parts, ctx) => {
   const recurring = interaction.fields.getTextInputValue("recurring") || null;
   const nagRaw = interaction.fields.getTextInputValue("nag")?.toLowerCase() || "";
   const nag = nagRaw === "yes" || nagRaw === "y";
+  const timeZone = ctx.config.getUserTimezone(interaction.user.id) || undefined;
 
-  const dueAt = parseNaturalTime(timeStr);
+  const dueAt = parseNaturalTime(timeStr, { timeZone });
   if (!dueAt) {
     await interaction.reply({
       content: `Couldn't parse time: "${timeStr}". Try "in 30 min", "tomorrow 9am", etc.`,

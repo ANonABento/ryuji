@@ -1327,9 +1327,15 @@ export const socialsTools: ToolDef[] = [
   // ─── Twitter/X Tools ──────────────────────────────────────────────────────
 
   {
-    name: "twitter_auth",
-    description: "Login to Twitter/X using credentials from config.json. Caches session cookies for reuse. Owner only.",
-    schema: {},
+    definition: {
+      name: "twitter_auth",
+      description:
+        "Login to Twitter/X using credentials from config.json. Caches session cookies for reuse. Owner only.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {},
+      },
+    },
     handler: async (_args: unknown, ctx: PluginContext) => {
       try {
         const twitterConfig = getTwitterConfig(ctx);
@@ -1343,16 +1349,18 @@ export const socialsTools: ToolDef[] = [
   },
 
   {
-    name: "twitter_post",
-    description: "Post a tweet to the connected X account.",
-    schema: {
-      type: "object" as const,
-      properties: {
-        text: { type: "string", description: "Tweet text (max 280 chars)" },
+    definition: {
+      name: "twitter_post",
+      description: "Post a tweet to the connected X account.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          text: { type: "string", description: "Tweet text (max 280 chars)" },
+        },
+        required: ["text"],
       },
-      required: ["text"],
     },
-    handler: async (args: any, ctx: PluginContext) => {
+    handler: async (args: any, _ctx: PluginContext) => {
       try {
         const client = getTwitterClient();
         const result = await withRetry(
@@ -1367,17 +1375,19 @@ export const socialsTools: ToolDef[] = [
   },
 
   {
-    name: "twitter_post_image",
-    description: "Post a tweet with an image to the connected X account.",
-    schema: {
-      type: "object" as const,
-      properties: {
-        text: { type: "string", description: "Tweet text (max 280 chars)" },
-        image: { type: "string", description: "Absolute file path to image (PNG/JPG/GIF)" },
+    definition: {
+      name: "twitter_post_image",
+      description: "Post a tweet with an image to the connected X account.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          text: { type: "string", description: "Tweet text (max 280 chars)" },
+          image: { type: "string", description: "Absolute file path to image (PNG/JPG/GIF)" },
+        },
+        required: ["text", "image"],
       },
-      required: ["text", "image"],
     },
-    handler: async (args: any, ctx: PluginContext) => {
+    handler: async (args: any, _ctx: PluginContext) => {
       try {
         const client = getTwitterClient();
         const result = await withRetry(
@@ -1392,20 +1402,22 @@ export const socialsTools: ToolDef[] = [
   },
 
   {
-    name: "twitter_thread",
-    description: "Post a thread (multiple chained tweets) to the connected X account.",
-    schema: {
-      type: "object" as const,
-      properties: {
-        tweets: {
-          type: "array",
-          items: { type: "string" },
-          description: "Array of tweet texts, posted in order as a thread",
+    definition: {
+      name: "twitter_thread",
+      description: "Post a thread (multiple chained tweets) to the connected X account.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          tweets: {
+            type: "array",
+            items: { type: "string" },
+            description: "Array of tweet texts, posted in order as a thread",
+          },
         },
+        required: ["tweets"],
       },
-      required: ["tweets"],
     },
-    handler: async (args: any, ctx: PluginContext) => {
+    handler: async (args: any, _ctx: PluginContext) => {
       try {
         const client = getTwitterClient();
         const results = await client.postThread(args.tweets);
@@ -1420,10 +1432,15 @@ export const socialsTools: ToolDef[] = [
   },
 
   {
-    name: "twitter_status",
-    description: "Check Twitter/X authentication status.",
-    schema: {},
-    handler: async (_args: unknown, ctx: PluginContext) => {
+    definition: {
+      name: "twitter_status",
+      description: "Check Twitter/X authentication status.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {},
+      },
+    },
+    handler: async (_args: unknown, _ctx: PluginContext) => {
       try {
         const client = getTwitterClient();
         const status = client.getStatus();

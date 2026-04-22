@@ -187,7 +187,7 @@ export const statusTools: ToolDef[] = [
         "",
         "## What You Can Change (just ask me!)",
         '  **Personality** — "be more sarcastic" / "talk like a pirate"',
-        '  **Memories** — "remember my name is X" / "forget my timezone"',
+        '  **Memories** — "remember my name is X" / `/timezone America/New_York`',
         '  **Reminders** — "remind me in 30min to X" / "cancel reminder #3" / "snooze #1 for 1hr" / "done with #1"',
         '  **Recurring** — "remind me every day at 9am to check PRs"',
         '  **Nag mode** — "remind me to deploy and nag me until I do it"',

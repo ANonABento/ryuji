@@ -19,7 +19,12 @@ import { dirname, join } from "node:path";
 import { VERSION } from "./version.ts";
 import { registerCommand, registerButtonHandler } from "./interactions.ts";
 import { McpProxy } from "./mcp-proxy.ts";
-import { formatDuration, fromSQLiteDatetime } from "./time.ts";
+import {
+  formatDuration,
+  formatTimeInTimeZone,
+  fromSQLiteDatetime,
+  normalizeTimeZone,
+} from "./time.ts";
 import { isOwner, requireOwner } from "./handlers/shared.ts";
 import { buildGhArgs, runGh } from "./handlers/github.ts";
 import { discoverPlugins } from "./plugins.ts";
@@ -37,8 +42,67 @@ registerCommand("remind", {
     .setName("remind")
     .setDescription("Set a reminder via form")
     .toJSON(),
-  handler: async (interaction) => {
-    await interaction.showModal(buildReminderModal());
+  handler: async (interaction, ctx) => {
+    await interaction.showModal(
+      buildReminderModal({
+        timeZone: ctx.config.getUserTimezone(interaction.user.id),
+      })
+    );
+  },
+});
+
+// /timezone — set or view the user's reminder timezone
+registerCommand("timezone", {
+  data: new SlashCommandBuilder()
+    .setName("timezone")
+    .setDescription("Set or view your reminder timezone")
+    .addStringOption((o) =>
+      o
+        .setName("value")
+        .setDescription("IANA timezone, e.g. America/New_York, or 'clear'")
+        .setRequired(false)
+    )
+    .toJSON(),
+  handler: async (interaction, ctx) => {
+    const raw = interaction.options.getString("value")?.trim();
+
+    if (!raw) {
+      const current = ctx.config.getUserTimezone(interaction.user.id);
+      await interaction.reply({
+        content: current
+          ? `Your reminder timezone is **${current}**. Local time there is **${formatTimeInTimeZone(new Date(), current)}**.`
+          : "No reminder timezone set yet. Use `/timezone value:America/New_York` to have `/remind` interpret clock times in your local time.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    if (["clear", "unset", "none"].includes(raw.toLowerCase())) {
+      const cleared = ctx.config.clearUserTimezone(interaction.user.id);
+      await interaction.reply({
+        content: cleared
+          ? "Cleared your reminder timezone. `/remind` will fall back to the server timezone until you set one again."
+          : "No reminder timezone was set.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const normalized = normalizeTimeZone(raw);
+    if (!normalized) {
+      await interaction.reply({
+        content:
+          "Invalid timezone. Use an IANA timezone like `America/New_York`, `Europe/London`, or `Asia/Tokyo`.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    ctx.config.setUserTimezone(interaction.user.id, normalized);
+    await interaction.reply({
+      content: `Reminder timezone set to **${normalized}**. Local time there is **${formatTimeInTimeZone(new Date(), normalized)}**.`,
+      flags: MessageFlags.Ephemeral,
+    });
   },
 });
 
@@ -200,6 +264,7 @@ registerCommand("help", {
           name: "Reminders",
           value: [
             "`/remind` — set a reminder (form)",
+            "`/timezone` — set your local timezone for reminders",
             "`/reminders` — list active reminders",
             "`/cancel <id>` — cancel a reminder",
           ].join("\n"),

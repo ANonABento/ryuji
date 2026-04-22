@@ -7,6 +7,7 @@
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
+import { normalizeTimeZone } from "./time.ts";
 
 export interface Persona {
   name: string;
@@ -45,6 +46,7 @@ export interface Config {
   autoSummarize: boolean;
   plugins: string[];
   voice: VoiceConfig;
+  userTimezones: Record<string, string>;
   socials?: SocialsConfig;
 }
 
@@ -62,6 +64,7 @@ const DEFAULT_CONFIG: Config = {
   autoSummarize: true,
   plugins: [],
   voice: { stt: "auto", tts: "auto", ttsSpeed: 0.7 },
+  userTimezones: {},
 };
 
 function mergeConfig(saved: Partial<Config>): Config {
@@ -85,6 +88,10 @@ function mergeConfig(saved: Partial<Config>): Config {
       ...DEFAULT_CONFIG.voice,
       ...savedVoice,
     },
+    userTimezones:
+      saved.userTimezones && typeof saved.userTimezones === "object"
+        ? saved.userTimezones
+        : { ...DEFAULT_CONFIG.userTimezones },
     ...(savedSocials ? { socials: savedSocials } : {}),
   };
 }
@@ -214,6 +221,30 @@ export class ConfigManager {
 
   getSocialsConfig(): SocialsConfig | undefined {
     return this.config.socials;
+  }
+
+  // --- User preferences ---
+
+  getUserTimezone(userId: string): string | null {
+    return this.config.userTimezones[userId] || null;
+  }
+
+  setUserTimezone(userId: string, timeZone: string): string {
+    const normalized = normalizeTimeZone(timeZone);
+    if (!normalized) {
+      throw new Error(`Invalid timezone: ${timeZone}`);
+    }
+
+    this.config.userTimezones[userId] = normalized;
+    this.save();
+    return normalized;
+  }
+
+  clearUserTimezone(userId: string): boolean {
+    if (!this.config.userTimezones[userId]) return false;
+    delete this.config.userTimezones[userId];
+    this.save();
+    return true;
   }
 
   // --- Full config ---

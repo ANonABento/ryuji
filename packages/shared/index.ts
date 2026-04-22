@@ -25,7 +25,11 @@ export {
   relativeTime,
   parseNaturalTime,
   isValidCron,
+  normalizeTimeZone,
+  isValidTimeZone,
+  formatTimeInTimeZone,
 } from "./time.ts";
+export type { ParseNaturalTimeOptions } from "./time.ts";
 
 // Version
 export { VERSION } from "./version.ts";

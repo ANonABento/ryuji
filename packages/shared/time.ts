@@ -13,6 +13,11 @@ export const MS_PER_MIN = 60_000;
 export const MS_PER_HOUR = 3_600_000;
 export const MS_PER_DAY = 86_400_000;
 
+export interface ParseNaturalTimeOptions {
+  now?: Date;
+  timeZone?: string;
+}
+
 // --- SQLite formatting ---
 
 /**
@@ -90,10 +95,146 @@ export function relativeTime(isoDate: string): string {
 
 // --- Natural time parsing ---
 
+function getFormatter(
+  timeZone: string,
+  opts: Intl.DateTimeFormatOptions
+): Intl.DateTimeFormat {
+  return new Intl.DateTimeFormat("en-US", { timeZone, ...opts });
+}
+
+export function normalizeTimeZone(timeZone: string): string | null {
+  try {
+    return getFormatter(timeZone, { hour: "numeric" }).resolvedOptions().timeZone;
+  } catch {
+    return null;
+  }
+}
+
+export function isValidTimeZone(timeZone: string): boolean {
+  return normalizeTimeZone(timeZone) !== null;
+}
+
+export function formatTimeInTimeZone(date: Date, timeZone: string): string {
+  return getFormatter(timeZone, {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(date);
+}
+
+interface TimeZoneParts {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+}
+
+function getTimeZoneParts(date: Date, timeZone: string): TimeZoneParts {
+  const parts = getFormatter(timeZone, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const read = (type: string) => {
+    const value = parts.find((part) => part.type === type)?.value;
+    return value ? parseInt(value, 10) : 0;
+  };
+
+  return {
+    year: read("year"),
+    month: read("month"),
+    day: read("day"),
+    hour: read("hour"),
+    minute: read("minute"),
+    second: read("second"),
+  };
+}
+
+function toUtcPartsValue(parts: TimeZoneParts): number {
+  return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+}
+
+function shiftLocalDate(parts: TimeZoneParts, days: number): TimeZoneParts {
+  const shifted = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  shifted.setUTCDate(shifted.getUTCDate() + days);
+  return {
+    ...parts,
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth() + 1,
+    day: shifted.getUTCDate(),
+  };
+}
+
+function zonedDateToUtc(parts: TimeZoneParts, timeZone: string): Date {
+  let guess = toUtcPartsValue(parts);
+  for (let i = 0; i < 3; i++) {
+    const actual = getTimeZoneParts(new Date(guess), timeZone);
+    const diff = toUtcPartsValue(parts) - toUtcPartsValue(actual);
+    if (diff === 0) break;
+    guess += diff;
+  }
+  return new Date(guess);
+}
+
+function setHoursInTimeZone(
+  now: Date,
+  timeZone: string,
+  hour: number,
+  minute: number,
+  nextDayIfPast: boolean
+): Date {
+  const localNow = getTimeZoneParts(now, timeZone);
+  let target = zonedDateToUtc(
+    {
+      ...localNow,
+      hour,
+      minute,
+      second: 0,
+    },
+    timeZone
+  );
+
+  if (nextDayIfPast && target <= now) {
+    const tomorrow = shiftLocalDate(localNow, 1);
+    target = zonedDateToUtc(
+      {
+        ...tomorrow,
+        hour,
+        minute,
+        second: 0,
+      },
+      timeZone
+    );
+  }
+
+  return target;
+}
+
+function parseClockTime(match: RegExpMatchArray): { hour: number; minute: number } {
+  let hour = parseInt(match[1], 10);
+  const minute = match[2] ? parseInt(match[2], 10) : 0;
+
+  if (match[3] === "pm" && hour < 12) hour += 12;
+  if (match[3] === "am" && hour === 12) hour = 0;
+
+  return { hour, minute };
+}
+
 /** Parse natural time expressions into a Date. Returns null if unparseable. */
-export function parseNaturalTime(input: string): Date | null {
-  const now = new Date();
+export function parseNaturalTime(
+  input: string,
+  options: ParseNaturalTimeOptions = {}
+): Date | null {
+  const now = options.now ?? new Date();
   const lower = input.toLowerCase().trim();
+  const timeZone = options.timeZone ? normalizeTimeZone(options.timeZone) : null;
 
   // Shorthand: "30s", "5m", "2h", "3d" (no spaces, no "in")
   let match = lower.match(/^(\d+)\s*(s|sec|secs|seconds?)$/);
@@ -150,14 +291,33 @@ export function parseNaturalTime(input: string): Date | null {
   // "tomorrow" or "tomorrow at Xam/pm"
   match = lower.match(/^tomorrow(?:\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?)?$/);
   if (match) {
+    if (timeZone) {
+      const tomorrow = shiftLocalDate(getTimeZoneParts(now, timeZone), 1);
+      const { hour, minute } = match[1]
+        ? parseClockTime([match[0], match[1], match[2] ?? "", match[3] ?? ""] as RegExpMatchArray)
+        : { hour: 9, minute: 0 };
+
+      return zonedDateToUtc(
+        {
+          ...tomorrow,
+          hour,
+          minute,
+          second: 0,
+        },
+        timeZone
+      );
+    }
+
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
     if (match[1]) {
-      let hours = parseInt(match[1]);
-      const mins = match[2] ? parseInt(match[2]) : 0;
-      if (match[3] === "pm" && hours < 12) hours += 12;
-      if (match[3] === "am" && hours === 12) hours = 0;
-      tomorrow.setHours(hours, mins, 0, 0);
+      const { hour, minute } = parseClockTime([
+        match[0],
+        match[1],
+        match[2] ?? "",
+        match[3] ?? "",
+      ] as RegExpMatchArray);
+      tomorrow.setHours(hour, minute, 0, 0);
     } else {
       tomorrow.setHours(9, 0, 0, 0); // Default to 9am
     }
@@ -165,14 +325,16 @@ export function parseNaturalTime(input: string): Date | null {
   }
 
   // "Xam/pm" or "X:YY am/pm" (today or tomorrow if past)
-  match = lower.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/);
+  match = lower.match(/^(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/);
   if (match) {
-    let hours = parseInt(match[1]);
-    const mins = match[2] ? parseInt(match[2]) : 0;
-    if (match[3] === "pm" && hours < 12) hours += 12;
-    if (match[3] === "am" && hours === 12) hours = 0;
+    const { hour, minute } = parseClockTime(match);
+
+    if (timeZone) {
+      return setHoursInTimeZone(now, timeZone, hour, minute, true);
+    }
+
     const target = new Date(now);
-    target.setHours(hours, mins, 0, 0);
+    target.setHours(hour, minute, 0, 0);
     if (target <= now) target.setDate(target.getDate() + 1);
     return target;
   }
