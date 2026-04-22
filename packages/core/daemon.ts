@@ -30,6 +30,12 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import { readFile, writeFile, unlink, mkdir } from "node:fs/promises";
 import { findMonorepoRoot } from "@choomfie/shared";
+import {
+  cloneBufferedMessage,
+  composeHandoffSummary,
+  trackConversationActivity,
+  type ConversationActivity,
+} from "./lib/daemon-handoff.ts";
 
 // --- Constants ---
 
@@ -92,6 +98,7 @@ type MetaState = {
   totalCostUsd: number;
   sessionStartTime: number;
   messageQueue: SDKUserMessage[];
+  activeConversations: ConversationActivity[];
   contextCheckTimer: ReturnType<typeof setInterval> | null;
   contextCheckFailures: number;
   restartBackoff: number;
@@ -332,6 +339,9 @@ async function startSession(
       },
       persistSession: true,
       includePartialMessages: false,
+      settings: {
+        channelsEnabled: true,
+      },
       settingSources: ["user", "project"],
       cwd: PLUGIN_DIR,
     },
@@ -364,7 +374,7 @@ async function startSession(
   if (state.messageQueue.length > 0) {
     log(`Replaying ${state.messageQueue.length} queued messages`);
     for (const msg of state.messageQueue) {
-      push(msg);
+      push(cloneBufferedMessage(msg));
     }
     state.messageQueue = [];
   }
@@ -387,6 +397,7 @@ async function startSession(
           "If no channel was active, skip this.",
       },
       parent_tool_use_id: null,
+      isSynthetic: true,
     });
   }
 }
@@ -462,6 +473,19 @@ async function handleStreamError(state: MetaState, err: any): Promise<void> {
 
 function handleSessionMessage(state: MetaState, message: SDKMessage): void {
   switch (message.type) {
+    case "user": {
+      const userMessage = message as SDKUserMessage;
+      state.activeConversations = trackConversationActivity(state.activeConversations, userMessage);
+
+      if (!userMessage.isSynthetic && state.state !== "ACTIVE") {
+        state.messageQueue.push(cloneBufferedMessage(userMessage));
+        log(
+          `Buffered inbound Discord message during ${state.state} (${state.messageQueue.length} queued)`
+        );
+      }
+      break;
+    }
+
     case "result": {
       const result = message as SDKResultMessage;
       if (result.subtype === "success") {
@@ -579,7 +603,11 @@ function shouldCycle(state: MetaState, contextTokens?: number): boolean {
  */
 async function captureHandoffSummary(state: MetaState): Promise<string> {
   if (!state.pushMessage || !state.session) {
-    return "No summary available (no active session)";
+    return composeHandoffSummary(
+      "No summary available (no active session).",
+      state.activeConversations,
+      state.messageQueue.length
+    );
   }
 
   // Push the handoff request
@@ -599,6 +627,7 @@ async function captureHandoffSummary(state: MetaState): Promise<string> {
         "Do NOT use any tools — just output the summary text.",
     },
     parent_tool_use_id: null,
+    isSynthetic: true,
   });
 
   // Wait for the result using a promise-based approach
@@ -607,23 +636,39 @@ async function captureHandoffSummary(state: MetaState): Promise<string> {
     // The result.result field contains the assistant's text response
     if (result.result && result.result.length > 0) {
       log(`Captured handoff summary (${result.result.length} chars)`);
-      return result.result;
+      return composeHandoffSummary(
+        result.result,
+        state.activeConversations,
+        state.messageQueue.length
+      );
     }
     // Fallback: use the last assistant text we saw
     if (state.lastAssistantText) {
       log(`Using lastAssistantText as summary (${state.lastAssistantText.length} chars)`);
-      return state.lastAssistantText;
+      return composeHandoffSummary(
+        state.lastAssistantText,
+        state.activeConversations,
+        state.messageQueue.length
+      );
     }
   } catch (err: any) {
     log(`Handoff summary capture failed: ${err.message || err}`);
     // Try the last assistant text as fallback
     if (state.lastAssistantText) {
       log("Falling back to last assistant text for summary");
-      return state.lastAssistantText;
+      return composeHandoffSummary(
+        state.lastAssistantText,
+        state.activeConversations,
+        state.messageQueue.length
+      );
     }
   }
 
-  return `Session cycled at ${state.turnCount} turns, ~${state.totalInputTokens} tokens, $${state.totalCostUsd.toFixed(4)}`;
+  return composeHandoffSummary(
+    `Session cycled at ${state.turnCount} turns, ~${state.totalInputTokens} tokens, $${state.totalCostUsd.toFixed(4)}`,
+    state.activeConversations,
+    state.messageQueue.length
+  );
 }
 
 /**
@@ -725,6 +770,7 @@ async function testCycle(): Promise<void> {
       content: "Say hello and tell me your current persona name. Keep it brief.",
     },
     parent_tool_use_id: null,
+    isSynthetic: true,
   });
 
   // Wait for response
@@ -780,6 +826,7 @@ async function testCycle(): Promise<void> {
         "Do you have any handoff context from a previous session? Just say yes or no briefly.",
     },
     parent_tool_use_id: null,
+    isSynthetic: true,
   });
 
   try {
@@ -819,6 +866,7 @@ async function benchmark(): Promise<void> {
         content: "Respond with exactly the word 'ok' and nothing else.",
       },
       parent_tool_use_id: null,
+      isSynthetic: true,
     });
 
     try {
@@ -1002,6 +1050,7 @@ function createInitialState(): MetaState {
     totalCostUsd: 0,
     sessionStartTime: 0,
     messageQueue: [],
+    activeConversations: [],
     contextCheckTimer: null,
     contextCheckFailures: 0,
     restartBackoff: INITIAL_RESTART_BACKOFF,
