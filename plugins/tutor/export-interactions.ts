@@ -17,9 +17,8 @@ import {
   formatAnkiTSV,
   buildExportFilename,
   writeAnkiExport,
+  truncateBody,
 } from "./core/anki-export.ts";
-
-const MAX_BYTES = 20 * 1024 * 1024;
 
 registerCommand("export", {
   data: new SlashCommandBuilder()
@@ -62,15 +61,7 @@ registerCommand("export", {
       return;
     }
 
-    let body = formatAnkiTSV(cards, deck);
-    let truncated = false;
-    if (Buffer.byteLength(body, "utf8") > MAX_BYTES) {
-      const buf = Buffer.from(body, "utf8").subarray(0, MAX_BYTES);
-      const cut = buf.lastIndexOf(0x0a);
-      body =
-        buf.subarray(0, cut > 0 ? cut : buf.length).toString("utf8") + "\n";
-      truncated = true;
-    }
+    const { body, truncated } = truncateBody(formatAnkiTSV(cards, deck));
 
     const filename = buildExportFilename(deck, tag);
     const path = await writeAnkiExport(`${ctx.DATA_DIR}/exports`, filename, body);

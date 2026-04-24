@@ -14,9 +14,8 @@ import {
   formatAnkiTSV,
   buildExportFilename,
   writeAnkiExport,
+  truncateBody,
 } from "../core/anki-export.ts";
-
-const MAX_BYTES = 20 * 1024 * 1024; // Discord cap is 25MB; stay under it.
 
 export const exportTools: ToolDef[] = [
   {
@@ -63,15 +62,7 @@ export const exportTools: ToolDef[] = [
         return err("No cards match that filter.");
       }
 
-      let body = formatAnkiTSV(cards, deck);
-      let truncated = false;
-      if (Buffer.byteLength(body, "utf8") > MAX_BYTES) {
-        // Truncate to just under the cap on a line boundary.
-        const buf = Buffer.from(body, "utf8").subarray(0, MAX_BYTES);
-        const cut = buf.lastIndexOf(0x0a); // last '\n'
-        body = buf.subarray(0, cut > 0 ? cut : buf.length).toString("utf8") + "\n";
-        truncated = true;
-      }
+      const { body, truncated } = truncateBody(formatAnkiTSV(cards, deck));
 
       const filename = buildExportFilename(deck, tag);
       const dir = `${ctx.DATA_DIR}/exports`;

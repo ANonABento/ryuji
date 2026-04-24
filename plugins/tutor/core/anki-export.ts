@@ -2,7 +2,6 @@
  * Anki flashcard export — pure, Discord-free.
  *
  * Emits a 4-column TSV (Front, Reading, Back, Tags) with Anki header directives.
- * See .task.md for format rationale.
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
@@ -97,4 +96,20 @@ export async function writeAnkiExport(
   const path = join(dir, filename);
   await writeFile(path, body, "utf8");
   return path;
+}
+
+// Discord's hard cap is 25MB; stay 5MB under it to leave room for metadata.
+const EXPORT_MAX_BYTES = 20 * 1024 * 1024;
+
+/** Truncate TSV body to fit Discord's attachment limit on a line boundary. */
+export function truncateBody(body: string): { body: string; truncated: boolean } {
+  if (Buffer.byteLength(body, "utf8") <= EXPORT_MAX_BYTES) {
+    return { body, truncated: false };
+  }
+  const buf = Buffer.from(body, "utf8").subarray(0, EXPORT_MAX_BYTES);
+  const cut = buf.lastIndexOf(0x0a);
+  return {
+    body: buf.subarray(0, cut > 0 ? cut : buf.length).toString("utf8") + "\n",
+    truncated: true,
+  };
 }
