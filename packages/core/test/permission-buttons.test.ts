@@ -1,17 +1,7 @@
-/**
- * Unit tests for permission button handler.
- *
- * Covers the builder shape, owner-only guard, allow/deny notification wiring,
- * and malformed-customId short-circuits. No real Discord client — just lightweight
- * fakes in the style of plugins.test.ts.
- */
-
 import { test, expect } from "bun:test";
 import { ButtonStyle, MessageFlags } from "discord.js";
 import { buttonHandlers } from "@choomfie/shared";
 import { buildPermissionButtons } from "../lib/handlers/permission-buttons.ts";
-// Side-effect import: registers the "permission" handler.
-import "../lib/handlers/permission-buttons.ts";
 
 // --- Tiny spy helper ---
 

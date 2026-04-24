@@ -1,11 +1,3 @@
-/**
- * Permission approval button builders + click handler.
- *
- * Lets the owner approve/deny a tool permission request via Discord buttons
- * instead of typing `yes/no <code>`. Falls back to text-only flow in permissions.ts
- * if the component send fails (e.g. user has DMs restricted or button dispatch down).
- */
-
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -13,7 +5,6 @@ import {
   MessageFlags,
 } from "discord.js";
 import { registerButtonHandler } from "../interactions.ts";
-import type { AppContext } from "../types.ts";
 
 /** Build Approve/Deny button row for a permission request */
 export function buildPermissionButtons(
@@ -48,8 +39,7 @@ registerButtonHandler("permission", async (interaction, parts, ctx) => {
   }
 
   // Owner-only: DMs reach only the owner, but enforce here too (defense-in-depth).
-  const appCtx = ctx as AppContext;
-  const ownerId = appCtx.ownerUserId;
+  const ownerId = ctx.ownerUserId;
   if (!ownerId || interaction.user.id !== ownerId) {
     await interaction.reply({
       content: "Only the owner can approve permission requests.",
@@ -58,9 +48,8 @@ registerButtonHandler("permission", async (interaction, parts, ctx) => {
     return;
   }
 
-  // Fire the permission decision back to Claude via the MCP notification channel.
   // Mirrors the text-reply path in discord.ts.
-  appCtx.mcp?.notification?.({
+  ctx.mcp?.notification?.({
     method: "notifications/claude/channel/permission",
     params: {
       request_id: requestId,
