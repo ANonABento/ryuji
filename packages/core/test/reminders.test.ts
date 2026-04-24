@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, jest, mock, test } from "bun:test";
 import type { Reminder } from "../lib/memory.ts";
 import { ReminderScheduler } from "../lib/reminders.ts";
-import { MS_PER_MIN, dateToSQLite } from "../lib/time.ts";
+import { MS_PER_DAY, MS_PER_HOUR, MS_PER_MIN, dateToSQLite } from "../lib/time.ts";
+
+const MAX_TIMEOUT_MS = 2_147_483_647;
 
 type StoredReminder = Reminder & { fired: number };
 
@@ -253,5 +255,170 @@ describe("ReminderScheduler", () => {
         content: "**Reminder** for <@user-1>: Pay rent 🔔",
       })
     );
+  });
+
+  test.each<[string, string]>([
+    ["daily", "2026-04-23 12:00:05"],
+    ["weekly", "2026-04-29 12:00:05"],
+    ["monthly", "2026-05-22 12:00:05"],
+    ["every 15m", "2026-04-22 12:15:05"],
+    ["every 2h", "2026-04-22 14:00:05"],
+    ["every 3d", "2026-04-25 12:00:05"],
+  ])("schedules %s cron successor with expected dueAt", async (cron, expectedDueAt) => {
+    const original = createReminder({ cron, dueAt: "2026-04-22 12:00:05" });
+    const { ctx, scheduler, send, state } = createHarness([original]);
+
+    scheduler.init(ctx);
+    jest.advanceTimersByTime(5_000);
+    await flushAsyncWork();
+
+    expect(send).toHaveBeenCalledTimes(1);
+    const successor = [...state.values()].find((r) => r.id !== original.id);
+    expect(successor).toBeDefined();
+    expect(successor?.dueAt).toBe(expectedDueAt);
+    expect(successor?.cron).toBe(cron);
+    expect(scheduler.activeTimerCount).toBe(1);
+  });
+
+  test("does not create a successor for an unknown cron pattern", async () => {
+    const original = createReminder({ cron: "never", dueAt: "2026-04-22 12:00:05" });
+    const { ctx, scheduler, send, state } = createHarness([original]);
+
+    scheduler.init(ctx);
+    jest.advanceTimersByTime(5_000);
+    await flushAsyncWork();
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(state.get(original.id)?.fired).toBe(1);
+    expect(state.size).toBe(1);
+    expect(scheduler.activeTimerCount).toBe(0);
+  });
+
+  test("clearTimer cancels a pending reminder before it fires", async () => {
+    const reminder = createReminder({ dueAt: "2026-04-22 18:00:00" });
+    const { ctx, scheduler, send } = createHarness([reminder]);
+
+    scheduler.init(ctx);
+    expect(scheduler.activeTimerCount).toBe(1);
+
+    scheduler.clearTimer(reminder.id);
+    expect(scheduler.activeTimerCount).toBe(0);
+
+    jest.advanceTimersByTime(10 * MS_PER_HOUR);
+    await flushAsyncWork();
+    expect(send).toHaveBeenCalledTimes(0);
+  });
+
+  test("forwards cron + nagInterval + category onto the recurrence and starts a nag timer", async () => {
+    const original = createReminder({
+      cron: "hourly",
+      nagInterval: 1,
+      category: "bills",
+      dueAt: "2026-04-22 12:00:05",
+    });
+    const { ctx, scheduler, send, state } = createHarness([original]);
+
+    scheduler.init(ctx);
+    jest.advanceTimersByTime(5_000);
+    await flushAsyncWork();
+
+    expect(send).toHaveBeenCalledTimes(1);
+    const successor = [...state.values()].find((r) => r.id !== original.id);
+    expect(successor).toBeDefined();
+    expect(successor?.cron).toBe("hourly");
+    expect(successor?.nagInterval).toBe(1);
+    expect(successor?.category).toBe("bills");
+    expect(successor?.dueAt).toBe("2026-04-22 13:00:05");
+    expect(scheduler.activeNagCount).toBe(1);
+
+    jest.advanceTimersByTime(MS_PER_MIN);
+    await flushAsyncWork();
+
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({
+        content: expect.stringContaining("**Nag** [bills]"),
+      })
+    );
+    expect(scheduler.activeNagCount).toBe(1);
+  });
+
+  test("still marks a reminder fired when the channel fetch throws", async () => {
+    const reminder = createReminder({ dueAt: "2026-04-22 12:00:05" });
+    const { ctx, fetch, scheduler, send, state } = createHarness([reminder]);
+    fetch.mockImplementation(async () => {
+      throw new Error("channel not accessible");
+    });
+
+    scheduler.init(ctx);
+    jest.advanceTimersByTime(5_000);
+    await flushAsyncWork();
+
+    expect(send).toHaveBeenCalledTimes(0);
+    expect(state.get(reminder.id)?.fired).toBe(1);
+  });
+
+  test("re-arms long-horizon timers past MAX_TIMEOUT_MS", async () => {
+    // 30 days out — well past the 24.8-day setTimeout ceiling
+    const reminder = createReminder({ dueAt: "2026-05-22 12:00:00" });
+    const { ctx, scheduler, send } = createHarness([reminder]);
+
+    scheduler.init(ctx);
+    expect(scheduler.activeTimerCount).toBe(1);
+
+    jest.advanceTimersByTime(MAX_TIMEOUT_MS);
+    await flushAsyncWork();
+    expect(send).toHaveBeenCalledTimes(0);
+    expect(scheduler.activeTimerCount).toBe(1);
+
+    const totalSpanMs = 30 * MS_PER_DAY;
+    const remainingMs = totalSpanMs - MAX_TIMEOUT_MS;
+    jest.advanceTimersByTime(remainingMs);
+    await flushAsyncWork();
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(scheduler.activeTimerCount).toBe(0);
+  });
+
+  test("destroy clears all fire and nag timers", async () => {
+    const nagging = createReminder({
+      fired: 1,
+      nagInterval: 1,
+      dueAt: "2026-04-22 11:59:00",
+      lastNagAt: "2026-04-22 11:58:00",
+    });
+    const pending = createReminder({ id: 2, dueAt: "2026-04-22 18:00:00" });
+    const { ctx, scheduler, send } = createHarness([nagging, pending]);
+
+    scheduler.init(ctx);
+    // Let any overdue nag re-fire immediately so we can snapshot the baseline
+    jest.advanceTimersByTime(0);
+    await flushAsyncWork();
+    const baselineSends = send.mock.calls.length;
+
+    scheduler.destroy();
+    expect(scheduler.activeTimerCount).toBe(0);
+    expect(scheduler.activeNagCount).toBe(0);
+
+    jest.advanceTimersByTime(24 * MS_PER_HOUR);
+    await flushAsyncWork();
+    expect(send).toHaveBeenCalledTimes(baselineSends);
+  });
+
+  test("scheduleReminder called twice for the same ID replaces the existing timer", async () => {
+    const reminder = createReminder({ dueAt: "2026-04-22 12:00:05" });
+    const { ctx, scheduler, send } = createHarness([reminder]);
+
+    scheduler.init(ctx);
+    expect(scheduler.activeTimerCount).toBe(1);
+
+    scheduler.scheduleReminder(reminder);
+    expect(scheduler.activeTimerCount).toBe(1);
+
+    jest.advanceTimersByTime(5_000);
+    await flushAsyncWork();
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(scheduler.activeTimerCount).toBe(0);
   });
 });
