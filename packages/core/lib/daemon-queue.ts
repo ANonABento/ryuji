@@ -1,10 +1,4 @@
-/**
- * Daemon persistence helpers — disk-backed buffers for messages and
- * active conversations. Factored out of daemon.ts so tests can exercise
- * the queue without booting a real daemon (daemon.ts runs main() at import).
- *
- * Pure I/O: no MCP, Discord, or Agent SDK imports.
- */
+// Factored out of daemon.ts so tests can exercise I/O without booting the daemon.
 
 import { appendFile, readFile, writeFile, unlink, mkdir, rename } from "node:fs/promises";
 import { dirname } from "node:path";

@@ -168,10 +168,7 @@ export function composeHandoffSummary(
 export function cloneBufferedMessage(msg: SDKUserMessage): SDKUserMessage {
   return {
     ...msg,
-    message: {
-      ...msg.message,
-      content: msg.message.content,
-    },
+    message: { ...msg.message },
     session_id: undefined,
     uuid: undefined,
   };

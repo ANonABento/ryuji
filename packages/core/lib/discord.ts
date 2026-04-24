@@ -48,7 +48,6 @@ async function buildChannelNotificationMeta(
 ): Promise<ChannelNotificationPayload> {
   const userId = message.author.id;
   const isDM = !message.guild;
-  const isMentionedHere = !isDM && message.mentions.has(botUserId);
   const isOwner = ctx.ownerUserId
     ? userId === ctx.ownerUserId
     : ctx.allowedUsers.size === 0;
@@ -63,7 +62,7 @@ async function buildChannelNotificationMeta(
     role: isOwner ? "owner" : "user",
   };
 
-  if (opts.conversationMode && !isDM && !isMentionedHere) {
+  if (opts.conversationMode) {
     meta.conversation_mode = "true";
   }
 
