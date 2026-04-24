@@ -27,7 +27,7 @@ describe("plugin tool registration", () => {
     ]);
   });
 
-  test("tutor plugin exports 11 tools", async () => {
+  test("tutor plugin exports 12 tools", async () => {
     const mod = await import("@choomfie/tutor");
     const plugin = mod.default;
     const names = (plugin.tools ?? []).map((t: any) => t.definition.name);
@@ -41,8 +41,9 @@ describe("plugin tool registration", () => {
     expect(names).toContain("srs_review");
     expect(names).toContain("srs_rate");
     expect(names).toContain("srs_stats");
+    expect(names).toContain("srs_export");
     expect(names).toContain("lesson_status");
-    expect(names.length).toBe(11);
+    expect(names.length).toBe(12);
   });
 
   test("socials plugin exports 28 tools", async () => {

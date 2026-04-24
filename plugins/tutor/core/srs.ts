@@ -195,6 +195,33 @@ export class SRSManager {
     return { total, due, learned };
   }
 
+  exportCards(
+    userId: string,
+    filter?: { deck?: string; tag?: string }
+  ): SRSCard[] {
+    const deck = filter?.deck;
+    const tag = filter?.tag;
+
+    const query = deck
+      ? `SELECT * FROM srs_cards WHERE user_id = ? AND deck = ? ORDER BY id ASC`
+      : `SELECT * FROM srs_cards WHERE user_id = ? ORDER BY id ASC`;
+    const params = deck ? [userId, deck] : [userId];
+    const rows = this.db.query(query).all(...params) as any[];
+    const cards = rows.map(this.rowToCard);
+
+    if (!tag) return cards;
+
+    // Exact match against comma-split tag list — avoids substring false positives
+    return cards.filter((c) => {
+      if (!c.tags) return false;
+      return c.tags
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean)
+        .includes(tag);
+    });
+  }
+
   hasDeck(userId: string, deck: string): boolean {
     const count = (
       this.db

@@ -20,6 +20,8 @@ import { japaneseLessons, japaneseUnits } from "./modules/japanese/lessons/index
 
 // Side-effect import: registers /lesson, /progress commands + button handlers
 import "./lesson-interactions.ts";
+// Side-effect import: registers /export command
+import "./export-interactions.ts";
 import { hasActiveTypingExercise, handleTypedAnswer } from "./lesson-interactions.ts";
 import {
   EmbedBuilder,
@@ -78,6 +80,7 @@ const tutorPlugin: Plugin = {
     "srs_review",
     "srs_rate",
     "srs_stats",
+    "srs_export",
     "lesson_status",
     "convert_kana",
   ],

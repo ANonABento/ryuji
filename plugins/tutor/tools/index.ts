@@ -7,6 +7,7 @@ import { srsTools } from "./srs-tools.ts";
 import { tutorTools } from "./tutor-tools.ts";
 import { moduleTools } from "./module-tools.ts";
 import { lessonTools } from "./lesson-tools.ts";
+import { exportTools } from "./export-tools.ts";
 import { getAllModuleTools } from "../modules/index.ts";
 
 export function getAllTutorTools(): ToolDef[] {
@@ -15,6 +16,7 @@ export function getAllTutorTools(): ToolDef[] {
     ...moduleTools,
     ...srsTools,
     ...lessonTools,
+    ...exportTools,
     ...getAllModuleTools(),
   ];
 }
