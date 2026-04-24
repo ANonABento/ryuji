@@ -341,3 +341,60 @@ test("close() closes the underlying database so further queries throw", async ()
 
   expect(() => store.getCoreMemory()).toThrow();
 });
+
+test("getUnackedReminders returns fired+unacked nag reminders, optionally scoped by user", async () => {
+  const store = await createStore();
+  const dueAt = dateToSQLite(new Date());
+
+  const a = store.addReminder("user-a", "c", "nag a", dueAt, { nagInterval: 5 });
+  const b = store.addReminder("user-b", "c", "nag b", dueAt, { nagInterval: 5 });
+  // Fired+acked — should NOT appear
+  const acked = store.addReminder("user-a", "c", "acked", dueAt, { nagInterval: 5 });
+  // Fired but no nagInterval — should NOT appear
+  const noNag = store.addReminder("user-a", "c", "no nag", dueAt);
+  // Unfired — should NOT appear
+  store.addReminder("user-a", "c", "pending", dueAt, { nagInterval: 5 });
+
+  store.markReminderFired(a);
+  store.markReminderFired(b);
+  store.markReminderFired(acked);
+  store.ackReminder(acked);
+  store.markReminderFired(noNag);
+
+  const all = store.getUnackedReminders();
+  const mine = store.getUnackedReminders("user-a");
+  store.close();
+
+  expect(all.map((r) => r.id).sort()).toEqual([a, b].sort());
+  expect(mine.map((r) => r.id)).toEqual([a]);
+});
+
+test("getReminderHistory returns fired reminders in due-DESC order honoring limit", async () => {
+  const store = await createStore();
+  const db = (store as any).db as import("bun:sqlite").Database;
+
+  const ids = [
+    store.addReminder("u", "c", "r1", dateToSQLite(new Date())),
+    store.addReminder("u", "c", "r2", dateToSQLite(new Date())),
+    store.addReminder("u", "c", "r3", dateToSQLite(new Date())),
+    store.addReminder("u", "c", "r4", dateToSQLite(new Date())),
+  ];
+  // Unfired — should NOT appear
+  store.addReminder("u", "c", "pending", dateToSQLite(new Date()));
+
+  // Stamp deterministic due_at so ordering is unambiguous
+  const days = ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"];
+  for (let i = 0; i < ids.length; i += 1) {
+    store.markReminderFired(ids[i]!);
+    db.query("UPDATE reminders SET due_at = ? WHERE id = ?")
+      .run(`${days[i]} 12:00:00`, ids[i]!);
+  }
+
+  const limited = store.getReminderHistory(2);
+  const all = store.getReminderHistory();
+  store.close();
+
+  expect(limited.map((r) => r.message)).toEqual(["r4", "r3"]);
+  expect(all).toHaveLength(4);
+  expect(all.map((r) => r.message)).toEqual(["r4", "r3", "r2", "r1"]);
+});
