@@ -110,9 +110,6 @@ export function normalizeTimeZone(timeZone: string): string | null {
   }
 }
 
-export function isValidTimeZone(timeZone: string): boolean {
-  return normalizeTimeZone(timeZone) !== null;
-}
 
 export function formatTimeInTimeZone(date: Date, timeZone: string): string {
   return getFormatter(timeZone, {

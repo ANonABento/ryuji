@@ -104,7 +104,7 @@ registerButtonHandler("reminder", async (interaction, parts, ctx) => {
     if (option.type === "tomorrow") {
       const timeZone = ctx.config.getUserTimezone(reminder.userId) ?? undefined;
       const parsed = timeZone
-        ? parseNaturalTime("tomorrow 9am", { timeZone, now: new Date() })
+        ? parseNaturalTime("tomorrow 9am", { timeZone })
         : null;
       newDueDate = parsed ?? new Date(Date.now() + MS_PER_DAY);
     } else {

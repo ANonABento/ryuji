@@ -26,7 +26,6 @@ export {
   parseNaturalTime,
   isValidCron,
   normalizeTimeZone,
-  isValidTimeZone,
   formatTimeInTimeZone,
 } from "./time.ts";
 export type { ParseNaturalTimeOptions } from "./time.ts";

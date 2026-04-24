@@ -16,11 +16,11 @@ import { createAndScheduleReminder } from "./shared.ts";
 // --- Modal builders ---
 
 /** Build a reminder creation modal */
-export function getReminderTimeLabel(timeZone?: string | null, now: Date = new Date()): string {
+function getReminderTimeLabel(timeZone?: string | null, now: Date = new Date()): string {
   return timeZone ? `When (${formatTimeInTimeZone(now, timeZone)})` : "When";
 }
 
-export function getReminderTimePlaceholder(timeZone?: string | null): string {
+function getReminderTimePlaceholder(timeZone?: string | null): string {
   if (!timeZone) return "e.g. 30m, 2h, in 30 min, tomorrow 9am";
   return `e.g. 30m, 2h, tomorrow 9am (${timeZone})`;
 }
@@ -146,7 +146,7 @@ registerModalHandler("modal-remind", async (interaction, _parts, ctx) => {
   const recurring = interaction.fields.getTextInputValue("recurring") || null;
   const nagRaw = interaction.fields.getTextInputValue("nag")?.toLowerCase() || "";
   const nag = nagRaw === "yes" || nagRaw === "y";
-  const timeZone = ctx.config.getUserTimezone(interaction.user.id) || undefined;
+  const timeZone = ctx.config.getUserTimezone(interaction.user.id) ?? undefined;
 
   const dueAt = parseNaturalTime(timeStr, { timeZone });
   if (!dueAt) {
