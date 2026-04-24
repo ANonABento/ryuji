@@ -164,14 +164,35 @@ async function runGapRecovery(ctx: AppContext, botUserId: string): Promise<void>
         if (message.author.id === botUserId) continue;
         if (message.createdTimestamp <= lastCycleAt) continue;
 
+        // Apply the same access gate as live MessageCreate so gap recovery
+        // can't bypass the allowlist. Bootstrap mode (empty allowlist) passes
+        // through, matching live behavior.
+        if (
+          ctx.allowedUsers.size > 0 &&
+          !ctx.allowedUsers.has(message.author.id)
+        ) {
+          continue;
+        }
+
         let replyToUserId: string | null = null;
+        let isReplyToBot = false;
         if (message.reference?.messageId) {
           try {
             const refMsg = await message.channel.messages.fetch(
               message.reference.messageId
             );
             replyToUserId = refMsg.author.id;
+            isReplyToBot = refMsg.author.id === botUserId;
           } catch {}
+        }
+
+        // Apply guild trigger rules from live MessageCreate: in a guild,
+        // only forward messages that @mention the bot or reply to the bot.
+        // Channel-activation state doesn't survive a worker restart, so we
+        // can't reconstruct conversation_mode — err on the side of dropping.
+        if (message.guild) {
+          const isMentioned = message.mentions.has(botUserId);
+          if (!isMentioned && !isReplyToBot) continue;
         }
 
         const { meta, cleanContent } = await buildChannelNotificationMeta(
