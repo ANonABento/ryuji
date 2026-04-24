@@ -6,6 +6,7 @@
  * that createContext + loadPlugins + createMcpServer don't throw.
  */
 import { test, expect } from "bun:test";
+import { buttonHandlers } from "@choomfie/shared";
 import { createContext } from "../lib/context.ts";
 import { loadPlugins } from "../lib/plugins.ts";
 import { createMcpServer } from "../lib/mcp-server.ts";
@@ -19,4 +20,11 @@ test("server boots without crashing", async () => {
 
   expect(ctx.mcp).toBeTruthy();
   expect(ctx.discord).toBeTruthy();
+});
+
+test("interaction handlers register on boot", async () => {
+  // Force the side-effect imports in interactions.ts to run.
+  await import("../lib/interactions.ts");
+  expect(buttonHandlers.has("permission")).toBe(true);
+  expect(buttonHandlers.has("reminder")).toBe(true);
 });

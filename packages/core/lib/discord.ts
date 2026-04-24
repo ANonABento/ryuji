@@ -23,6 +23,9 @@ import {
   isRateLimited,
 } from "./conversation.ts";
 
+// Fallback path for lib/handlers/permission-buttons.ts — if button send fails
+// in permissions.ts, owner can still approve/deny by typing `yes <code>` / `no <code>`.
+// Keep the regex + notification payload in sync with permission-buttons.ts.
 const PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i;
 
 function sanitizeAttachmentName(name?: string | null): string {

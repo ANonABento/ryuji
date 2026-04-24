@@ -135,7 +135,7 @@ Discord interactions (buttons, slash commands, modals) use a split architecture:
 - **Dispatch logic** (`handleInteraction()`, `safeHandle()`) lives in `packages/core/lib/interactions.ts`
 - **InteractionCreate** event registered in `packages/core/lib/discord.ts`, routes to `handleInteraction()`
 - Plugin hook: `onInteraction?(interaction, ctx)` in the Plugin interface
-- Button customId format: `prefix:action:data` (e.g. `reminder:ack:42`, `reminder:snooze:42:1h`)
+- Button customId format: `prefix:action:data` (e.g. `reminder:ack:42`, `reminder:snooze:42:1h`, `permission:allow:<request_id>`, `permission:deny:<request_id>`)
 - Error handling via `safeHandle()` wrapper — catches errors + replies gracefully
 - All interactions bypass Claude — handled directly for instant response (<100ms vs ~5s)
 - Key constraint: Discord requires response within 3 seconds; use `deferReply()` for async work

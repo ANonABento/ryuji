@@ -33,6 +33,8 @@ export function buildPermissionButtons(
   );
 }
 
+// Reserved prefix: plugins must not register another "permission" handler —
+// registerButtonHandler uses Map.set, so a collision silently shadows this one.
 registerButtonHandler("permission", async (interaction, parts, ctx) => {
   const action = parts[1];
   const requestId = parts[2];

@@ -218,6 +218,8 @@ ctx.mcp.notification({                 process.send({
 
 Existing code doesn't need to know it's in a child process. It just calls `ctx.mcp` like before.
 
+The same applies to the permission flow: when the owner taps the Approve/Deny buttons attached to a permission-request DM, the worker-side handler in `lib/handlers/permission-buttons.ts` emits the exact same `notifications/claude/channel/permission` notification as the text-reply path in `discord.ts`. The supervisor forwards it unchanged — the supervisor's permission flow is agnostic to whether the decision came from a button click or a typed `yes <code>` reply.
+
 ## File Layout
 
 All core files live under `packages/core/`:
