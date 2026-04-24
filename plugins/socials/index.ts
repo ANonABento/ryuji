@@ -10,7 +10,8 @@
  */
 
 import type { Plugin } from "@choomfie/shared";
-import { socialsTools, destroyLinkedInClient, destroyTwitterClient, getLinkedInMonitor, getLinkedInScheduler } from "./tools.ts";
+import { socialsTools, destroyLinkedInClient, destroyTwitterClient, getLinkedInMonitor, getSocialScheduler } from "./tools.ts";
+import type { SchedulePayload } from "./providers/scheduler-types.ts";
 import {
   initRedditProvider,
   destroyRedditClient,
@@ -63,8 +64,8 @@ const socialsPlugin: Plugin = {
     "- `linkedin_comments` — read comments on a post",
     "- `linkedin_comment` — comment on a post (owner only)",
     "- `linkedin_react` — react to a post (like/celebrate/support/love/insightful/funny)",
-    "- `linkedin_schedule` — schedule a post for later (supports first-comment automation)",
-    "- `linkedin_queue` — view/manage scheduled post queue",
+    "- `linkedin_schedule` — schedule a LinkedIn post (alias for social_schedule with provider=linkedin; supports first-comment automation)",
+    "- `linkedin_queue` — view/manage LinkedIn-only scheduled posts (alias for social_queue with provider=linkedin)",
     "- `linkedin_monitor` — view tracked posts and check for new comments",
     "- `linkedin_analytics` — engagement analytics (likes, comments, top posts)",
     "- `linkedin_status` — check if LinkedIn is connected and token status",
@@ -86,6 +87,12 @@ const socialsPlugin: Plugin = {
     "Twitter/X uses rettiwt-api (no API key or developer account needed).",
     "Setup: add credentials to config.json under socials.twitter (username, password, email).",
     "Session cookies are cached — login once, stays connected until session expires.",
+    "",
+    "**Scheduling (unified across providers):**",
+    "- `social_schedule` — schedule a post on linkedin/twitter/reddit (relative '2h' or absolute '2026-04-02 09:00')",
+    "- `social_queue` — view/cancel scheduled posts across all providers (filter by provider, action=list|all|cancel)",
+    "",
+    "`linkedin_schedule` and `linkedin_queue` still work as LinkedIn-only aliases.",
   ],
 
   userTools: [
@@ -128,34 +135,39 @@ const socialsPlugin: Plugin = {
       monitor.startPolling();
     }
 
-    // Start LinkedIn scheduler (if configured)
-    const scheduler = getLinkedInScheduler({ DATA_DIR: ctx.DATA_DIR, config: ctx.config });
+    // Start unified social scheduler (covers linkedin/twitter/reddit)
+    const scheduler = getSocialScheduler({ DATA_DIR: ctx.DATA_DIR, config: ctx.config });
     if (scheduler) {
+      const labels = { linkedin: "LinkedIn", twitter: "Twitter", reddit: "Reddit" } as const;
       scheduler.onPosted((post, result) => {
+        const label = labels[post.provider];
+        const preview = previewPayload(post.payload);
         const msg =
-          `📬 **Scheduled LinkedIn post published!**\n` +
-          `"${post.text.slice(0, 100)}..."\n` +
-          (result.url ? `URL: ${result.url}` : `URN: ${result.id}`);
+          `📬 **Scheduled ${label} post published!**\n` +
+          `"${preview}"\n` +
+          (result.url ? `URL: ${result.url}` : `ID: ${result.id}`);
         try {
           ctx.mcp?.notification?.({
             method: "notifications/message",
             params: { content: msg },
           });
         } catch {
-          console.error(`[LinkedIn Scheduler] ${msg}`);
+          console.error(`[Social Scheduler] ${msg}`);
         }
       });
       scheduler.onFailed((post, error) => {
+        const label = labels[post.provider];
+        const preview = previewPayload(post.payload);
         const msg =
-          `❌ **Scheduled LinkedIn post failed!**\n` +
-          `Post #${post.id}: "${post.text.slice(0, 80)}..."\nError: ${error}`;
+          `❌ **Scheduled ${label} post failed!**\n` +
+          `Post #${post.id}: "${preview}"\nError: ${error}`;
         try {
           ctx.mcp?.notification?.({
             method: "notifications/message",
             params: { content: msg },
           });
         } catch {
-          console.error(`[LinkedIn Scheduler] ${msg}`);
+          console.error(`[Social Scheduler] ${msg}`);
         }
       });
     }
@@ -168,5 +180,18 @@ const socialsPlugin: Plugin = {
     destroyYouTubeCommentClient();
   },
 };
+
+function previewPayload(payload: SchedulePayload): string {
+  const truncate = (s: string, n = 100) => (s.length > n ? `${s.slice(0, n)}…` : s);
+  switch (payload.kind) {
+    case "linkedin":
+      return truncate(payload.text);
+    case "twitter":
+      if (payload.variant === "thread") return truncate(payload.tweets?.[0] ?? "(thread)");
+      return truncate(payload.text ?? "");
+    case "reddit":
+      return `r/${payload.subreddit}: ${truncate(payload.title, 80)}`;
+  }
+}
 
 export default socialsPlugin;

@@ -3,16 +3,25 @@
  */
 
 import type { ToolDef, PluginContext } from "@choomfie/shared";
-import { text, err } from "@choomfie/shared";
+import { text, err, parseNaturalTime, dateToSQLite } from "@choomfie/shared";
 import { getYouTubeProvider, getRedditProvider, getRedditClient, getYouTubeCommentClient } from "./providers/index.ts";
 import { LinkedInClient } from "./providers/linkedin/api.ts";
 import { TwitterClient } from "./providers/twitter/api.ts";
 import { withRetry } from "./providers/retry.ts";
 import { LinkedInMonitor } from "./providers/linkedin/monitor.ts";
-import { LinkedInScheduler } from "./providers/linkedin/scheduler.ts";
-import type { NewComment } from "./providers/linkedin/monitor.ts";
+import { LinkedInPoster } from "./providers/linkedin/poster.ts";
+import { TwitterPoster } from "./providers/twitter/poster.ts";
+import { RedditPoster } from "./providers/reddit/poster.ts";
+import { SocialScheduler } from "./providers/scheduler.ts";
+import type {
+  LinkedInPayload,
+  PosterRegistry,
+  Provider,
+  RedditPayload,
+  SchedulePayload,
+  TwitterPayload,
+} from "./providers/scheduler-types.ts";
 import type { RedditClient } from "./providers/reddit/api.ts";
-import type { YouTubeCommentClient } from "./providers/youtube/api.ts";
 
 const yt = getYouTubeProvider();
 const reddit = getRedditProvider();
@@ -54,7 +63,7 @@ export function destroyTwitterClient(): void {
   }
 }
 let linkedInMonitor: LinkedInMonitor | null = null;
-let linkedInScheduler: LinkedInScheduler | null = null;
+let socialScheduler: SocialScheduler | null = null;
 
 function getLinkedInClient(ctx: PluginContext): LinkedInClient {
   if (linkedInClient) return linkedInClient;
@@ -89,27 +98,75 @@ export function getLinkedInMonitor(ctx: PluginContext): LinkedInMonitor | null {
   }
 }
 
-/** Get or create the LinkedIn scheduler. */
-export function getLinkedInScheduler(ctx: PluginContext): LinkedInScheduler | null {
-  if (linkedInScheduler) return linkedInScheduler;
+/**
+ * Build the per-provider Poster registry. Each branch try/catches so a
+ * misconfigured provider doesn't take the whole scheduler down — it just
+ * stays absent, and scheduling for it fails fast at fire time.
+ */
+function buildPosters(ctx: PluginContext): PosterRegistry {
+  const posters: PosterRegistry = {};
+
   try {
     const client = getLinkedInClient(ctx);
     const monitor = getLinkedInMonitor(ctx);
-    linkedInScheduler = new LinkedInScheduler(`${ctx.DATA_DIR}/choomfie.db`, client, monitor);
-    return linkedInScheduler;
+    posters.linkedin = new LinkedInPoster(client, monitor);
+  } catch {}
+
+  try {
+    // Twitter is only "registered" once auth has happened — but we still
+    // construct the poster so a manual twitter_auth + scheduled fire works
+    // within the same process lifetime.
+    const tw = getTwitterClient();
+    posters.twitter = new TwitterPoster(tw);
+  } catch {}
+
+  try {
+    const redditWrite = getRedditClient();
+    if (redditWrite) posters.reddit = new RedditPoster(redditWrite);
+  } catch {}
+
+  return posters;
+}
+
+/** Get or create the unified social scheduler. */
+export function getSocialScheduler(ctx: PluginContext): SocialScheduler | null {
+  if (socialScheduler) {
+    socialScheduler.setPosters(buildPosters(ctx));
+    return socialScheduler;
+  }
+  try {
+    socialScheduler = new SocialScheduler({
+      dbPath: `${ctx.DATA_DIR}/choomfie.db`,
+      posters: buildPosters(ctx),
+    });
+    return socialScheduler;
   } catch {
     return null;
   }
 }
 
-/** Called on plugin destroy to clean up LinkedIn client + monitor + scheduler */
+/** Called on plugin destroy to clean up scheduler + LinkedIn client/monitor */
 export function destroyLinkedInClient(): void {
-  linkedInScheduler?.destroy();
-  linkedInScheduler = null;
+  socialScheduler?.destroy();
+  socialScheduler = null;
   linkedInMonitor?.destroy();
   linkedInMonitor = null;
   linkedInClient?.destroy();
   linkedInClient = null;
+}
+
+/**
+ * Parse a schedule time input — relative ('2h', '30m', 'tomorrow 9am') or
+ * absolute ('YYYY-MM-DD HH:MM' / ISO 8601). Returns SQLite datetime string,
+ * or null if unparseable.
+ */
+function parseScheduleTime(input: string): string | null {
+  const parsed = parseNaturalTime(input);
+  if (parsed) return dateToSQLite(parsed);
+  if (/^\d{4}-\d{2}-\d{2}/.test(input)) {
+    return input.replace("T", " ").replace(/Z$/, "").replace(/\.\d+$/, "").trim();
+  }
+  return null;
 }
 
 /**
@@ -1089,7 +1146,7 @@ export const socialsTools: ToolDef[] = [
     },
     handler: async (args, ctx) => {
       try {
-        const scheduler = getLinkedInScheduler(ctx);
+        const scheduler = getSocialScheduler(ctx);
         if (!scheduler) return err("LinkedIn not configured.");
 
         const postText = args.text as string;
@@ -1098,36 +1155,32 @@ export const socialsTools: ToolDef[] = [
         }
 
         const timeStr = args.time as string;
-        let scheduledAt: string;
-
-        // Try parsing as relative time
-        const { parseNaturalTime, dateToSQLite } = await import("../../lib/time.ts");
-        const parsed = parseNaturalTime(timeStr);
-        if (parsed) {
-          scheduledAt = dateToSQLite(parsed);
-        } else if (/^\d{4}-\d{2}-\d{2}/.test(timeStr)) {
-          // Absolute datetime
-          scheduledAt = timeStr.replace("T", " ").replace(/Z$/, "").trim();
-        } else {
+        const scheduledAt = parseScheduleTime(timeStr);
+        if (!scheduledAt) {
           return err(`Couldn't parse time "${timeStr}". Use '2h', '30m', '3d', or '2026-04-02 09:00'.`);
         }
 
-        const mediaType = args.image ? "image" : args.url ? "link" : "text";
-        const post = scheduler.schedule({
+        const mediaType: "text" | "image" | "link" = args.image
+          ? "image"
+          : args.url
+          ? "link"
+          : "text";
+        const payload: LinkedInPayload = {
+          kind: "linkedin",
           text: postText,
-          scheduledAt,
-          mediaType: mediaType as "text" | "image" | "link",
+          mediaType,
           imageUrl: args.image as string | undefined,
           linkUrl: args.url as string | undefined,
           linkTitle: args.link_title as string | undefined,
           linkDescription: args.link_description as string | undefined,
           firstComment: args.first_comment as string | undefined,
-        });
+        };
+        const post = scheduler.schedule({ provider: "linkedin", payload, scheduledAt });
 
         return text(
           `Scheduled LinkedIn post #${post.id} for ${post.scheduledAt} UTC.\n` +
           `Type: ${mediaType}` +
-          (post.firstComment ? `\nFirst comment: "${post.firstComment}"` : "")
+          (payload.firstComment ? `\nFirst comment: "${payload.firstComment}"` : "")
         );
       } catch (e: any) {
         return err(`LinkedIn schedule failed: ${e.message}`);
@@ -1156,7 +1209,7 @@ export const socialsTools: ToolDef[] = [
     },
     handler: async (args, ctx) => {
       try {
-        const scheduler = getLinkedInScheduler(ctx);
+        const scheduler = getSocialScheduler(ctx);
         if (!scheduler) return err("LinkedIn not configured.");
 
         const action = (args.action as string) || "list";
@@ -1170,18 +1223,23 @@ export const socialsTools: ToolDef[] = [
             : err(`Post #${id} not found or already posted/cancelled.`);
         }
 
-        const posts = scheduler.getQueue(action === "all");
+        const posts = scheduler.getQueue({
+          includeAll: action === "all",
+          provider: "linkedin",
+        });
         if (posts.length === 0) {
           return text("No scheduled LinkedIn posts.");
         }
 
         const formatted = posts
-          .map(
-            (p) =>
-              `**#${p.id}** [${p.status}] ${p.scheduledAt} UTC\n  ${p.mediaType} · "${p.text.slice(0, 80)}..."` +
-              (p.postUrn ? `\n  URN: ${p.postUrn}` : "") +
+          .map((p) => {
+            const lp = p.payload as LinkedInPayload;
+            return (
+              `**#${p.id}** [${p.status}] ${p.scheduledAt} UTC\n  ${lp.mediaType} · "${lp.text.slice(0, 80)}..."` +
+              (p.providerPostId ? `\n  URN: ${p.providerPostId}` : "") +
               (p.error ? `\n  Error: ${p.error}` : "")
-          )
+            );
+          })
           .join("\n\n");
         return text(`**LinkedIn Queue (${posts.length}):**\n\n${formatted}`);
       } catch (e: any) {
@@ -1327,10 +1385,12 @@ export const socialsTools: ToolDef[] = [
   // ─── Twitter/X Tools ──────────────────────────────────────────────────────
 
   {
-    name: "twitter_auth",
-    description: "Login to Twitter/X using credentials from config.json. Caches session cookies for reuse. Owner only.",
-    schema: {},
-    handler: async (_args: unknown, ctx: PluginContext) => {
+    definition: {
+      name: "twitter_auth",
+      description: "Login to Twitter/X using credentials from config.json. Caches session cookies for reuse. Owner only.",
+      inputSchema: { type: "object" as const, properties: {} },
+    },
+    handler: async (_args, ctx) => {
       try {
         const twitterConfig = getTwitterConfig(ctx);
         const client = getTwitterClient();
@@ -1343,20 +1403,22 @@ export const socialsTools: ToolDef[] = [
   },
 
   {
-    name: "twitter_post",
-    description: "Post a tweet to the connected X account.",
-    schema: {
-      type: "object" as const,
-      properties: {
-        text: { type: "string", description: "Tweet text (max 280 chars)" },
+    definition: {
+      name: "twitter_post",
+      description: "Post a tweet to the connected X account.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          text: { type: "string", description: "Tweet text (max 280 chars)" },
+        },
+        required: ["text"],
       },
-      required: ["text"],
     },
-    handler: async (args: any, ctx: PluginContext) => {
+    handler: async (args, _ctx) => {
       try {
         const client = getTwitterClient();
         const result = await withRetry(
-          () => client.postTweet(args.text),
+          () => client.postTweet(args.text as string),
           { label: "twitter_post", maxAttempts: 2 },
         );
         return text(`Tweet posted!\nURL: ${result.url}\nID: ${result.id}`);
@@ -1367,21 +1429,23 @@ export const socialsTools: ToolDef[] = [
   },
 
   {
-    name: "twitter_post_image",
-    description: "Post a tweet with an image to the connected X account.",
-    schema: {
-      type: "object" as const,
-      properties: {
-        text: { type: "string", description: "Tweet text (max 280 chars)" },
-        image: { type: "string", description: "Absolute file path to image (PNG/JPG/GIF)" },
+    definition: {
+      name: "twitter_post_image",
+      description: "Post a tweet with an image to the connected X account.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          text: { type: "string", description: "Tweet text (max 280 chars)" },
+          image: { type: "string", description: "Absolute file path to image (PNG/JPG/GIF)" },
+        },
+        required: ["text", "image"],
       },
-      required: ["text", "image"],
     },
-    handler: async (args: any, ctx: PluginContext) => {
+    handler: async (args, _ctx) => {
       try {
         const client = getTwitterClient();
         const result = await withRetry(
-          () => client.postTweetWithMedia(args.text, args.image),
+          () => client.postTweetWithMedia(args.text as string, args.image as string),
           { label: "twitter_post_image", maxAttempts: 2 },
         );
         return text(`Tweet with image posted!\nURL: ${result.url}\nID: ${result.id}`);
@@ -1392,23 +1456,25 @@ export const socialsTools: ToolDef[] = [
   },
 
   {
-    name: "twitter_thread",
-    description: "Post a thread (multiple chained tweets) to the connected X account.",
-    schema: {
-      type: "object" as const,
-      properties: {
-        tweets: {
-          type: "array",
-          items: { type: "string" },
-          description: "Array of tweet texts, posted in order as a thread",
+    definition: {
+      name: "twitter_thread",
+      description: "Post a thread (multiple chained tweets) to the connected X account.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          tweets: {
+            type: "array",
+            items: { type: "string" },
+            description: "Array of tweet texts, posted in order as a thread",
+          },
         },
+        required: ["tweets"],
       },
-      required: ["tweets"],
     },
-    handler: async (args: any, ctx: PluginContext) => {
+    handler: async (args, _ctx) => {
       try {
         const client = getTwitterClient();
-        const results = await client.postThread(args.tweets);
+        const results = await client.postThread(args.tweets as string[]);
         const summary = results
           .map((r, i) => `${i + 1}. ${r.url}`)
           .join("\n");
@@ -1420,10 +1486,12 @@ export const socialsTools: ToolDef[] = [
   },
 
   {
-    name: "twitter_status",
-    description: "Check Twitter/X authentication status.",
-    schema: {},
-    handler: async (_args: unknown, ctx: PluginContext) => {
+    definition: {
+      name: "twitter_status",
+      description: "Check Twitter/X authentication status.",
+      inputSchema: { type: "object" as const, properties: {} },
+    },
+    handler: async (_args, _ctx) => {
       try {
         const client = getTwitterClient();
         const status = client.getStatus();
@@ -1442,4 +1510,270 @@ export const socialsTools: ToolDef[] = [
       }
     },
   },
+
+  // ─── Unified Scheduling (all providers) ───────────────────────────────────
+
+  {
+    definition: {
+      name: "social_schedule",
+      description:
+        "Schedule a post on linkedin/twitter/reddit for later. " +
+        "Time accepts relative ('2h', '30m', '3d', 'tomorrow 9am') or absolute ('2026-04-02 09:00'). " +
+        "Owner only.\n\n" +
+        "Per-provider fields:\n" +
+        "  linkedin: text (req); image | url (+ link_title, link_description); first_comment\n" +
+        "  twitter: variant=tweet|tweetWithMedia|thread; text (or tweets array for thread); image (for tweetWithMedia)\n" +
+        "  reddit: subreddit (req), title (req), variant=self|link|image; text (self), url (link), image (image)",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          provider: {
+            type: "string",
+            enum: ["linkedin", "twitter", "reddit"],
+            description: "Which provider to schedule on.",
+          },
+          time: {
+            type: "string",
+            description: "When to post: relative ('2h', '30m', '3d', 'tomorrow 9am') or absolute ('2026-04-02 09:00').",
+          },
+          text: { type: "string", description: "Post text (linkedin, twitter tweet, reddit self)." },
+          // LinkedIn-specific
+          image: {
+            type: "string",
+            description:
+              "Image URL (linkedin) or absolute file path (twitter tweetWithMedia, reddit image).",
+          },
+          url: {
+            type: "string",
+            description: "Link URL (linkedin link post, reddit link post).",
+          },
+          link_title: { type: "string", description: "Link title (linkedin link post)." },
+          link_description: { type: "string", description: "Link description (linkedin link post)." },
+          first_comment: {
+            type: "string",
+            description: "Auto-post this comment after the main post (linkedin only).",
+          },
+          // Twitter-specific
+          variant: {
+            type: "string",
+            description:
+              "Twitter: tweet | tweetWithMedia | thread. Reddit: self | link | image.",
+          },
+          tweets: {
+            type: "array",
+            items: { type: "string" },
+            description: "Twitter thread tweets, in order (variant=thread).",
+          },
+          // Reddit-specific
+          subreddit: { type: "string", description: "Reddit subreddit (without r/)." },
+          title: { type: "string", description: "Reddit post title." },
+        },
+        required: ["provider", "time"],
+      },
+    },
+    handler: async (args, ctx) => {
+      try {
+        const scheduler = getSocialScheduler(ctx);
+        if (!scheduler) return err("Scheduler unavailable — check provider config in config.json.");
+
+        const provider = args.provider as Provider;
+        if (!["linkedin", "twitter", "reddit"].includes(provider)) {
+          return err(`Unknown provider "${provider}". Use linkedin, twitter, or reddit.`);
+        }
+
+        const scheduledAt = parseScheduleTime(args.time as string);
+        if (!scheduledAt) {
+          return err(
+            `Couldn't parse time "${args.time}". Use '2h', '30m', '3d', 'tomorrow 9am', or '2026-04-02 09:00'.`,
+          );
+        }
+
+        let payload: SchedulePayload;
+        let summary: string;
+
+        if (provider === "linkedin") {
+          const t = (args.text as string) || "";
+          if (!t) return err("LinkedIn schedule requires `text`.");
+          if (t.length > 3000) return err("LinkedIn posts are limited to 3000 characters.");
+          const mediaType: "text" | "image" | "link" = args.image
+            ? "image"
+            : args.url
+            ? "link"
+            : "text";
+          payload = {
+            kind: "linkedin",
+            text: t,
+            mediaType,
+            imageUrl: args.image as string | undefined,
+            linkUrl: args.url as string | undefined,
+            linkTitle: args.link_title as string | undefined,
+            linkDescription: args.link_description as string | undefined,
+            firstComment: args.first_comment as string | undefined,
+          } satisfies LinkedInPayload;
+          summary = `LinkedIn ${mediaType} post`;
+        } else if (provider === "twitter") {
+          const variant = ((args.variant as string) || "tweet") as TwitterPayload["variant"];
+          if (!["tweet", "tweetWithMedia", "thread"].includes(variant)) {
+            return err(`Unknown Twitter variant "${variant}". Use tweet, tweetWithMedia, or thread.`);
+          }
+          if (variant === "thread") {
+            const tweets = args.tweets as string[] | undefined;
+            if (!tweets || tweets.length === 0) {
+              return err("Twitter thread requires `tweets` array.");
+            }
+            payload = { kind: "twitter", variant, tweets } satisfies TwitterPayload;
+            summary = `Twitter thread (${tweets.length} tweets)`;
+          } else if (variant === "tweetWithMedia") {
+            if (!args.text || !args.image) {
+              return err("Twitter media tweet requires `text` and `image`.");
+            }
+            payload = {
+              kind: "twitter",
+              variant,
+              text: args.text as string,
+              imagePath: args.image as string,
+            } satisfies TwitterPayload;
+            summary = "Twitter tweet with image";
+          } else {
+            if (!args.text) return err("Twitter tweet requires `text`.");
+            payload = {
+              kind: "twitter",
+              variant: "tweet",
+              text: args.text as string,
+            } satisfies TwitterPayload;
+            summary = "Twitter tweet";
+          }
+        } else {
+          // reddit
+          const subreddit = args.subreddit as string | undefined;
+          const title = args.title as string | undefined;
+          if (!subreddit || !title) {
+            return err("Reddit schedule requires `subreddit` and `title`.");
+          }
+          const variant = ((args.variant as string) || "self") as RedditPayload["variant"];
+          if (!["self", "link", "image"].includes(variant)) {
+            return err(`Unknown Reddit variant "${variant}". Use self, link, or image.`);
+          }
+          if (variant === "link" && !args.url) return err("Reddit link post requires `url`.");
+          if (variant === "image" && !args.image) {
+            return err("Reddit image post requires `image` file path.");
+          }
+          payload = {
+            kind: "reddit",
+            subreddit,
+            title,
+            variant,
+            text: args.text as string | undefined,
+            url: args.url as string | undefined,
+            imagePath: args.image as string | undefined,
+          } satisfies RedditPayload;
+          summary = `Reddit ${variant} post to r/${subreddit}`;
+        }
+
+        const post = scheduler.schedule({ provider, payload, scheduledAt });
+        return text(`Scheduled #${post.id} for ${post.scheduledAt} UTC.\n${summary}`);
+      } catch (e: any) {
+        return err(`Schedule failed: ${e.message}`);
+      }
+    },
+  },
+
+  {
+    definition: {
+      name: "social_queue",
+      description:
+        "View or manage the unified scheduled-post queue across all providers. " +
+        "Default lists pending posts grouped by provider. " +
+        "action='all' includes posted/cancelled/failed; action='cancel' cancels a post by id. " +
+        "Filter by provider with `provider=linkedin|twitter|reddit`.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          action: {
+            type: "string",
+            enum: ["list", "all", "cancel"],
+            description: "list (default, pending only), all (include posted/cancelled/failed), cancel (by id).",
+          },
+          id: { type: "number", description: "Post id to cancel (action=cancel)." },
+          provider: {
+            type: "string",
+            enum: ["linkedin", "twitter", "reddit"],
+            description: "Filter by provider (optional).",
+          },
+        },
+      },
+    },
+    handler: async (args, ctx) => {
+      try {
+        const scheduler = getSocialScheduler(ctx);
+        if (!scheduler) return err("Scheduler unavailable — check provider config in config.json.");
+
+        const action = (args.action as string) || "list";
+
+        if (action === "cancel") {
+          const id = args.id as number;
+          if (!id) return err("Provide an `id` to cancel.");
+          const ok = scheduler.cancel(id);
+          return ok
+            ? text(`Cancelled scheduled post #${id}.`)
+            : err(`Post #${id} not found or already posted/cancelled.`);
+        }
+
+        const providerFilter = args.provider as Provider | undefined;
+        const posts = scheduler.getQueue({
+          includeAll: action === "all",
+          provider: providerFilter,
+        });
+        if (posts.length === 0) return text("No scheduled posts.");
+
+        // Group by provider
+        const byProvider = new Map<Provider, typeof posts>();
+        for (const p of posts) {
+          const list = byProvider.get(p.provider) ?? [];
+          list.push(p);
+          byProvider.set(p.provider, list);
+        }
+
+        const sections: string[] = [];
+        const labels: Record<Provider, string> = {
+          linkedin: "LinkedIn",
+          twitter: "Twitter",
+          reddit: "Reddit",
+        };
+        for (const [prov, list] of byProvider) {
+          const lines = list
+            .map((p) => {
+              const summary = summarizePayload(p.payload);
+              return (
+                `**#${p.id}** [${p.status}] ${p.scheduledAt} UTC\n  ${summary}` +
+                (p.providerPostUrl ? `\n  URL: ${p.providerPostUrl}` : "") +
+                (p.providerPostId && !p.providerPostUrl ? `\n  ID: ${p.providerPostId}` : "") +
+                (p.error ? `\n  Error: ${p.error}` : "")
+              );
+            })
+            .join("\n\n");
+          sections.push(`**${labels[prov]} (${list.length}):**\n${lines}`);
+        }
+
+        return text(sections.join("\n\n"));
+      } catch (e: any) {
+        return err(`social_queue failed: ${e.message}`);
+      }
+    },
+  },
 ];
+
+function summarizePayload(payload: SchedulePayload): string {
+  switch (payload.kind) {
+    case "linkedin":
+      return `${payload.mediaType} · "${payload.text.slice(0, 80)}${payload.text.length > 80 ? "…" : ""}"`;
+    case "twitter":
+      if (payload.variant === "thread") {
+        const head = payload.tweets?.[0] ?? "";
+        return `thread (${payload.tweets?.length ?? 0}) · "${head.slice(0, 80)}${head.length > 80 ? "…" : ""}"`;
+      }
+      return `${payload.variant} · "${(payload.text ?? "").slice(0, 80)}${(payload.text ?? "").length > 80 ? "…" : ""}"`;
+    case "reddit":
+      return `r/${payload.subreddit} · ${payload.variant} · "${payload.title.slice(0, 80)}${payload.title.length > 80 ? "…" : ""}"`;
+  }
+}
