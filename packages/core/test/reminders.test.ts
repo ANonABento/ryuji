@@ -25,20 +25,8 @@ function createReminder(overrides: Partial<StoredReminder> = {}): StoredReminder
   };
 }
 
-function toPublicReminder(reminder: StoredReminder): Reminder {
-  return {
-    id: reminder.id,
-    userId: reminder.userId,
-    chatId: reminder.chatId,
-    message: reminder.message,
-    dueAt: reminder.dueAt,
-    createdAt: reminder.createdAt,
-    cron: reminder.cron,
-    nagInterval: reminder.nagInterval,
-    category: reminder.category,
-    ack: reminder.ack,
-    lastNagAt: reminder.lastNagAt,
-  };
+function toPublicReminder({ fired: _fired, ...rest }: StoredReminder): Reminder {
+  return rest;
 }
 
 function isNagDue(reminder: StoredReminder): boolean {
@@ -74,7 +62,7 @@ function createHarness(reminders: StoredReminder[]) {
       const reminder = state.get(id);
       if (!reminder) return;
       reminder.fired = 1;
-      reminder.lastNagAt = dateToSQLite(new Date(Date.now()));
+      reminder.lastNagAt = dateToSQLite(new Date());
     },
     addReminder: (
       userId: string,
@@ -92,7 +80,7 @@ function createHarness(reminders: StoredReminder[]) {
           chatId,
           message,
           dueAt,
-          createdAt: dateToSQLite(new Date(Date.now())),
+          createdAt: dateToSQLite(new Date()),
           cron: opts?.cron ?? null,
           nagInterval: opts?.nagInterval ?? null,
           category: opts?.category ?? null,
@@ -107,7 +95,7 @@ function createHarness(reminders: StoredReminder[]) {
     updateNagTime: (id: number) => {
       const reminder = state.get(id);
       if (!reminder) return;
-      reminder.lastNagAt = dateToSQLite(new Date(Date.now()));
+      reminder.lastNagAt = dateToSQLite(new Date());
     },
     snoozeReminder: (id: number, newDueAt: string) => {
       const reminder = state.get(id);
