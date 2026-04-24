@@ -270,6 +270,9 @@ export function createDiscordClient(ctx: AppContext): Client {
       role: isOwner ? "owner" : "user",
     };
 
+    const userTz = ctx.config.getUserTimezone(userId);
+    if (userTz) meta.user_timezone = userTz;
+
     // Mark conversation mode messages
     if (
       !isDM &&

@@ -9,13 +9,23 @@ import {
   MessageFlags,
 } from "discord.js";
 import { registerButtonHandler } from "../interactions.ts";
-import { MS_PER_MIN, MS_PER_HOUR, MS_PER_DAY, dateToSQLite } from "../time.ts";
+import {
+  MS_PER_MIN,
+  MS_PER_HOUR,
+  MS_PER_DAY,
+  dateToSQLite,
+  parseNaturalTime,
+} from "../time.ts";
 
-/** Snooze option: label shown to user + duration in ms */
-const SNOOZE_OPTIONS: Record<string, { label: string; ms: number }> = {
-  "30m": { label: "30 minutes", ms: 30 * MS_PER_MIN },
-  "1h": { label: "1 hour", ms: MS_PER_HOUR },
-  tomorrow: { label: "tomorrow", ms: MS_PER_DAY },
+type SnoozeOption =
+  | { label: string; type: "duration"; ms: number }
+  | { label: string; type: "tomorrow" };
+
+/** Snooze option: label shown to user + resolution strategy */
+const SNOOZE_OPTIONS: Record<string, SnoozeOption> = {
+  "30m": { label: "30 minutes", type: "duration", ms: 30 * MS_PER_MIN },
+  "1h": { label: "1 hour", type: "duration", ms: MS_PER_HOUR },
+  tomorrow: { label: "tomorrow", type: "tomorrow" },
 };
 
 /** Build action row with Done/Snooze buttons for a reminder */
@@ -90,7 +100,18 @@ registerButtonHandler("reminder", async (interaction, parts, ctx) => {
       return;
     }
 
-    const newDueAt = dateToSQLite(new Date(Date.now() + option.ms));
+    let newDueDate: Date;
+    if (option.type === "tomorrow") {
+      const timeZone = ctx.config.getUserTimezone(reminder.userId) ?? undefined;
+      const parsed = timeZone
+        ? parseNaturalTime("tomorrow 9am", { timeZone, now: new Date() })
+        : null;
+      newDueDate = parsed ?? new Date(Date.now() + MS_PER_DAY);
+    } else {
+      newDueDate = new Date(Date.now() + option.ms);
+    }
+
+    const newDueAt = dateToSQLite(newDueDate);
     const success = ctx.memory.snoozeReminder(reminderId, newDueAt);
 
     if (success) {

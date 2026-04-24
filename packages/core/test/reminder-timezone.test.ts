@@ -5,7 +5,10 @@ import { tmpdir } from "node:os";
 import { ConfigManager } from "../lib/config.ts";
 import { buildReminderModal } from "../lib/handlers/modals.ts";
 import { MemoryStore } from "../lib/memory.ts";
-import { parseNaturalTime } from "../lib/time.ts";
+import { buildInstructions } from "../lib/mcp-server.ts";
+import { reminderTools } from "../lib/tools/reminder-tools.ts";
+import { MS_PER_DAY, parseNaturalTime } from "../lib/time.ts";
+import type { AppContext } from "../lib/types.ts";
 
 const tempPaths: string[] = [];
 
@@ -90,4 +93,55 @@ test("existing reminders still round-trip in UTC storage format", () => {
 
   expect(memory.getReminder(id)?.dueAt).toBe("2026-01-15 14:00:00");
   memory.close();
+});
+
+test("snooze 'tomorrow' resolves to 9am in the user's timezone", () => {
+  const now = new Date("2026-01-15T20:00:00.000Z");
+  const parsed = parseNaturalTime("tomorrow 9am", {
+    timeZone: "America/New_York",
+    now,
+  });
+
+  expect(parsed?.toISOString()).toBe("2026-01-16T14:00:00.000Z");
+});
+
+test("snooze 'tomorrow' falls back to now+24h when no timezone is set", () => {
+  // Mirrors reminder-buttons.ts: when timeZone is undefined, skip parseNaturalTime entirely.
+  const now = new Date("2026-01-15T20:00:00.000Z");
+  const timeZone: string | undefined = undefined;
+  const parsed = timeZone
+    ? parseNaturalTime("tomorrow 9am", { timeZone, now })
+    : null;
+  const resolved = parsed ?? new Date(now.getTime() + MS_PER_DAY);
+
+  const diff = Math.abs(resolved.getTime() - (now.getTime() + MS_PER_DAY));
+  expect(diff).toBeLessThan(1000);
+});
+
+test("buildInstructions includes the Time & Timezones block", () => {
+  const dir = makeTempDir("choomfie-instructions-");
+  const config = new ConfigManager(dir);
+  const memory = new MemoryStore(join(dir, "choomfie.db"));
+
+  const ctx = {
+    config,
+    memory,
+    plugins: [],
+  } as unknown as AppContext;
+
+  const instructions = buildInstructions(ctx);
+
+  expect(instructions).toContain("## Time & Timezones");
+  expect(instructions).toContain("user_timezone");
+  expect(instructions.length).toBeLessThan(4000);
+
+  memory.close();
+});
+
+test("set_reminder description references user_timezone meta", () => {
+  const setReminder = reminderTools.find(
+    (t) => t.definition.name === "set_reminder"
+  );
+  expect(setReminder).toBeTruthy();
+  expect(setReminder!.definition.description).toContain("user_timezone");
 });

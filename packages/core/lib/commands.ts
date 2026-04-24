@@ -401,6 +401,7 @@ registerCommand("status", {
         { name: "Memory", value: `${stats.coreCount} core · ${stats.archivalCount} archival`, inline: true },
         { name: "Reminders", value: `${stats.reminderCount} active`, inline: true },
         { name: "Access", value: `${ctx.allowedUsers.size} users`, inline: true },
+        { name: "Your timezone", value: ctx.config.getUserTimezone(interaction.user.id) ?? "not set", inline: true },
         { name: "Plugins", value: pluginStatus, inline: true },
       )
       .setFooter({

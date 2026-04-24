@@ -21,7 +21,7 @@ export const reminderTools: ToolDef[] = [
     definition: {
       name: "set_reminder",
       description:
-        "Set a reminder. Parse natural time expressions ('in 30 min', 'tomorrow at 9am') into ISO 8601 UTC for due_at. Use cron for recurring, nag_interval to re-ping until ack'd. When a nag fires, tell the user to say 'done' or 'ack' to stop it.",
+        "Set a reminder. Parse natural time expressions ('in 30 min', 'tomorrow at 9am') into ISO 8601 UTC for due_at. If the message meta has user_timezone=\"<IANA>\" (e.g. \"America/New_York\"), interpret clock times in that zone and convert to UTC — example: user_timezone=\"America/New_York\" + \"9am\" → \"2026-01-15T14:00:00Z\". Relative durations are zone-independent. Use cron for recurring, nag_interval to re-ping until ack'd. When a nag fires, tell the user to say 'done' or 'ack' to stop it.",
       inputSchema: {
         type: "object" as const,
         properties: {
@@ -37,7 +37,7 @@ export const reminderTools: ToolDef[] = [
           due_at: {
             type: "string",
             description:
-              "When to fire the reminder (ISO 8601 UTC, e.g. 2026-03-25T14:30:00Z)",
+              "When to fire the reminder (ISO 8601 UTC, e.g. 2026-03-25T14:30:00Z). Converted from the caller's user_timezone meta if set.",
           },
           cron: {
             type: "string",
