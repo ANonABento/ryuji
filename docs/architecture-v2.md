@@ -242,7 +242,7 @@ Instead of point-to-point routing, use a simple event emitter inside daemon. Wor
 Daemon sees every message before Claude. Could route simple messages (reactions, short replies) to Haiku and complex ones to Opus via SDK's `setModel()`. Not implemented yet, but the architecture supports it naturally.
 
 ### No fallback during session cycling
-Session swap takes ~12s. During this time, Discord messages queue in daemon and replay when the new session is ready. No special "degradation mode" needed — the queue handles it.
+Session swap takes ~12s. The daemon's in-memory + disk-backed queue catches messages received during DRAINING (live session still up). For CYCLING + STARTING (worker torn down with the session), the worker runs a one-shot `messages.fetch({ after: lastMessageId, limit: 50 })` against each tracked chat on reconnect (`ClientReady`), gated by a `GAP_RECOVERY_WINDOW_MS` (120s) check against `daemon-state.json.lastCycleAt`. Recovered messages flow through the same `notifications/claude/channel` envelope as live messages. No special "degradation mode" needed.
 
 ### Keep supervisor in Phase 1
 Don't refactor the current supervisor/worker system yet. Phase 1 wraps the existing architecture. Prove session cycling works first. Collapse later.
@@ -251,7 +251,7 @@ Don't refactor the current supervisor/worker system yet. Phase 1 wraps the exist
 
 1. **Can the Agent SDK load plugins that register MCP tools?** Yes — `plugins: [{ type: "local", path: PLUGIN_DIR }]` works. This is the current implementation.
 2. **What's the latency of Agent SDK tool calls vs MCP?** Benchmark shows ~7-10s per turn including tool calls. Acceptable for Discord chat, may need optimization for voice.
-3. **Does the Discord bot stay connected during session cycling?** No — worker dies with the session (~12s reconnect). Accepted as a known limitation. Phase 4 would fix this.
+3. **Does the Discord bot stay connected during session cycling?** No — worker dies with the session (~12s reconnect). Mitigated by (a) a disk-backed queue in the daemon for DRAINING-era messages and (b) worker-side gap recovery (`messages.fetch` after reconnect, bounded to 50 msgs/channel within a 120s window). Phase 4 sibling architecture would fix this structurally by keeping the worker alive across session cycles.
 4. **Do we need code reloading?** Session cycling gives free code reload — fresh `import()` on every cycle. The `restart` tool still works for worker-only restarts within a session.
 
 ## Recommended Path Forward
@@ -280,6 +280,7 @@ Don't refactor the current supervisor/worker system yet. Phase 1 wraps the exist
 - Token tracking fix (cumulative API usage, context monitor uses `getContextUsage()`)
 - `choomfie --daemon` launcher flag with tmux/always-on composition
 - Worker restarts on cycle (~12s Discord reconnect, acceptable tradeoff)
+- Disk-backed replay queue + worker-side gap recovery (`messages.fetch` on reconnect, 50 msgs/channel, 120s window)
 
 **Phase 4 (future): Full sibling architecture**
 - If 3s Discord reconnect on cycle is unacceptable:
@@ -351,6 +352,6 @@ claude \
 ### Caveats
 
 - ~12s overhead per session cycle (new `query()` + Discord reconnect)
-- Discord messages lost during the cycle gap (no buffer in current architecture)
+- Discord messages during CYCLING are recovered via worker-side fetch on reconnect (up to 50 per channel within a 120s window). DRAINING-era messages are buffered in the daemon's in-memory + disk-backed queue and replayed into the new session.
 - No programmatic `/compact` — must cycle sessions instead
 - `getContextUsage()` can fail intermittently — daemon falls back to turn-count after 5 failures

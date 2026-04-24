@@ -2,7 +2,7 @@ import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 
 const CHANNEL_OPEN_TAG_RE = /^<channel\s+([^>]+)>([\s\S]*)$/i;
 const CHANNEL_ATTR_RE = /([a-z_]+)="([^"]*)"/gi;
-const MAX_TRACKED_CONVERSATIONS = 12;
+export const MAX_TRACKED_CONVERSATIONS = 12;
 const MAX_PREVIEW_LENGTH = 240;
 
 export type ConversationActivity = {
@@ -175,4 +175,42 @@ export function cloneBufferedMessage(msg: SDKUserMessage): SDKUserMessage {
     session_id: undefined,
     uuid: undefined,
   };
+}
+
+export function serializeBufferedMessage(msg: SDKUserMessage): string {
+  const replayReady = cloneBufferedMessage(msg);
+  return JSON.stringify(replayReady);
+}
+
+export function deserializeBufferedMessage(line: string): SDKUserMessage | null {
+  const trimmed = line.trim();
+  if (trimmed.length === 0) return null;
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!parsed || typeof parsed !== "object") return null;
+    if (parsed.type !== "user") return null;
+    if (!parsed.message || parsed.message.content === undefined) return null;
+    return parsed as SDKUserMessage;
+  } catch {
+    return null;
+  }
+}
+
+export function serializeConversations(activity: ConversationActivity[]): string {
+  return JSON.stringify(activity, null, 2);
+}
+
+export function deserializeConversations(json: string): ConversationActivity[] {
+  try {
+    const parsed = JSON.parse(json);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (entry): entry is ConversationActivity =>
+          entry && typeof entry === "object" && typeof entry.chatId === "string"
+      )
+      .slice(0, MAX_TRACKED_CONVERSATIONS);
+  } catch {
+    return [];
+  }
 }

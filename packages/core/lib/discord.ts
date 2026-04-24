@@ -9,7 +9,7 @@ import {
   Partials,
   type Message,
 } from "discord.js";
-import { mkdir, readdir, stat, unlink } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, unlink } from "node:fs/promises";
 import { basename } from "node:path";
 import { handleInteraction, getCommandDefs } from "./interactions.ts";
 import type { AppContext } from "./types.ts";
@@ -22,6 +22,10 @@ import {
   refreshChannel,
   isRateLimited,
 } from "./conversation.ts";
+import {
+  GAP_RECOVERY_WINDOW_MS,
+  loadActiveConversations,
+} from "./daemon-queue.ts";
 
 const PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i;
 
@@ -29,6 +33,178 @@ function sanitizeAttachmentName(name?: string | null): string {
   const safeBase = basename(name || "attachment");
   const sanitized = safeBase.replace(/[^a-zA-Z0-9._-]/g, "_");
   return sanitized || "attachment";
+}
+
+type ChannelNotificationPayload = {
+  meta: Record<string, string>;
+  cleanContent: string;
+};
+
+async function buildChannelNotificationMeta(
+  message: Message,
+  ctx: AppContext,
+  botUserId: string,
+  opts: { replyToUserId: string | null; conversationMode: boolean }
+): Promise<ChannelNotificationPayload> {
+  const userId = message.author.id;
+  const isDM = !message.guild;
+  const isMentionedHere = !isDM && message.mentions.has(botUserId);
+  const isOwner = ctx.ownerUserId
+    ? userId === ctx.ownerUserId
+    : ctx.allowedUsers.size === 0;
+
+  const meta: Record<string, string> = {
+    chat_id: message.channelId,
+    message_id: message.id,
+    user: message.author.username,
+    user_id: userId,
+    ts: message.createdAt.toISOString(),
+    is_dm: isDM ? "true" : "false",
+    role: isOwner ? "owner" : "user",
+  };
+
+  if (opts.conversationMode && !isDM && !isMentionedHere) {
+    meta.conversation_mode = "true";
+  }
+
+  if (opts.replyToUserId) {
+    meta.reply_to_user = opts.replyToUserId;
+  }
+
+  if (message.attachments.size > 0) {
+    meta.attachment_count = String(message.attachments.size);
+    const descriptions: string[] = [];
+    const filePaths: string[] = [];
+    const downloadDir = `${ctx.DATA_DIR}/inbox`;
+    await mkdir(downloadDir, { recursive: true });
+
+    for (const [, attachment] of message.attachments) {
+      descriptions.push(
+        `${attachment.name} (${attachment.contentType || "unknown"}, ${Math.round((attachment.size || 0) / 1024)}KB)`
+      );
+
+      try {
+        const response = await fetch(attachment.url);
+        if (!response.ok) throw new Error(`download failed: ${response.status}`);
+        const buffer = await response.arrayBuffer();
+        const safeName = sanitizeAttachmentName(attachment.name);
+        const filePath = `${downloadDir}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safeName}`;
+        await Bun.write(filePath, buffer);
+        filePaths.push(filePath);
+      } catch {
+        // Download failed, Claude will just see the description
+      }
+    }
+    meta.attachments = descriptions.join("; ");
+    if (filePaths.length > 0) meta.file_path = filePaths[0];
+    if (filePaths.length > 1) meta.file_paths = filePaths.join(";");
+  }
+
+  const cleanContent = message.content
+    .replace(new RegExp(`<@!?${botUserId}>`, "g"), "")
+    .trim();
+
+  return { meta, cleanContent };
+}
+
+/**
+ * After a daemon session cycle, the worker briefly disconnects from Discord.
+ * Fetch any messages that arrived in each tracked chat during the gap and
+ * forward them as if they were live MessageCreate events.
+ *
+ * No-op when daemon-state.json is absent (interactive mode), stale, or
+ * outside the recovery window.
+ */
+async function runGapRecovery(ctx: AppContext, botUserId: string): Promise<void> {
+  const metaDir = `${ctx.DATA_DIR}/meta`;
+  const stateFile = `${metaDir}/daemon-state.json`;
+
+  let daemonState: any;
+  try {
+    daemonState = JSON.parse(await readFile(stateFile, "utf-8"));
+  } catch {
+    return; // Interactive mode or first boot — nothing to recover
+  }
+
+  if (daemonState.mode !== "daemon") return;
+
+  const lastCycleAt: number | null = daemonState.lastCycleAt ?? null;
+  if (!lastCycleAt) return;
+
+  const age = Date.now() - lastCycleAt;
+  if (age < 0 || age > GAP_RECOVERY_WINDOW_MS) return;
+
+  const conversations = await loadActiveConversations(metaDir);
+  if (conversations.length === 0) return;
+
+  let forwarded = 0;
+  let channelsChecked = 0;
+
+  for (const conv of conversations) {
+    if (!conv.messageId) continue;
+    channelsChecked++;
+
+    try {
+      const channel = await ctx.discord.channels.fetch(conv.chatId);
+      if (!channel || !channel.isTextBased()) continue;
+      if (!("messages" in channel)) continue;
+
+      const fetched = await channel.messages.fetch({
+        after: conv.messageId,
+        limit: 50,
+      });
+
+      // Discord returns newest-first; replay in chronological order
+      const chronological = [...fetched.values()].sort(
+        (a, b) => a.createdTimestamp - b.createdTimestamp
+      );
+
+      for (const message of chronological) {
+        if (message.author.bot) continue;
+        if (message.author.id === botUserId) continue;
+        if (message.createdTimestamp <= lastCycleAt) continue;
+
+        let replyToUserId: string | null = null;
+        if (message.reference?.messageId) {
+          try {
+            const refMsg = await message.channel.messages.fetch(
+              message.reference.messageId
+            );
+            replyToUserId = refMsg.author.id;
+          } catch {}
+        }
+
+        const { meta, cleanContent } = await buildChannelNotificationMeta(
+          message,
+          ctx,
+          botUserId,
+          { replyToUserId, conversationMode: false }
+        );
+
+        ctx.mcp.notification({
+          method: "notifications/claude/channel" as any,
+          params: {
+            content:
+              cleanContent ||
+              "(empty message — user may have just mentioned you)",
+            meta,
+          },
+        });
+
+        forwarded++;
+      }
+    } catch (err: any) {
+      console.error(
+        `Gap recovery: skipping chat ${conv.chatId} — ${err?.message || err}`
+      );
+    }
+  }
+
+  if (forwarded > 0 || channelsChecked > 0) {
+    console.error(
+      `Gap recovery: forwarded ${forwarded} message(s) from ${channelsChecked} channel(s)`
+    );
+  }
 }
 
 function generatePairingCode(): string {
@@ -146,6 +322,13 @@ export function createDiscordClient(ctx: AppContext): Client {
     }
 
     initDone();
+
+    // Gap recovery — after a daemon session cycle, fetch any Discord
+    // messages that arrived while the worker was disconnected. Runs
+    // after initDone so worker startup isn't blocked.
+    runGapRecovery(ctx, c.user.id).catch((err) => {
+      console.error(`Gap recovery failed (continuing): ${err?.message || err}`);
+    });
   });
 
   discord.on(Events.MessageCreate, async (message: Message) => {
@@ -254,75 +437,26 @@ export function createDiscordClient(ctx: AppContext): Client {
     )
       return;
 
-    // Build metadata
-    const isMentionedHere =
-      !isDM && message.mentions.has(discord.user!.id);
-    const isOwner = ctx.ownerUserId
-      ? userId === ctx.ownerUserId
-      : ctx.allowedUsers.size === 0;
-    const meta: Record<string, string> = {
-      chat_id: message.channelId,
-      message_id: message.id,
-      user: message.author.username,
-      user_id: userId,
-      ts: message.createdAt.toISOString(),
-      is_dm: message.guild ? "false" : "true",
-      role: isOwner ? "owner" : "user",
-    };
-
-    // Mark conversation mode messages
-    if (
+    // Decide conversation_mode before building meta
+    const conversationMode =
       !isDM &&
-      !isMentionedHere &&
-      isChannelActive(ctx.activeChannels, message.channelId, ctx.config.getConvoTimeoutMs())
-    ) {
-      meta.conversation_mode = "true";
-    }
+      !message.mentions.has(discord.user!.id) &&
+      isChannelActive(
+        ctx.activeChannels,
+        message.channelId,
+        ctx.config.getConvoTimeoutMs()
+      );
 
-    // Tag who this message is replying to (helps Claude decide whether to butt in)
-    if (replyToUserId) {
-      meta.reply_to_user = replyToUserId;
-    }
-
-    // Handle image/file attachments
-    if (message.attachments.size > 0) {
-      meta.attachment_count = String(message.attachments.size);
-      const descriptions: string[] = [];
-      const filePaths: string[] = [];
-      const downloadDir = `${ctx.DATA_DIR}/inbox`;
-      await mkdir(downloadDir, { recursive: true });
-
-      for (const [, attachment] of message.attachments) {
-        descriptions.push(
-          `${attachment.name} (${attachment.contentType || "unknown"}, ${Math.round((attachment.size || 0) / 1024)}KB)`
-        );
-
-        try {
-          const response = await fetch(attachment.url);
-          if (!response.ok) throw new Error(`download failed: ${response.status}`);
-          const buffer = await response.arrayBuffer();
-          const safeName = sanitizeAttachmentName(attachment.name);
-          const filePath = `${downloadDir}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safeName}`;
-          await Bun.write(filePath, buffer);
-          filePaths.push(filePath);
-        } catch {
-          // Download failed, Claude will just see the description
-        }
-      }
-      meta.attachments = descriptions.join("; ");
-      // Pass first path as file_path for backwards compat, all paths as file_paths
-      if (filePaths.length > 0) meta.file_path = filePaths[0];
-      if (filePaths.length > 1) meta.file_paths = filePaths.join(";");
-    }
+    const { meta, cleanContent } = await buildChannelNotificationMeta(
+      message,
+      ctx,
+      discord.user!.id,
+      { replyToUserId, conversationMode }
+    );
 
     // Show typing indicator while Claude processes (state machine in lib/typing.ts)
     const isConversationMode = meta.conversation_mode === "true";
     onMessageReceived(message.channelId, message.channel as any, isConversationMode);
-
-    // Strip bot @mention from the message so Claude sees clean text
-    const cleanContent = message.content
-      .replace(new RegExp(`<@!?${discord.user!.id}>`, "g"), "")
-      .trim();
 
     // Forward to Claude Code
     ctx.mcp.notification({

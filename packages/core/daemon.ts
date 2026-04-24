@@ -33,9 +33,17 @@ import { findMonorepoRoot } from "@choomfie/shared";
 import {
   cloneBufferedMessage,
   composeHandoffSummary,
+  parseChannelMessage,
   trackConversationActivity,
   type ConversationActivity,
 } from "./lib/daemon-handoff.ts";
+import {
+  appendPendingMessage,
+  clearPendingQueue,
+  loadActiveConversations,
+  loadPendingQueue,
+  saveActiveConversations,
+} from "./lib/daemon-queue.ts";
 
 // --- Constants ---
 
@@ -116,6 +124,8 @@ type MetaState = {
   totalCycles: number;
   /** Reason for last cycle */
   lastCycleReason: string | null;
+  /** Wall-clock timestamp when DRAINING→CYCLING transition happened. Read by worker on reconnect for gap recovery. */
+  lastCycleAt: number | null;
 };
 
 // --- Logging ---
@@ -370,13 +380,46 @@ async function startSession(
   // Start worker health monitoring
   startWorkerHealthMonitor(state);
 
-  // Replay any queued messages
-  if (state.messageQueue.length > 0) {
-    log(`Replaying ${state.messageQueue.length} queued messages`);
-    for (const msg of state.messageQueue) {
+  // Replay queued messages — merge in-memory + disk queue (dedup by message_id)
+  const diskQueue = await loadPendingQueue(META_DIR).catch((err) => {
+    log(`Failed to load pending queue from disk: ${err.message || err}`);
+    return [] as SDKUserMessage[];
+  });
+
+  const inMemoryCount = state.messageQueue.length;
+  const seenMessageIds = new Set<string>();
+  const merged: SDKUserMessage[] = [];
+
+  for (const msg of state.messageQueue) {
+    const parsed = parseChannelMessage(msg);
+    const id = parsed?.attrs.message_id;
+    if (id) seenMessageIds.add(id);
+    merged.push(msg);
+  }
+
+  let fromDisk = 0;
+  for (const msg of diskQueue) {
+    const parsed = parseChannelMessage(msg);
+    const id = parsed?.attrs.message_id;
+    if (id && seenMessageIds.has(id)) continue;
+    if (id) seenMessageIds.add(id);
+    merged.push(msg);
+    fromDisk++;
+  }
+
+  if (merged.length > 0) {
+    log(
+      `Replaying ${merged.length} queued messages (${fromDisk} from disk, ${inMemoryCount} in-memory)`
+    );
+    for (const msg of merged) {
       push(cloneBufferedMessage(msg));
     }
     state.messageQueue = [];
+
+    await clearPendingQueue(META_DIR).catch((err) => {
+      log(`Failed to clear persisted queue: ${err.message || err}`);
+    });
+    log("Cleared persisted queue");
   }
 
   // Reset backoff on successful start
@@ -475,13 +518,26 @@ function handleSessionMessage(state: MetaState, message: SDKMessage): void {
   switch (message.type) {
     case "user": {
       const userMessage = message as SDKUserMessage;
+      const prevConversations = state.activeConversations;
       state.activeConversations = trackConversationActivity(state.activeConversations, userMessage);
 
+      // Persist conversations whenever they change (array identity changes only
+      // when trackConversationActivity actually updates — no-op otherwise)
+      if (state.activeConversations !== prevConversations) {
+        saveActiveConversations(META_DIR, state.activeConversations).catch((err) => {
+          log(`Failed to persist active conversations: ${err.message || err}`);
+        });
+      }
+
       if (!userMessage.isSynthetic && state.state !== "ACTIVE") {
-        state.messageQueue.push(cloneBufferedMessage(userMessage));
+        const cloned = cloneBufferedMessage(userMessage);
+        state.messageQueue.push(cloned);
         log(
           `Buffered inbound Discord message during ${state.state} (${state.messageQueue.length} queued)`
         );
+        appendPendingMessage(META_DIR, cloned).catch((err) => {
+          log(`Failed to persist buffered message: ${err.message || err}`);
+        });
       }
       break;
     }
@@ -724,8 +780,12 @@ async function cycleSession(state: MetaState, tokenCount?: number): Promise<void
   };
   await saveHandoff(handoff);
 
+  // Mark the DRAINING→CYCLING boundary so worker gap-recovery can
+  // filter messages that arrived after the cycle started.
+  state.lastCycleAt = Date.now();
   state.state = "CYCLING";
   log("Cycling session...");
+  writeDaemonState(state);
 
   // Close old session
   try {
@@ -754,6 +814,7 @@ async function testCycle(): Promise<void> {
 
   await acquirePid();
   const state = createInitialState();
+  state.activeConversations = await loadActiveConversations(META_DIR);
 
   // Graceful shutdown on signal
   setupShutdown(state);
@@ -786,6 +847,20 @@ async function testCycle(): Promise<void> {
   log("Waiting 10s before triggering cycle...");
   await new Promise((r) => setTimeout(r, 10_000));
 
+  // Integration probe: simulate a gap-era Discord message persisted to disk
+  // so we can verify it replays into the new session.
+  log("Seeding disk queue with a simulated gap message...");
+  const seedMessage: SDKUserMessage = {
+    type: "user",
+    message: {
+      role: "user",
+      content:
+        '<channel source="choomfie" chat_id="test-chat" message_id="seed-1" user="tester" user_id="u-seed" ts="2026-04-24T00:00:00.000Z" is_dm="true" role="owner">seeded gap message</channel>',
+    },
+    parent_tool_use_id: null,
+  };
+  await appendPendingMessage(META_DIR, seedMessage);
+
   log("Triggering manual cycle...");
   const preCycleTurns = state.turnCount;
   await cycleSession(state, state.totalInputTokens);
@@ -796,6 +871,20 @@ async function testCycle(): Promise<void> {
     await cleanup(state);
     process.exit(1);
   }
+
+  // Verify disk queue was drained + cleared
+  const residualQueue = await loadPendingQueue(META_DIR);
+  if (residualQueue.length > 0) {
+    log(`FAIL: Pending queue not cleared after cycle (${residualQueue.length} entries remain)`);
+    await cleanup(state);
+    process.exit(1);
+  }
+  if (state.messageQueue.length !== 0) {
+    log(`FAIL: In-memory queue not drained after cycle (${state.messageQueue.length} entries remain)`);
+    await cleanup(state);
+    process.exit(1);
+  }
+  log("OK: Disk queue drained + cleared after cycle");
 
   // Verify handoff was persisted
   const handoffs = await loadHandoffs();
@@ -848,6 +937,7 @@ async function benchmark(): Promise<void> {
 
   await acquirePid();
   const state = createInitialState();
+  state.activeConversations = await loadActiveConversations(META_DIR);
   setupShutdown(state);
 
   await startSession(state);
@@ -1023,6 +1113,7 @@ async function writeDaemonState(state: MetaState): Promise<void> {
     costUsd: state.totalCostUsd,
     totalCycles: state.totalCycles,
     lastCycleReason: state.lastCycleReason,
+    lastCycleAt: state.lastCycleAt,
     workerHealth: {
       processAlive: state.workerHealth.processAlive,
       lastHealthyAt: state.workerHealth.lastHealthyAt || null,
@@ -1066,6 +1157,7 @@ function createInitialState(): MetaState {
     workerHealthTimer: null,
     totalCycles: 0,
     lastCycleReason: null,
+    lastCycleAt: null,
   };
 }
 
@@ -1234,6 +1326,10 @@ async function main(): Promise<void> {
 
   // Initialize state
   const state = createInitialState();
+  state.activeConversations = await loadActiveConversations(META_DIR);
+  if (state.activeConversations.length > 0) {
+    log(`Hydrated ${state.activeConversations.length} active conversation(s) from disk`);
+  }
 
   // Graceful shutdown
   setupShutdown(state);
