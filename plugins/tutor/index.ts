@@ -9,36 +9,30 @@
  */
 
 import type { Plugin } from "@choomfie/shared";
-import { errorMessage } from "@choomfie/shared";
 import { SRSManager } from "./core/srs.ts";
 import { setSRS, getSRS } from "./core/srs-instance.ts";
 import { LessonDB } from "./core/lesson-db.ts";
 import { setLessonDB, getLessonDB } from "./core/lesson-db-instance.ts";
-import { registerLessons, completeLesson } from "./core/lesson-engine.ts";
+import { registerLessons } from "./core/lesson-engine.ts";
 import { getAllTutorTools } from "./tools/index.ts";
 import { listModules } from "./modules/index.ts";
 import { japaneseLessons, japaneseUnits } from "./modules/japanese/lessons/index.ts";
 
+// Side-effect import: registers /lesson, /progress commands + button handlers
+import "./lesson-interactions.ts";
+import { hasActiveTypingExercise, handleTypedAnswer } from "./lesson-interactions.ts";
 import {
-  buildExerciseButtons,
-  buildLessonCompletionComponents,
-  buildResultEmbed,
-  buildSummaryEmbed,
-  clearActiveSession,
-  hasActiveTypingExercise,
-  handleTypedAnswer,
-} from "./lesson-interactions.ts";
-import { getActiveModule } from "./core/session.ts";
-import { EmbedBuilder } from "discord.js";
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+} from "discord.js";
+import { completeLesson } from "./core/lesson-engine.ts";
 import { updateFromLessonCompletion } from "./core/learner-profile.ts";
 
-// SRS reminder state (cleaned up in destroy)
+// SRS reminder timer handles (cleaned up in destroy)
 let srsReminderTimeout: ReturnType<typeof setTimeout> | null = null;
 let srsReminderInterval: ReturnType<typeof setInterval> | null = null;
-
-const SRS_REMINDER_INTERVAL_MS = 4 * 60 * 60 * 1000;
-const SRS_MIN_DUE = 5;
-const SRS_REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 const tutorPlugin: Plugin = {
   name: "tutor",
@@ -65,8 +59,7 @@ const tutorPlugin: Plugin = {
     "8. Use `srs_review` to start a flashcard review session",
     "9. Use `srs_rate` after they answer a flashcard (again/hard/good/easy)",
     "10. Use `srs_stats` to show their progress",
-    "11. Use `srs_reminders` when they ask to check, enable, or disable SRS reminders",
-    "12. Module-specific tools (e.g. `convert_kana` for Japanese) are also available",
+    "11. Module-specific tools (e.g. `convert_kana` for Japanese) are also available",
     "",
     "**Learning flow:** Lessons (learn new material) → SRS (retain it) → Conversation (use it naturally)",
     "",
@@ -90,7 +83,6 @@ const tutorPlugin: Plugin = {
     "srs_review",
     "srs_rate",
     "srs_stats",
-    "srs_reminders",
     "lesson_status",
     "convert_kana",
     "random_word",
@@ -110,56 +102,93 @@ const tutorPlugin: Plugin = {
 
     // Get correct count from DB
     const db = getLessonDB();
-    if (!db) return;
-    const progress = db.getProgress(userId, session.module, session.lessonId);
+    const progress = db?.getProgress(userId, session.module, session.lessonId);
     const correctSoFar = progress?.exerciseResults.filter((r) => r.correct).length ?? 0;
 
-    const resultEmbed = buildResultEmbed(
-      exerciseResult.correct,
-      exerciseResult.feedback,
-      correctSoFar,
-      session.exercises.length
-    );
+    const resultEmbed = new EmbedBuilder()
+      .setColor(exerciseResult.correct ? 0x57f287 : 0xed4245)
+      .setDescription(exerciseResult.feedback)
+      .setFooter({ text: `Score: ${correctSoFar}/${session.lesson.exercises.length}` });
 
     // Check if lesson is done
-    if (session.exerciseIndex >= session.exercises.length) {
-      const completion = completeLesson(db, userId, session.module, session.lessonId, session.exercises.length);
+    if (session.exerciseIndex >= session.lesson.exercises.length) {
+      const completion = completeLesson(db!, userId, session.module, session.lessonId);
 
       // Update learner profile
-      updateFromLessonCompletion(db, userId, session.module);
-      clearActiveSession(userId);
+      const completionProgress = db!.getProgress(userId, session.module, session.lessonId);
+      if (completionProgress) {
+        updateFromLessonCompletion(
+          db!, userId, session.module, session.lessonId,
+          completion.score, completionProgress.exerciseResults
+        );
+      }
 
-      const summaryEmbed = buildSummaryEmbed(
-        session.lesson,
-        completion.score,
-        completion.passed,
-        completion.totalCorrect,
-        completion.totalExercises
-      );
-      const components = buildLessonCompletionComponents(
-        completion.passed,
-        session.lessonId
-      );
+      const pct = Math.round(completion.score * 100);
+      const passed = completion.passed;
+
+      const summaryEmbed = new EmbedBuilder()
+        .setTitle(passed ? "🎉 Lesson Complete!" : "📝 Keep Practicing!")
+        .setColor(passed ? 0x57f287 : 0xfee75c)
+        .setDescription(
+          `**${session.lesson.title}** — ${pct}% (${completion.totalCorrect}/${completion.totalExercises})`
+        );
+
+      const components: ActionRowBuilder<ButtonBuilder>[] = [];
+      if (passed) {
+        if (session.lesson.srsItems && session.lesson.srsItems.length > 0) {
+          summaryEmbed.addFields({
+            name: "📚 Added to SRS",
+            value: `${session.lesson.srsItems.length} items added to your review deck`,
+          });
+        }
+        components.push(
+          new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder()
+              .setCustomId("lesson:next")
+              .setLabel("Next Lesson →")
+              .setStyle(ButtonStyle.Success)
+          )
+        );
+      } else {
+        components.push(
+          new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`lesson:retry:${session.lessonId}`)
+              .setLabel("Try Again")
+              .setStyle(ButtonStyle.Primary)
+          )
+        );
+      }
 
       await message.reply({ embeds: [resultEmbed, summaryEmbed], components });
       return;
     }
 
     // Show next exercise
-    const nextExercise = session.exercises[session.exerciseIndex];
+    const nextExercise = session.lesson.exercises[session.exerciseIndex];
     const exerciseEmbed = new EmbedBuilder()
       .setColor(0xfee75c)
-      .setTitle(`Exercise ${session.exerciseIndex + 1}/${session.exercises.length}`)
+      .setTitle(`Exercise ${session.exerciseIndex + 1}/${session.lesson.exercises.length}`)
       .setDescription(nextExercise.prompt);
 
-    const components = buildExerciseButtons(
-      nextExercise,
-      session.lessonId,
-      session.exerciseIndex,
-      session
-    );
+    // Build buttons for MC exercises, or typing prompt
+    const isTyping = nextExercise.type === "production" || nextExercise.type === "cloze";
+    const components: ActionRowBuilder<ButtonBuilder>[] = [];
 
-    if (components.length === 0) {
+    if (!isTyping && (nextExercise.type === "recognition" || nextExercise.type === "multiple_choice" || nextExercise.type === "chart" || nextExercise.type === "matching")) {
+      const options = [nextExercise.answer, ...(nextExercise.distractors ?? [])];
+      const shuffled = options.sort(() => Math.random() - 0.5);
+      const row = new ActionRowBuilder<ButtonBuilder>();
+      for (let i = 0; i < Math.min(shuffled.length, 5); i++) {
+        row.addComponents(
+          new ButtonBuilder()
+            .setCustomId(`lesson:answer:${session.lessonId}:${session.exerciseIndex}:${shuffled[i]}`)
+            .setLabel(shuffled[i])
+            .setStyle(ButtonStyle.Secondary)
+        );
+      }
+      components.push(row);
+    } else {
       exerciseEmbed.setFooter({
         text: `Type your answer below${nextExercise.hint ? ` · 💡 ${nextExercise.hint}` : ""}`,
       });
@@ -189,44 +218,40 @@ const tutorPlugin: Plugin = {
         try {
           await mod.init();
           console.error(`Tutor: module "${mod.name}" initialized`);
-        } catch (e: unknown) {
-          console.error(
-            `Tutor: module "${mod.name}" init failed (non-critical): ${errorMessage(e)}`
-          );
+        } catch (e) {
+          console.error(`Tutor: module "${mod.name}" init failed (non-critical): ${e}`);
         }
       }
     }
 
-    if (!ctx.discord) {
-      console.error("Tutor: Discord unavailable, SRS reminder timer disabled");
-      return;
-    }
-
     // SRS study reminders — check every 4 hours
+    const SRS_REMINDER_INTERVAL = 4 * 60 * 60 * 1000; // 4 hours
+    const SRS_MIN_DUE = 5; // minimum due cards to trigger reminder
+
+    // Track last reminder per user to avoid spam (in-memory, resets on restart which is fine)
+    const lastSrsReminder = new Map<string, number>();
+
+    const SRS_REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
     const checkSrsReminders = async () => {
       const srs = getSRS();
       if (!srs) return;
-      if (!ctx.discord?.users?.fetch) return;
 
       const dueCounts = srs.getDueCountByUser();
       for (const [userId, count] of dueCounts) {
         if (count < SRS_MIN_DUE) continue;
-        const module = getActiveModule(userId);
-        const reminderSettings = lessonDb.getSrsReminderSettings(userId, module);
-        if (!reminderSettings.enabled) continue;
 
         // Don't remind more than once per 24h
-        const lastReminded = reminderSettings.lastRemindedAt;
+        const lastReminded = lastSrsReminder.get(userId) ?? 0;
         if (Date.now() - lastReminded < SRS_REMINDER_COOLDOWN_MS) continue;
 
         // Send DM reminder
         try {
           const user = await ctx.discord.users.fetch(userId);
           await user.send(
-            `📚 You have **${count} SRS cards** due for review! Keep your streak going.\nUse \`/srs_review\` or ask me to start a review session.`
+            `\u{1F4DA} You have **${count} SRS cards** due for review! Keep your streak going.\nUse \`/srs_review\` or ask me to start a review session.`
           );
-          const remindedAt = Date.now();
-          lessonDb.recordSrsReminderSent(userId, module, remindedAt);
+          lastSrsReminder.set(userId, Date.now());
           console.error(`Tutor: sent SRS reminder to ${userId} (${count} due cards)`);
         } catch {
           // User not reachable via DM
@@ -236,7 +261,7 @@ const tutorPlugin: Plugin = {
 
     // Run initial check after 1 minute (let Discord connect first), then every 4 hours
     srsReminderTimeout = setTimeout(checkSrsReminders, 60_000);
-    srsReminderInterval = setInterval(checkSrsReminders, SRS_REMINDER_INTERVAL_MS);
+    srsReminderInterval = setInterval(checkSrsReminders, SRS_REMINDER_INTERVAL);
   },
 
   async destroy() {
@@ -249,8 +274,8 @@ const tutorPlugin: Plugin = {
     // Destroy all modules
     for (const mod of listModules()) {
       if (mod.destroy) {
-        try { await mod.destroy(); } catch (e: unknown) {
-          console.error(`Tutor: module destroy failed: ${errorMessage(e)}`);
+        try { await mod.destroy(); } catch (e) {
+          console.error(`Tutor: module destroy failed: ${e}`);
         }
       }
     }
