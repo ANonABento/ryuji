@@ -3,6 +3,7 @@
  */
 
 import type { TutorModule, QuizQuestion, TutorPromptContext } from "../../core/types.ts";
+import { pickRandomItems, shuffleArray } from "../../core/exercise-utils.ts";
 import { lookupJisho } from "./dictionary.ts";
 import { initFurigana } from "./furigana.ts";
 import { japaneseTools } from "./tools.ts";
@@ -61,8 +62,7 @@ function pick<T>(arr: T[]): T {
 }
 
 function pickN<T>(arr: T[], n: number): T[] {
-  const shuffled = [...arr].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, n);
+  return pickRandomItems(arr, n);
 }
 
 const LEVEL_GUIDES: Record<string, string> = {
@@ -191,9 +191,7 @@ Always be encouraging and patient. Language learning is hard!`;
         kanaSet.filter((k) => k[1] !== correct[1]),
         3
       );
-      const options = [correct[1], ...wrongOptions.map((w) => w[1])].sort(
-        () => Math.random() - 0.5
-      );
+      const options = shuffleArray([correct[1], ...wrongOptions.map((w) => w[1])]);
 
       return {
         question: `What is the reading of this ${setName}: **${correct[0]}**?`,
@@ -209,9 +207,7 @@ Always be encouraging and patient. Language learning is hard!`;
         N5_VOCAB.filter((v) => v[2] !== correct[2]),
         3
       );
-      const options = [correct[2], ...wrongOptions.map((w) => w[2])].sort(
-        () => Math.random() - 0.5
-      );
+      const options = shuffleArray([correct[2], ...wrongOptions.map((w) => w[2])]);
 
       return {
         question: `What does **${correct[0]}** (${correct[1]}) mean?`,
@@ -224,7 +220,7 @@ Always be encouraging and patient. Language learning is hard!`;
     // Grammar
     const q = pick(GRAMMAR_QUESTIONS);
     const correctAnswer = q.options[q.correctIndex];
-    const shuffled = [...q.options].sort(() => Math.random() - 0.5);
+    const shuffled = shuffleArray(q.options);
     return {
       ...q,
       options: shuffled,

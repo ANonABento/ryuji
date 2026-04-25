@@ -20,7 +20,11 @@ import { japaneseLessons, japaneseUnits } from "./modules/japanese/lessons/index
 
 // Side-effect import: registers /lesson, /progress commands + button handlers
 import "./lesson-interactions.ts";
-import { hasActiveTypingExercise, handleTypedAnswer } from "./lesson-interactions.ts";
+import {
+  clearActiveSession,
+  hasActiveTypingExercise,
+  handleTypedAnswer,
+} from "./lesson-interactions.ts";
 import {
   EmbedBuilder,
   ActionRowBuilder,
@@ -29,7 +33,11 @@ import {
 } from "discord.js";
 import { completeLesson } from "./core/lesson-engine.ts";
 import { updateFromLessonCompletion } from "./core/learner-profile.ts";
-import { isButtonExercise } from "./core/lesson-types.ts";
+import { isButtonExercise, isTypingExercise } from "./core/lesson-types.ts";
+import {
+  countCorrectResults,
+  getShuffledExerciseChoices,
+} from "./core/exercise-utils.ts";
 
 // SRS reminder timer handles (cleaned up in destroy)
 let srsReminderTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -108,7 +116,7 @@ const tutorPlugin: Plugin = {
     // Get correct count from DB
     const db = getLessonDB();
     const progress = db?.getProgress(userId, session.module, session.lessonId);
-    const correctSoFar = progress?.exerciseResults.filter((r) => r.correct).length ?? 0;
+    const correctSoFar = countCorrectResults(progress?.exerciseResults);
 
     const resultEmbed = new EmbedBuilder()
       .setColor(exerciseResult.correct ? 0x57f287 : 0xed4245)
@@ -118,6 +126,7 @@ const tutorPlugin: Plugin = {
     // Check if lesson is done
     if (session.exerciseIndex >= session.lesson.exercises.length) {
       const completion = completeLesson(db!, userId, session.module, session.lessonId);
+      clearActiveSession(userId);
 
       // Update learner profile
       updateFromLessonCompletion(db!, userId, session.module);
@@ -171,18 +180,17 @@ const tutorPlugin: Plugin = {
       .setDescription(nextExercise.prompt);
 
     // Build buttons for MC exercises, or typing prompt
-    const isTyping = nextExercise.type === "production" || nextExercise.type === "cloze";
+    const isTyping = isTypingExercise(nextExercise.type);
     const components: ActionRowBuilder<ButtonBuilder>[] = [];
 
     if (!isTyping && isButtonExercise(nextExercise.type)) {
-      const options = [nextExercise.answer, ...(nextExercise.distractors ?? [])];
-      const shuffled = options.sort(() => Math.random() - 0.5);
+      const choices = getShuffledExerciseChoices(nextExercise);
       const row = new ActionRowBuilder<ButtonBuilder>();
-      for (let i = 0; i < Math.min(shuffled.length, 5); i++) {
+      for (let i = 0; i < Math.min(choices.length, 5); i++) {
         row.addComponents(
           new ButtonBuilder()
-            .setCustomId(`lesson:answer:${session.lessonId}:${session.exerciseIndex}:${shuffled[i]}`)
-            .setLabel(shuffled[i])
+            .setCustomId(`lesson:answer:${session.lessonId}:${session.exerciseIndex}:${choices[i]}`)
+            .setLabel(choices[i])
             .setStyle(ButtonStyle.Secondary)
         );
       }

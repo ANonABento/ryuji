@@ -89,3 +89,8 @@ export function isButtonExercise(type: Exercise["type"]): boolean {
     type === "matching"
   );
 }
+
+/** Returns true for exercise types that require a typed answer */
+export function isTypingExercise(type: Exercise["type"]): boolean {
+  return type === "production" || type === "cloze";
+}

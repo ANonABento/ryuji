@@ -8,6 +8,10 @@ import {
   type ContentItem,
   type ContentSet,
 } from "../../../plugins/tutor/core/exercise-generator.ts";
+import {
+  countCorrectResults,
+  getShuffledExerciseChoices,
+} from "../../../plugins/tutor/core/exercise-utils.ts";
 
 const SAMPLE: ContentItem[] = [
   { term: "あ", reading: "a", meaning: "a (vowel)" },
@@ -104,5 +108,25 @@ describe("exercise-generator", () => {
     const ex = generateAllExercises({ items: SAMPLE, modes: ["recognition"] });
     expect(ex.length).toBe(SAMPLE.length);
     for (const e of ex) expect(e.type).toBe("recognition");
+  });
+
+  test("exercise helpers preserve answers and count saved results once", () => {
+    const exercise = {
+      type: "recognition" as const,
+      prompt: "?",
+      answer: "correct",
+      distractors: ["wrong-1", "wrong-2"],
+    };
+
+    const choices = getShuffledExerciseChoices(exercise);
+    expect(choices).toContain("correct");
+    expect(choices.length).toBe(3);
+
+    const correctCount = countCorrectResults([
+      { correct: true },
+      { correct: false },
+      { correct: true },
+    ]);
+    expect(correctCount).toBe(2);
   });
 });
