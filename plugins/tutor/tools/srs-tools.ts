@@ -6,7 +6,10 @@ import type { ToolDef } from "@choomfie/shared";
 import { text, err } from "@choomfie/shared";
 import { getSRS } from "../core/srs-instance.ts";
 import { getActiveModule } from "../core/session.ts";
-import { getModule } from "../modules/index.ts";
+import { getLessonDB } from "../core/lesson-db-instance.ts";
+import { updateFromSrsReview } from "../core/learner-profile.ts";
+
+const DEFAULT_DECK = "jlpt-n5";
 
 export const srsTools: ToolDef[] = [
   {
@@ -29,10 +32,10 @@ export const srsTools: ToolDef[] = [
       if (!srs) return err("SRS not initialized");
 
       const userId = args.user_id as string;
-      const deck = (args.deck as string) || "jlpt-n5";
+      const deck = (args.deck as string) || DEFAULT_DECK;
 
       // Auto-import N5 deck for Japanese users
-      if (!srs.hasDeck(userId, deck) && deck === "jlpt-n5") {
+      if (!srs.hasDeck(userId, deck) && deck === DEFAULT_DECK) {
         try {
           const vocabData = await import(
             "../modules/japanese/data/n5-vocab.json"
@@ -40,9 +43,11 @@ export const srsTools: ToolDef[] = [
           const cards = Array.isArray(vocabData.default)
             ? vocabData.default
             : vocabData;
-          srs.importDeck(userId, "jlpt-n5", cards);
-        } catch (e: any) {
-          return err(`Failed to import N5 deck: ${e.message}`);
+          srs.importDeck(userId, DEFAULT_DECK, cards);
+        } catch (error: unknown) {
+          return err(
+            `Failed to import N5 deck: ${error instanceof Error ? error.message : String(error)}`
+          );
         }
       }
 
@@ -90,11 +95,22 @@ export const srsTools: ToolDef[] = [
       if (!srs) return err("SRS not initialized");
 
       try {
+        const userId = args.user_id as string;
         const result = srs.reviewCard(
-          args.user_id as string,
+          userId,
           args.card_id as number,
           args.rating as "again" | "hard" | "good" | "easy"
         );
+
+        // Update learner profile with current SRS stats
+        const db = getLessonDB();
+        if (db) {
+          const deck = result.card.deck;
+          const stats = srs.getDeckStats(userId, deck);
+          const moduleName = getActiveModule(userId);
+          updateFromSrsReview(db, userId, moduleName, stats);
+        }
+
         const nextStr =
           result.interval < 1
             ? `${Math.round(result.interval * 24)} hours`
@@ -102,8 +118,8 @@ export const srsTools: ToolDef[] = [
         return text(
           `Rated **${result.card.front}** as **${args.rating}**. Next review in ${nextStr}.`
         );
-      } catch (e: any) {
-        return err(`SRS error: ${e.message}`);
+      } catch (error: unknown) {
+        return err(`SRS error: ${error instanceof Error ? error.message : String(error)}`);
       }
     },
   },

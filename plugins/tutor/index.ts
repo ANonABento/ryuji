@@ -10,7 +10,7 @@
 
 import type { Plugin } from "@choomfie/shared";
 import { SRSManager } from "./core/srs.ts";
-import { setSRS } from "./core/srs-instance.ts";
+import { setSRS, getSRS } from "./core/srs-instance.ts";
 import { LessonDB } from "./core/lesson-db.ts";
 import { setLessonDB, getLessonDB } from "./core/lesson-db-instance.ts";
 import { registerLessons } from "./core/lesson-engine.ts";
@@ -28,6 +28,16 @@ import {
   ButtonStyle,
 } from "discord.js";
 import { completeLesson } from "./core/lesson-engine.ts";
+import { updateFromLessonCompletion } from "./core/learner-profile.ts";
+import { isButtonExercise } from "./core/lesson-types.ts";
+
+// SRS reminder timer handles (cleaned up in destroy)
+let srsReminderTimeout: ReturnType<typeof setTimeout> | null = null;
+let srsReminderInterval: ReturnType<typeof setInterval> | null = null;
+
+const SRS_REMINDER_INTERVAL_MS = 4 * 60 * 60 * 1000;
+const SRS_MIN_DUE = 5;
+const SRS_REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 const tutorPlugin: Plugin = {
   name: "tutor",
@@ -80,6 +90,7 @@ const tutorPlugin: Plugin = {
     "srs_stats",
     "lesson_status",
     "convert_kana",
+    "random_word",
   ],
 
   async onMessage(message, ctx) {
@@ -107,6 +118,10 @@ const tutorPlugin: Plugin = {
     // Check if lesson is done
     if (session.exerciseIndex >= session.lesson.exercises.length) {
       const completion = completeLesson(db!, userId, session.module, session.lessonId);
+
+      // Update learner profile
+      updateFromLessonCompletion(db!, userId, session.module);
+
       const pct = Math.round(completion.score * 100);
       const passed = completion.passed;
 
@@ -159,7 +174,7 @@ const tutorPlugin: Plugin = {
     const isTyping = nextExercise.type === "production" || nextExercise.type === "cloze";
     const components: ActionRowBuilder<ButtonBuilder>[] = [];
 
-    if (!isTyping && (nextExercise.type === "recognition" || nextExercise.type === "multiple_choice")) {
+    if (!isTyping && isButtonExercise(nextExercise.type)) {
       const options = [nextExercise.answer, ...(nextExercise.distractors ?? [])];
       const shuffled = options.sort(() => Math.random() - 0.5);
       const row = new ActionRowBuilder<ButtonBuilder>();
@@ -207,26 +222,66 @@ const tutorPlugin: Plugin = {
         }
       }
     }
+
+    // SRS study reminders — check every 4 hours
+    // Track last reminder per user to avoid spam (in-memory, resets on restart which is fine)
+    const lastSrsReminder = new Map<string, number>();
+
+    const checkSrsReminders = async () => {
+      const srs = getSRS();
+      if (!srs) return;
+
+      const dueCounts = srs.getDueCountByUser();
+      for (const [userId, count] of dueCounts) {
+        if (count < SRS_MIN_DUE) continue;
+
+        // Don't remind more than once per 24h
+        const lastReminded = lastSrsReminder.get(userId) ?? 0;
+        if (Date.now() - lastReminded < SRS_REMINDER_COOLDOWN_MS) continue;
+
+        // Send DM reminder
+        try {
+          const user = await ctx.discord.users.fetch(userId);
+          await user.send(
+            `📚 You have **${count} SRS cards** due for review! Keep your streak going.\nUse \`/srs_review\` or ask me to start a review session.`
+          );
+          lastSrsReminder.set(userId, Date.now());
+          console.error(`Tutor: sent SRS reminder to ${userId} (${count} due cards)`);
+        } catch {
+          // User not reachable via DM
+        }
+      }
+    };
+
+    // Run initial check after 1 minute (let Discord connect first), then every 4 hours
+    srsReminderTimeout = setTimeout(checkSrsReminders, 60_000);
+    srsReminderInterval = setInterval(checkSrsReminders, SRS_REMINDER_INTERVAL_MS);
   },
 
   async destroy() {
+    // Clean up SRS reminder timers
+    if (srsReminderTimeout) clearTimeout(srsReminderTimeout);
+    if (srsReminderInterval) clearInterval(srsReminderInterval);
+    srsReminderTimeout = null;
+    srsReminderInterval = null;
+
     // Destroy all modules
     for (const mod of listModules()) {
       if (mod.destroy) {
-        try { await mod.destroy(); } catch {}
+        try { await mod.destroy(); } catch (e) {
+          console.error(`Tutor: module destroy failed: ${e}`);
+        }
       }
     }
 
     // Close lesson DB
-    const { getLessonDB: getDB } = await import("./core/lesson-db-instance.ts");
-    const lessonDb = getDB();
+    const lessonDb = getLessonDB();
     if (lessonDb) {
       lessonDb.close();
       setLessonDB(null);
     }
 
     // Close SRS
-    const { getSRS } = await import("./core/srs-instance.ts");
     const srs = getSRS();
     if (srs) {
       srs.close();
