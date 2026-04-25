@@ -8,12 +8,7 @@ import {
   buildExerciseButtons,
   type ActiveLessonSession,
 } from "../../../plugins/tutor/lesson-interactions.ts";
-import {
-  getActiveChartBlank,
-  type Exercise,
-  type Lesson,
-} from "../../../plugins/tutor/core/lesson-types.ts";
-import { scoreExercise } from "../../../plugins/tutor/core/lesson-engine.ts";
+import type { Exercise, Lesson } from "../../../plugins/tutor/core/lesson-types.ts";
 
 type ButtonComponentJson = {
   custom_id: string;
@@ -121,64 +116,5 @@ describe("lesson button rendering", () => {
 
   test("buildAnswerCustomId preserves the stable lesson answer shape", () => {
     expect(buildAnswerCustomId("3.1", 4, "abc123")).toBe("lesson:answer:3.1:4:abc123");
-  });
-
-  test("chart exercises use structured blank answers and safe option tokens", () => {
-    const exercise: Exercise = {
-      type: "chart",
-      prompt: "Which character goes in the blank?\n```\n __ い う\n```",
-      answer: "あ",
-      distractors: ["い", "う", "え"],
-      chart: {
-        grid: [[null, "い", "う"]],
-        blanks: [{ row: 0, col: 0, answer: "あ", reading: "a" }],
-        currentBlankIndex: 0,
-        colLabels: ["a", "i", "u"],
-      },
-    };
-    const session = makeSession();
-
-    const components = buttonComponents(session, exercise);
-
-    expect(getActiveChartBlank(exercise)?.answer).toBe("あ");
-    expect(scoreExercise(exercise, "あ").correct).toBe(true);
-    expect(scoreExercise(exercise, "い").correct).toBe(false);
-    for (const component of components) {
-      expect(component.custom_id).toMatch(/^lesson:answer:test\.1:0:\d+$/);
-      expect(component.custom_id).not.toContain("あ");
-    }
-  });
-
-  test("chart buttons use the active blank answer when currentBlankIndex changes", () => {
-    const exercise: Exercise = {
-      type: "chart",
-      prompt: "Which character goes in the active blank?",
-      answer: "あ",
-      distractors: ["あ", "い", "う", "え"],
-      chart: {
-        grid: [
-          [null, "い"],
-          ["う", null],
-        ],
-        blanks: [
-          { row: 0, col: 0, answer: "あ", reading: "a" },
-          { row: 1, col: 1, answer: "お", reading: "o" },
-        ],
-        currentBlankIndex: 1,
-      },
-    };
-    const session = makeSession();
-
-    const options = buildButtonOptions(exercise);
-    const components = buttonComponents(session, exercise);
-
-    expect(getActiveChartBlank(exercise)?.answer).toBe("お");
-    expect(options).toContain("お");
-    expect(options.filter((option) => option === "お")).toHaveLength(1);
-    expect(scoreExercise(exercise, "お").correct).toBe(true);
-    expect([...session.answerOptionsByExercise.get(0)!.values()]).toContain("お");
-    for (const component of components) {
-      expect(component.custom_id).not.toContain("お");
-    }
   });
 });

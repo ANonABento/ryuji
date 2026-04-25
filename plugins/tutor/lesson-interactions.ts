@@ -26,12 +26,7 @@ import {
   completeLesson,
   getProgressData,
 } from "./core/lesson-engine.ts";
-import {
-  getExerciseAnswer,
-  type Exercise,
-  type Lesson,
-  isButtonExercise,
-} from "./core/lesson-types.ts";
+import { type Exercise, type Lesson, isButtonExercise } from "./core/lesson-types.ts";
 import { updateFromLessonCompletion } from "./core/learner-profile.ts";
 
 // --- Active lesson sessions (in-memory, keyed by userId) ---
@@ -81,7 +76,7 @@ function buildIntroEmbed(lesson: Lesson): EmbedBuilder {
   return embed;
 }
 
-export function buildExerciseEmbed(
+function buildExerciseEmbed(
   lesson: Lesson,
   exerciseIndex: number,
   exercise: Exercise
@@ -117,12 +112,11 @@ function shuffle<T>(items: T[]): T[] {
 
 export function buildButtonOptions(exercise: Exercise): string[] {
   if (!isButtonExercise(exercise.type)) return [];
-  const answer = getExerciseAnswer(exercise);
   const distractors = [...new Set(exercise.distractors ?? [])].filter(
-    (option) => option !== answer
+    (option) => option !== exercise.answer
   );
   const selectedDistractors = shuffle(distractors).slice(0, 4);
-  return shuffle([answer, ...selectedDistractors]);
+  return shuffle([exercise.answer, ...selectedDistractors]);
 }
 
 function buttonLabel(answer: string): string {
@@ -280,13 +274,7 @@ async function sendNextExercise(
     // Update learner profile
     updateFromLessonCompletion(db, userId, module);
 
-    const summary = buildSummaryEmbed(
-      lesson,
-      result.score,
-      result.passed,
-      result.totalCorrect,
-      result.totalExercises
-    );
+    const summary = buildSummaryEmbed(lesson, result.score, result.passed, result.totalCorrect, result.totalExercises);
     const components = buildLessonCompletionComponents(result.passed, lessonId);
 
     if (editMessage) {

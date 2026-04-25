@@ -10,7 +10,7 @@
  */
 
 import { Database } from "bun:sqlite";
-import { toSQLiteDatetime } from "./time.ts";
+import { normalizeTimeZone, toSQLiteDatetime } from "./time.ts";
 
 export interface CoreMemory {
   key: string;
@@ -33,6 +33,7 @@ export interface Reminder {
   dueAt: string;
   createdAt: string;
   cron: string | null;
+  timezone: string | null;
   nagInterval: number | null;
   category: string | null;
   ack: number;
@@ -45,6 +46,18 @@ export interface MemoryStats {
   reminderCount: number;
   oldestMemory: string | null;
   newestMemory: string | null;
+}
+
+interface CountRow {
+  count: number;
+}
+
+interface InsertIdRow {
+  id: number;
+}
+
+interface TimestampRow {
+  t: string | null;
 }
 
 export class MemoryStore {
@@ -80,6 +93,7 @@ export class MemoryStore {
         fired INTEGER DEFAULT 0,
         created_at TEXT DEFAULT (datetime('now')),
         cron TEXT,
+        timezone TEXT,
         nag_interval INTEGER,
         category TEXT,
         ack INTEGER DEFAULT 0,
@@ -93,7 +107,14 @@ export class MemoryStore {
 
   private migrate() {
     // Safely add columns if they don't exist (idempotent)
-    const cols = ["cron TEXT", "nag_interval INTEGER", "category TEXT", "ack INTEGER DEFAULT 0", "last_nag_at TEXT"];
+    const cols = [
+      "cron TEXT",
+      "timezone TEXT",
+      "nag_interval INTEGER",
+      "category TEXT",
+      "ack INTEGER DEFAULT 0",
+      "last_nag_at TEXT",
+    ];
     for (const col of cols) {
       try {
         this.db.exec(`ALTER TABLE reminders ADD COLUMN ${col}`);
@@ -182,23 +203,40 @@ export class MemoryStore {
   // --- Reminders ---
 
   private static readonly REMINDER_COLS = `id, user_id as userId, chat_id as chatId, message, due_at as dueAt,
-    created_at as createdAt, cron, nag_interval as nagInterval, category, ack, last_nag_at as lastNagAt`;
+    created_at as createdAt, cron, timezone, nag_interval as nagInterval, category, ack, last_nag_at as lastNagAt`;
 
   addReminder(
     userId: string,
     chatId: string,
     message: string,
     dueAt: string,
-    opts?: { cron?: string; nagInterval?: number; category?: string }
+    opts?: {
+      cron?: string;
+      timezone?: string | null;
+      nagInterval?: number;
+      category?: string;
+    }
   ): number {
     const normalized = toSQLiteDatetime(dueAt);
+    const timezone = normalizeTimeZone(opts?.timezone);
     this.db
       .query(
-        "INSERT INTO reminders (user_id, chat_id, message, due_at, cron, nag_interval, category) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO reminders (user_id, chat_id, message, due_at, cron, timezone, nag_interval, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
       )
-      .run(userId, chatId, message, normalized, opts?.cron ?? null, opts?.nagInterval ?? null, opts?.category ?? null);
+      .run(
+        userId,
+        chatId,
+        message,
+        normalized,
+        opts?.cron ?? null,
+        timezone,
+        opts?.nagInterval ?? null,
+        opts?.category ?? null
+      );
     // Return the new reminder ID
-    return (this.db.query("SELECT last_insert_rowid() as id").get() as any).id;
+    return (
+      this.db.query("SELECT last_insert_rowid() as id").get() as InsertIdRow
+    ).id;
   }
 
   getDueReminders(): Reminder[] {
@@ -238,11 +276,23 @@ export class MemoryStore {
     return result.changes > 0;
   }
 
-  snoozeReminder(id: number, newDueAt: string): boolean {
+  snoozeReminder(
+    id: number,
+    newDueAt: string,
+    opts?: { timezone?: string | null }
+  ): boolean {
     const normalized = toSQLiteDatetime(newDueAt);
-    const result = this.db
-      .query("UPDATE reminders SET fired = 0, ack = 0, due_at = ?, last_nag_at = NULL WHERE id = ?")
-      .run(normalized, id);
+    const timezoneProvided = opts != null && "timezone" in opts;
+    const timezone = timezoneProvided ? normalizeTimeZone(opts.timezone) : null;
+    const result = timezoneProvided
+      ? this.db
+          .query(
+            "UPDATE reminders SET fired = 0, ack = 0, due_at = ?, timezone = ?, last_nag_at = NULL WHERE id = ?"
+          )
+          .run(normalized, timezone, id)
+      : this.db
+          .query("UPDATE reminders SET fired = 0, ack = 0, due_at = ?, last_nag_at = NULL WHERE id = ?")
+          .run(normalized, id);
     return result.changes > 0;
   }
 
@@ -312,28 +362,28 @@ export class MemoryStore {
 
   getStats(): MemoryStats {
     const coreCount = (
-      this.db.query("SELECT COUNT(*) as count FROM core_memory").get() as any
+      this.db.query("SELECT COUNT(*) as count FROM core_memory").get() as CountRow
     ).count;
     const archivalCount = (
       this.db
         .query("SELECT COUNT(*) as count FROM archival_memory")
-        .get() as any
+        .get() as CountRow
     ).count;
     const reminderCount = (
       this.db
         .query("SELECT COUNT(*) as count FROM reminders WHERE fired = 0")
-        .get() as any
+        .get() as CountRow
     ).count;
     const oldest = this.db
       .query(
         "SELECT MIN(created_at) as t FROM archival_memory"
       )
-      .get() as any;
+      .get() as TimestampRow;
     const newest = this.db
       .query(
         "SELECT MAX(created_at) as t FROM archival_memory"
       )
-      .get() as any;
+      .get() as TimestampRow;
 
     return {
       coreCount,
