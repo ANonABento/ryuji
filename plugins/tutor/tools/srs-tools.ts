@@ -3,18 +3,13 @@
  */
 
 import type { ToolDef } from "@choomfie/shared";
-import { text, err } from "@choomfie/shared";
+import { text, err, errorMessage } from "@choomfie/shared";
 import { getSRS } from "../core/srs-instance.ts";
 import { getActiveModule } from "../core/session.ts";
-import { getModule } from "../modules/index.ts";
 import { getLessonDB } from "../core/lesson-db-instance.ts";
 import { updateFromSrsReview } from "../core/learner-profile.ts";
 
 const DEFAULT_DECK = "jlpt-n5";
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 export const srsTools: ToolDef[] = [
   {
