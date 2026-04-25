@@ -79,3 +79,13 @@ export interface ExerciseResult {
 
 /** Lesson progress status */
 export type LessonStatus = "locked" | "available" | "in_progress" | "completed";
+
+/** Returns true for exercise types that present answer choices as buttons */
+export function isButtonExercise(type: Exercise["type"]): boolean {
+  return (
+    type === "recognition" ||
+    type === "multiple_choice" ||
+    type === "chart" ||
+    type === "matching"
+  );
+}
