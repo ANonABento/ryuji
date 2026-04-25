@@ -9,6 +9,9 @@
 import {
   MessageFlags,
   type Interaction,
+  type ButtonInteraction,
+  type ChatInputCommandInteraction,
+  type ModalSubmitInteraction,
 } from "discord.js";
 import type { AppContext } from "./types.ts";
 
@@ -27,8 +30,13 @@ import { buttonHandlers, modalHandlers, commands } from "@choomfie/shared";
 
 // --- Error-safe interaction wrapper ---
 
+type SafeHandleInteraction =
+  | ChatInputCommandInteraction
+  | ButtonInteraction
+  | ModalSubmitInteraction;
+
 async function safeHandle(
-  interaction: { replied: boolean; deferred: boolean; reply: Function; editReply?: Function },
+  interaction: SafeHandleInteraction,
   label: string,
   fn: () => Promise<void>
 ) {
@@ -36,11 +44,13 @@ async function safeHandle(
     await fn();
   } catch (e) {
     console.error(`${label}: ${e}`);
-    const reply = { content: "Something went wrong.", flags: MessageFlags.Ephemeral };
     if (interaction.deferred && interaction.editReply) {
-      await interaction.editReply(reply);
+      await interaction.editReply({ content: "Something went wrong." });
     } else if (!interaction.replied) {
-      await interaction.reply(reply);
+      await interaction.reply({
+        content: "Something went wrong.",
+        flags: MessageFlags.Ephemeral,
+      });
     }
   }
 }
