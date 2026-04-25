@@ -5,7 +5,28 @@
 import type { ToolDef } from "../types.ts";
 import { text, err } from "../types.ts";
 import type { Reminder } from "../memory.ts";
-import { relativeTime } from "../time.ts";
+import {
+  dateToSQLite,
+  fromSQLiteDatetime,
+  normalizeTimeZone,
+  parseNaturalTime,
+  relativeTime,
+} from "../time.ts";
+
+function invalidTimeZoneMessage(timeZone: string): string {
+  return `Invalid timezone "${timeZone}". Use a valid IANA timezone such as America/New_York or Europe/London.`;
+}
+
+function normalizeTimeZoneArg(value: unknown): string | null | undefined {
+  if (value == null || value === "") return null;
+  if (typeof value !== "string") return undefined;
+  return normalizeTimeZone(value) ?? undefined;
+}
+
+function parseDueAt(input: unknown, timeZone: string | null): Date | null {
+  if (typeof input !== "string") return null;
+  return parseNaturalTime(input, { timeZone });
+}
 
 /** Format a single reminder for display */
 function formatReminder(r: Reminder): string {
@@ -13,7 +34,8 @@ function formatReminder(r: Reminder): string {
   const category = r.category ? ` [${r.category}]` : "";
   const cron = r.cron ? ` (recurring: ${r.cron})` : "";
   const nag = r.nagInterval ? ` (nag every ${r.nagInterval}m)` : "";
-  return `[#${r.id}]${category} ${r.message} — ${time}${cron}${nag}`;
+  const timezone = r.timezone ? ` (${r.timezone})` : "";
+  return `[#${r.id}]${category} ${r.message} — ${time}${timezone}${cron}${nag}`;
 }
 
 export const reminderTools: ToolDef[] = [
@@ -21,7 +43,7 @@ export const reminderTools: ToolDef[] = [
     definition: {
       name: "set_reminder",
       description:
-        "Set a reminder. Parse natural time expressions ('in 30 min', 'tomorrow at 9am') into ISO 8601 UTC for due_at. Use cron for recurring, nag_interval to re-ping until ack'd. When a nag fires, tell the user to say 'done' or 'ack' to stop it.",
+        "Set a reminder. due_at can be an exact ISO 8601 UTC/offset instant or a natural/local expression ('in 30 min', 'tomorrow at 9am', '2026-04-25 09:00'). Pass timezone for local wall-clock expressions. Use cron for recurring, nag_interval to re-ping until ack'd. When a nag fires, tell the user to say 'done' or 'ack' to stop it.",
       inputSchema: {
         type: "object" as const,
         properties: {
@@ -37,7 +59,12 @@ export const reminderTools: ToolDef[] = [
           due_at: {
             type: "string",
             description:
-              "When to fire the reminder (ISO 8601 UTC, e.g. 2026-03-25T14:30:00Z)",
+              "When to fire the reminder. Accepts ISO 8601 UTC/offset instants, relative times, or local wall-clock expressions. Local expressions use timezone when provided, otherwise UTC.",
+          },
+          timezone: {
+            type: "string",
+            description:
+              "Optional IANA timezone for local wall-clock due_at values, e.g. America/New_York. Omit for exact ISO UTC/offset instants or relative durations.",
           },
           cron: {
             type: "string",
@@ -59,13 +86,24 @@ export const reminderTools: ToolDef[] = [
       },
     },
     handler: async (args, ctx) => {
+      const timezone = normalizeTimeZoneArg(args.timezone);
+      if (timezone === undefined) return err(invalidTimeZoneMessage(String(args.timezone)));
+
+      const dueAt = parseDueAt(args.due_at, timezone);
+      if (!dueAt) {
+        return err(
+          `Couldn't parse due_at "${String(args.due_at)}". Use a relative time, an ISO UTC/offset instant, or a local wall-clock time with a valid timezone.`
+        );
+      }
+
       const newId = ctx.memory.addReminder(
         args.user_id as string,
         args.chat_id as string,
         args.message as string,
-        args.due_at as string,
+        dateToSQLite(dueAt),
         {
           cron: args.cron as string | undefined,
+          timezone,
           nagInterval: args.nag_interval as number | undefined,
           category: args.category as string | undefined,
         }
@@ -74,7 +112,9 @@ export const reminderTools: ToolDef[] = [
       const reminder = ctx.memory.getReminder(newId);
       if (reminder) ctx.reminderScheduler.scheduleReminder(reminder);
 
-      const parts = [`Reminder set for ${args.due_at}: ${args.message}`];
+      const ts = Math.floor(dueAt.getTime() / 1000);
+      const parts = [`Reminder set for <t:${ts}:R> (${dateToSQLite(dueAt)} UTC): ${args.message}`];
+      if (timezone) parts.push(`Timezone: ${timezone}`);
       if (args.cron) parts.push(`Recurring: ${args.cron}`);
       if (args.nag_interval) parts.push(`Nag: every ${args.nag_interval}m until acknowledged`);
       if (args.category) parts.push(`Category: ${args.category}`);
@@ -170,7 +210,12 @@ export const reminderTools: ToolDef[] = [
           due_at: {
             type: "string",
             description:
-              "New due time (ISO 8601 UTC). Parse natural language like 'in 1 hour' into absolute time.",
+              "New due time. Accepts ISO 8601 UTC/offset instants, relative times, or local wall-clock expressions.",
+          },
+          timezone: {
+            type: "string",
+            description:
+              "Optional IANA timezone for local wall-clock due_at values. Defaults to the reminder's stored timezone, then UTC.",
           },
         },
         required: ["id", "due_at"],
@@ -188,12 +233,26 @@ export const reminderTools: ToolDef[] = [
         return text(`Reminder #${id} acknowledged (recurring — next occurrence already scheduled).`);
       }
 
-      const success = ctx.memory.snoozeReminder(id, args.due_at as string);
+      const timezoneArg = normalizeTimeZoneArg(args.timezone);
+      if (timezoneArg === undefined) return err(invalidTimeZoneMessage(String(args.timezone)));
+      const timezone = timezoneArg ?? reminder.timezone;
+      const dueAt = parseDueAt(args.due_at, timezone);
+      if (!dueAt) {
+        return err(
+          `Couldn't parse due_at "${String(args.due_at)}". Use a relative time, an ISO UTC/offset instant, or a local wall-clock time with a valid timezone.`
+        );
+      }
+
+      const success = ctx.memory.snoozeReminder(id, dateToSQLite(dueAt), { timezone });
       if (!success) return err(`Reminder #${id} could not be snoozed.`);
       // Reschedule with new time
       const updated = ctx.memory.getReminder(id);
       if (updated) ctx.reminderScheduler.scheduleReminder(updated);
-      return text(`Reminder #${id} snoozed until ${args.due_at}`);
+      const ts = Math.floor(fromSQLiteDatetime(dateToSQLite(dueAt)).getTime() / 1000);
+      return text(
+        `Reminder #${id} snoozed until <t:${ts}:R> (${dateToSQLite(dueAt)} UTC)` +
+          (timezone ? `\nTimezone: ${timezone}` : "")
+      );
     },
   },
   {
