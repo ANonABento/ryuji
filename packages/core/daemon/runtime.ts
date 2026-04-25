@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import type {
   SDKAssistantMessage,
+  SDKCompactBoundaryMessage,
   SDKMessage,
   SDKResultMessage,
   SDKResultSuccess,
@@ -22,6 +23,7 @@ import { loadHandoffs, getLastHandoffSummary, saveHandoff } from "./handoffs.ts"
 import { cleanup } from "./lifecycle.ts";
 import { log, setSessionId, verbose } from "./log.ts";
 import { createMessageGenerator } from "./message-generator.ts";
+import { getErrorMessage } from "./error.ts";
 import {
   createSession,
   extractAssistantText,
@@ -29,6 +31,12 @@ import {
 } from "./session-core.ts";
 import { writeDaemonState } from "./state-file.ts";
 import type { HandoffEntry, MetaState } from "./types.ts";
+
+function isCompactBoundaryMessage(
+  message: SDKMessage
+): message is SDKCompactBoundaryMessage {
+  return message.type === "system" && message.subtype === "compact_boundary";
+}
 
 export async function startSession(
   state: MetaState,
@@ -55,9 +63,9 @@ export async function startSession(
 
   state.session = createSession(generator, handoffSummary);
 
-  void consumeSessionStream(state).catch((err) => {
-    log(`Session stream error: ${err.message || err}`);
-    void handleStreamError(state, err);
+  void consumeSessionStream(state).catch((error: unknown) => {
+    log(`Session stream error: ${getErrorMessage(error)}`);
+    void handleStreamError(state, error);
   });
 
   await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -104,25 +112,31 @@ async function consumeSessionStream(state: MetaState): Promise<void> {
     for await (const message of state.session) {
       handleSessionMessage(state, message);
     }
-  } catch (err: any) {
-    if (err.name === "AbortError") {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === "AbortError") {
       log("Session aborted");
     } else {
-      throw err;
+      throw error;
     }
   }
 
   log("Session stream closed");
 }
 
-export async function handleStreamError(state: MetaState, err: any): Promise<void> {
+export async function handleStreamError(
+  state: MetaState,
+  initialError: unknown
+): Promise<void> {
   if (state.state === "CYCLING" || state.state === "DRAINING") {
     verbose("Stream error during cycling/draining — ignoring");
     return;
   }
 
+  let error = initialError;
   for (let attempt = 1; attempt <= MAX_ERROR_RETRIES; attempt++) {
-    log(`Session stream failed: ${err.message || err} (attempt ${attempt}/${MAX_ERROR_RETRIES})`);
+    log(
+      `Session stream failed: ${getErrorMessage(error)} (attempt ${attempt}/${MAX_ERROR_RETRIES})`
+    );
 
     stopWorkerHealthMonitor(state);
     try {
@@ -149,8 +163,8 @@ export async function handleStreamError(state: MetaState, err: any): Promise<voi
       await startSession(state, lastSummary);
       log("Session restarted successfully after error");
       return;
-    } catch (restartErr: any) {
-      err = restartErr;
+    } catch (restartError: unknown) {
+      error = restartError;
     }
   }
 
@@ -201,7 +215,7 @@ export function handleSessionMessage(state: MetaState, message: SDKMessage): voi
     }
 
     case "system": {
-      if ((message as any).subtype === "compact_boundary") {
+      if (isCompactBoundaryMessage(message)) {
         log("Context compaction occurred");
       }
       break;
@@ -242,10 +256,10 @@ export function startContextMonitor(state: MetaState): void {
         log("Threshold reached — initiating session cycle");
         await cycleSession(state, tokens);
       }
-    } catch (err: any) {
+    } catch (error: unknown) {
       state.contextCheckFailures++;
       log(
-        `Context check failed (${state.contextCheckFailures}/${CONTEXT_CHECK_FAILURE_LIMIT}): ${err.message || err}`
+        `Context check failed (${state.contextCheckFailures}/${CONTEXT_CHECK_FAILURE_LIMIT}): ${getErrorMessage(error)}`
       );
 
       if (state.contextCheckFailures >= CONTEXT_CHECK_FAILURE_LIMIT) {
@@ -300,8 +314,8 @@ export async function captureHandoffSummary(state: MetaState): Promise<string> {
       log(`Using lastAssistantText as summary (${state.lastAssistantText.length} chars)`);
       return state.lastAssistantText;
     }
-  } catch (err: any) {
-    log(`Handoff summary capture failed: ${err.message || err}`);
+  } catch (error: unknown) {
+    log(`Handoff summary capture failed: ${getErrorMessage(error)}`);
     if (state.lastAssistantText) {
       log("Falling back to last assistant text for summary");
       return state.lastAssistantText;
@@ -368,8 +382,8 @@ export async function cycleSession(
   try {
     state.closeGenerator?.();
     state.session?.close();
-  } catch (err: any) {
-    log(`Error closing session: ${err.message || err}`);
+  } catch (error: unknown) {
+    log(`Error closing session: ${getErrorMessage(error)}`);
   }
 
   state.session = null;
@@ -451,8 +465,8 @@ export function startWorkerHealthMonitor(state: MetaState): void {
   state.workerHealthTimer = setInterval(async () => {
     try {
       await checkWorkerHealth(state);
-    } catch (err: any) {
-      log(`Worker health check error: ${err.message || err}`);
+    } catch (error: unknown) {
+      log(`Worker health check error: ${getErrorMessage(error)}`);
     }
   }, WORKER_HEALTH_INTERVAL);
 }

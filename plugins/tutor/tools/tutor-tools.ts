@@ -102,8 +102,8 @@ export const tutorTools: ToolDef[] = [
           .join("\n\n");
 
         return text(formatted);
-      } catch (e: any) {
-        return err(`Lookup error: ${e.message}`);
+      } catch (error: unknown) {
+        return err(`Lookup error: ${error instanceof Error ? error.message : String(error)}`);
       }
     },
   },

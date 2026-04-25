@@ -9,6 +9,46 @@ import { nowUTC } from "@choomfie/shared";
 import type { ExerciseResult, LessonStatus } from "./lesson-types.ts";
 import type { LearnerProfile } from "./learner-profile.ts";
 
+type LessonProgressDbRow = {
+  user_id: string;
+  module: string;
+  lesson_id: string;
+  status: LessonStatus;
+  score: number | null;
+  attempts: number;
+  current_exercise: number;
+  exercise_results: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+};
+
+type LearnerProfileDbRow = {
+  user_id: string;
+  module: string;
+  level: string;
+  lessons_completed: number;
+  total_lessons: number;
+  avg_score: number;
+  strong_areas: string | null;
+  weak_areas: string | null;
+  srs_total: number;
+  srs_learned: number;
+  srs_due: number;
+  total_study_mins: number;
+  streak: number;
+  last_active: string;
+  preferred_exercise_type: string;
+  updated_at: string;
+};
+
+type CountRow = { c: number };
+type StatusCountRow = { status: string; c: number };
+
+function parseJsonArray<T>(value: string | null | undefined): T[] {
+  if (!value) return [];
+  return JSON.parse(value) as T[];
+}
+
 export interface LessonProgressRow {
   userId: string;
   module: string;
@@ -76,7 +116,7 @@ export class LessonDB {
   getProgress(userId: string, module: string, lessonId: string): LessonProgressRow | null {
     const row = this.db
       .query("SELECT * FROM lesson_progress WHERE user_id = ? AND module = ? AND lesson_id = ?")
-      .get(userId, module, lessonId) as any;
+      .get(userId, module, lessonId) as LessonProgressDbRow | null;
     return row ? this.rowToProgress(row) : null;
   }
 
@@ -84,7 +124,7 @@ export class LessonDB {
   getAllProgress(userId: string, module: string): LessonProgressRow[] {
     const rows = this.db
       .query("SELECT * FROM lesson_progress WHERE user_id = ? AND module = ? ORDER BY lesson_id")
-      .all(userId, module) as any[];
+      .all(userId, module) as LessonProgressDbRow[];
     return rows.map(this.rowToProgress);
   }
 
@@ -157,7 +197,7 @@ export class LessonDB {
       .query(
         "SELECT COUNT(*) as c FROM lesson_progress WHERE user_id = ? AND module = ? AND status = 'completed'"
       )
-      .get(userId, module) as any;
+      .get(userId, module) as CountRow | null;
     return row?.c ?? 0;
   }
 
@@ -169,7 +209,7 @@ export class LessonDB {
          WHERE user_id = ? AND module = ?
          GROUP BY status`
       )
-      .all(userId, module) as any[];
+      .all(userId, module) as StatusCountRow[];
 
     const counts: Record<string, number> = {};
     let total = 0;
@@ -188,7 +228,7 @@ export class LessonDB {
   getProfile(userId: string, module: string): LearnerProfile | null {
     const row = this.db
       .query("SELECT * FROM learner_profiles WHERE user_id = ? AND module = ?")
-      .get(userId, module) as any;
+      .get(userId, module) as LearnerProfileDbRow | null;
     return row ? this.rowToProfile(row) : null;
   }
 
@@ -244,7 +284,7 @@ export class LessonDB {
     this.db.close();
   }
 
-  private rowToProfile(row: any): LearnerProfile {
+  private rowToProfile(row: LearnerProfileDbRow): LearnerProfile {
     return {
       userId: row.user_id,
       module: row.module,
@@ -252,8 +292,8 @@ export class LessonDB {
       lessonsCompleted: row.lessons_completed,
       totalLessons: row.total_lessons,
       avgScore: row.avg_score,
-      strongAreas: JSON.parse(row.strong_areas || "[]"),
-      weakAreas: JSON.parse(row.weak_areas || "[]"),
+      strongAreas: parseJsonArray<string>(row.strong_areas),
+      weakAreas: parseJsonArray<string>(row.weak_areas),
       srsTotal: row.srs_total,
       srsLearned: row.srs_learned,
       srsDue: row.srs_due,
@@ -265,16 +305,16 @@ export class LessonDB {
     };
   }
 
-  private rowToProgress(row: any): LessonProgressRow {
+  private rowToProgress(row: LessonProgressDbRow): LessonProgressRow {
     return {
       userId: row.user_id,
       module: row.module,
       lessonId: row.lesson_id,
-      status: row.status as LessonStatus,
+      status: row.status,
       score: row.score,
       attempts: row.attempts,
       currentExercise: row.current_exercise,
-      exerciseResults: JSON.parse(row.exercise_results || "[]"),
+      exerciseResults: parseJsonArray<ExerciseResult>(row.exercise_results),
       startedAt: row.started_at,
       completedAt: row.completed_at,
     };

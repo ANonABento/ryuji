@@ -16,7 +16,7 @@ export async function acquirePid(): Promise<void> {
         const output = (await new Response(proc.stdout).text()).trim();
         await proc.exited;
 
-        if (output && (output.includes("daemon.ts") || output.includes("meta.ts"))) {
+        if (output && (output.includes("daemon.ts") || output.includes("choomfie"))) {
           const ppid = parseInt(output.trim(), 10);
           const isOrphaned = ppid === 1;
 

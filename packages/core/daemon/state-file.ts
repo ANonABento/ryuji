@@ -1,5 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { META_DIR, TOKEN_THRESHOLD, TURN_THRESHOLD } from "./constants.ts";
+import { getErrorMessage } from "./error.ts";
 import { log } from "./log.ts";
 import type { MetaState } from "./types.ts";
 
@@ -32,7 +33,7 @@ export async function writeDaemonState(state: MetaState): Promise<void> {
 
   try {
     await writeFile(DAEMON_STATE_PATH, JSON.stringify(data, null, 2));
-  } catch (err: any) {
-    log(`Failed to write daemon state: ${err.message}`);
+  } catch (error: unknown) {
+    log(`Failed to write daemon state: ${getErrorMessage(error)}`);
   }
 }

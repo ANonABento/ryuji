@@ -6,148 +6,151 @@ import { log } from "./log.ts";
 import { acquirePid } from "./pid.ts";
 import { cycleSession, startSession, waitForResult } from "./runtime.ts";
 import { DAEMON_STATE_PATH } from "./state-file.ts";
+import { getErrorMessage } from "./error.ts";
+import type { MetaState } from "./types.ts";
+
+async function withCliSession(
+  run: (state: MetaState) => Promise<number | void>
+): Promise<void> {
+  await acquirePid();
+  const state = createInitialState();
+  setupShutdown(state);
+
+  try {
+    await startSession(state);
+    const exitCode = (await run(state)) ?? 0;
+    await cleanup(state);
+    process.exit(exitCode);
+  } catch (error: unknown) {
+    log(`CLI session failed: ${getErrorMessage(error)}`);
+    await cleanup(state);
+    process.exit(1);
+  }
+}
 
 export async function testCycle(): Promise<void> {
   log("=== TEST: Session Cycling ===");
-
-  await acquirePid();
-  const state = createInitialState();
-  setupShutdown(state);
-
-  await startSession(state);
-
-  log("Sending test message...");
-  state.pushMessage?.({
-    type: "user",
-    message: {
-      role: "user",
-      content: "Say hello and tell me your current persona name. Keep it brief.",
-    },
-    parent_tool_use_id: null,
-  });
-
-  log("Waiting for response...");
-  try {
-    const result = await waitForResult(state, 30_000);
-    log(`Got response: ${result.result?.slice(0, 200)}`);
-  } catch (err: any) {
-    log(`Response wait failed: ${err.message}`);
-  }
-
-  log("Waiting 10s before triggering cycle...");
-  await new Promise((resolve) => setTimeout(resolve, 10_000));
-
-  log("Triggering manual cycle...");
-  const preCycleTurns = state.turnCount;
-  state.lastCycleReason = "manual_test";
-  await cycleSession(state, state.totalInputTokens);
-
-  if (state.state !== "ACTIVE") {
-    log("FAIL: Session did not reach ACTIVE state after cycle");
-    await cleanup(state);
-    process.exit(1);
-  }
-
-  const handoffs = await loadHandoffs();
-  const lastHandoff = handoffs[handoffs.length - 1];
-  if (!lastHandoff) {
-    log("FAIL: No handoff entry found");
-    await cleanup(state);
-    process.exit(1);
-  }
-
-  log(`Handoff summary (first 200 chars): ${lastHandoff.summary.slice(0, 200)}`);
-
-  const isGenericFallback = lastHandoff.summary.startsWith("Session cycled at");
-  if (isGenericFallback) {
-    log("WARN: Got generic fallback summary — handoff capture may not have worked");
-  } else {
-    log("OK: Got meaningful handoff summary");
-  }
-
-  log("Sending post-cycle message...");
-  state.pushMessage?.({
-    type: "user",
-    message: {
-      role: "user",
-      content:
-        "Do you have any handoff context from a previous session? Just say yes or no briefly.",
-    },
-    parent_tool_use_id: null,
-  });
-
-  try {
-    const result = await waitForResult(state, 30_000);
-    log(`Post-cycle response: ${result.result?.slice(0, 200)}`);
-  } catch (err: any) {
-    log(`Post-cycle response wait failed: ${err.message}`);
-  }
-
-  log(`Turns before cycle: ${preCycleTurns}, after cycle reset to: ${state.turnCount}`);
-  log("=== TEST COMPLETE: Session Cycling ===");
-  await cleanup(state);
-  process.exit(0);
-}
-
-export async function benchmark(): Promise<void> {
-  log("=== BENCHMARK: Latency Measurement ===");
-
-  await acquirePid();
-  const state = createInitialState();
-  setupShutdown(state);
-
-  await startSession(state);
-
-  const NUM_MESSAGES = 5;
-  const latencies: number[] = [];
-
-  for (let i = 0; i < NUM_MESSAGES; i++) {
-    log(`Message ${i + 1}/${NUM_MESSAGES}...`);
-    const start = performance.now();
-
+  await withCliSession(async (state) => {
+    log("Sending test message...");
     state.pushMessage?.({
       type: "user",
       message: {
         role: "user",
-        content: "Respond with exactly the word 'ok' and nothing else.",
+        content: "Say hello and tell me your current persona name. Keep it brief.",
+      },
+      parent_tool_use_id: null,
+    });
+
+    log("Waiting for response...");
+    try {
+      const result = await waitForResult(state, 30_000);
+      log(`Got response: ${result.result?.slice(0, 200)}`);
+    } catch (error: unknown) {
+      log(`Response wait failed: ${getErrorMessage(error)}`);
+    }
+
+    log("Waiting 10s before triggering cycle...");
+    await new Promise((resolve) => setTimeout(resolve, 10_000));
+
+    log("Triggering manual cycle...");
+    const preCycleTurns = state.turnCount;
+    state.lastCycleReason = "manual_test";
+    await cycleSession(state, state.totalInputTokens);
+
+    if (state.state !== "ACTIVE") {
+      log("FAIL: Session did not reach ACTIVE state after cycle");
+      return 1;
+    }
+
+    const handoffs = await loadHandoffs();
+    const lastHandoff = handoffs[handoffs.length - 1];
+    if (!lastHandoff) {
+      log("FAIL: No handoff entry found");
+      return 1;
+    }
+
+    log(`Handoff summary (first 200 chars): ${lastHandoff.summary.slice(0, 200)}`);
+
+    const isGenericFallback = lastHandoff.summary.startsWith("Session cycled at");
+    if (isGenericFallback) {
+      log("WARN: Got generic fallback summary — handoff capture may not have worked");
+    } else {
+      log("OK: Got meaningful handoff summary");
+    }
+
+    log("Sending post-cycle message...");
+    state.pushMessage?.({
+      type: "user",
+      message: {
+        role: "user",
+        content:
+          "Do you have any handoff context from a previous session? Just say yes or no briefly.",
       },
       parent_tool_use_id: null,
     });
 
     try {
-      await waitForResult(state, 60_000);
-      const elapsed = performance.now() - start;
-      latencies.push(elapsed);
-      log(`  Latency: ${elapsed.toFixed(0)}ms`);
-    } catch (err: any) {
-      log(`  FAILED: ${err.message}`);
+      const result = await waitForResult(state, 30_000);
+      log(`Post-cycle response: ${result.result?.slice(0, 200)}`);
+    } catch (error: unknown) {
+      log(`Post-cycle response wait failed: ${getErrorMessage(error)}`);
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
+    log(`Turns before cycle: ${preCycleTurns}, after cycle reset to: ${state.turnCount}`);
+    log("=== TEST COMPLETE: Session Cycling ===");
+  });
+}
 
-  if (latencies.length === 0) {
-    log("FAIL: No successful responses");
-    await cleanup(state);
-    process.exit(1);
-  }
+export async function benchmark(): Promise<void> {
+  log("=== BENCHMARK: Latency Measurement ===");
+  await withCliSession(async (state) => {
+    const NUM_MESSAGES = 5;
+    const latencies: number[] = [];
 
-  const sorted = [...latencies].sort((a, b) => a - b);
-  const avg = latencies.reduce((a, b) => a + b, 0) / latencies.length;
-  const p50 = sorted[Math.floor(sorted.length * 0.5)];
-  const p95 = sorted[Math.floor(sorted.length * 0.95)];
+    for (let i = 0; i < NUM_MESSAGES; i++) {
+      log(`Message ${i + 1}/${NUM_MESSAGES}...`);
+      const start = performance.now();
 
-  log("=== BENCHMARK RESULTS ===");
-  log(`  Messages:  ${latencies.length}/${NUM_MESSAGES} successful`);
-  log(`  Average:   ${avg.toFixed(0)}ms`);
-  log(`  P50:       ${p50.toFixed(0)}ms`);
-  log(`  P95:       ${p95.toFixed(0)}ms`);
-  log(`  Min:       ${sorted[0].toFixed(0)}ms`);
-  log(`  Max:       ${sorted[sorted.length - 1].toFixed(0)}ms`);
-  log("=========================");
+      state.pushMessage?.({
+        type: "user",
+        message: {
+          role: "user",
+          content: "Respond with exactly the word 'ok' and nothing else.",
+        },
+        parent_tool_use_id: null,
+      });
 
-  await cleanup(state);
-  process.exit(0);
+      try {
+        await waitForResult(state, 60_000);
+        const elapsed = performance.now() - start;
+        latencies.push(elapsed);
+        log(`  Latency: ${elapsed.toFixed(0)}ms`);
+      } catch (error: unknown) {
+        log(`  FAILED: ${getErrorMessage(error)}`);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    if (latencies.length === 0) {
+      log("FAIL: No successful responses");
+      return 1;
+    }
+
+    const sorted = [...latencies].sort((a, b) => a - b);
+    const avg = latencies.reduce((a, b) => a + b, 0) / latencies.length;
+    const p50 = sorted[Math.floor(sorted.length * 0.5)];
+    const p95 = sorted[Math.floor(sorted.length * 0.95)];
+
+    log("=== BENCHMARK RESULTS ===");
+    log(`  Messages:  ${latencies.length}/${NUM_MESSAGES} successful`);
+    log(`  Average:   ${avg.toFixed(0)}ms`);
+    log(`  P50:       ${p50.toFixed(0)}ms`);
+    log(`  P95:       ${p95.toFixed(0)}ms`);
+    log(`  Min:       ${sorted[0].toFixed(0)}ms`);
+    log(`  Max:       ${sorted[sorted.length - 1].toFixed(0)}ms`);
+    log("=========================");
+  });
 }
 
 export async function stopDaemon(): Promise<void> {
@@ -189,8 +192,8 @@ export async function stopDaemon(): Promise<void> {
     await unlink(PID_PATH).catch(() => {});
     console.error("Daemon killed");
     process.exit(0);
-  } catch (err: any) {
-    console.error(`Failed to stop daemon: ${err.message}`);
+  } catch (error: unknown) {
+    console.error(`Failed to stop daemon: ${getErrorMessage(error)}`);
     process.exit(1);
   }
 }

@@ -36,6 +36,7 @@ import {
 } from "./daemon/flags.ts";
 import { loadHandoffs, getLastHandoffSummary } from "./daemon/handoffs.ts";
 import { createInitialState, setupShutdown } from "./daemon/lifecycle.ts";
+import { getErrorMessage } from "./daemon/error.ts";
 import { log } from "./daemon/log.ts";
 import { acquirePid } from "./daemon/pid.ts";
 import { startSession } from "./daemon/runtime.ts";
@@ -74,8 +75,8 @@ async function main(): Promise<void> {
   await new Promise(() => {});
 }
 
-main().catch((err) => {
-  log(`Fatal error: ${err.message || err}`);
-  console.error(err);
+main().catch((error: unknown) => {
+  log(`Fatal error: ${getErrorMessage(error)}`);
+  console.error(error);
   process.exit(1);
 });
