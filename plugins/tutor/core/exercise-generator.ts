@@ -6,14 +6,8 @@
  * One content set → multiple exercise modes → 3x variety.
  */
 
-import type {
-  ContentItem,
-  ContentSet,
-  Exercise,
-  ExerciseMode,
-  Lesson,
-  PracticeMode,
-} from "./lesson-types.ts";
+import type { ContentItem, ContentSet, Exercise, ExerciseMode } from "./lesson-types.ts";
+import { shuffle } from "./random.ts";
 
 export type { ContentItem, ContentSet, ExerciseMode } from "./lesson-types.ts";
 
@@ -41,15 +35,11 @@ export function generateExercises(
   }
 }
 
-export const DEFAULT_EXERCISE_MODES: readonly ExerciseMode[] = [
-  "recognition",
-  "production",
-  "matching",
-];
+const ALL_MODES: ExerciseMode[] = ["recognition", "production", "matching"];
 
 /** Generate all available exercises from a content set (one per mode) */
 export function generateAllExercises(content: ContentSet): Exercise[] {
-  const modes = content.modes ?? DEFAULT_EXERCISE_MODES;
+  const modes = content.modes ?? ALL_MODES;
   const exercises: Exercise[] = [];
   for (const mode of modes) {
     exercises.push(...generateExercises(content, mode));
@@ -57,48 +47,11 @@ export function generateAllExercises(content: ContentSet): Exercise[] {
   return exercises;
 }
 
-export function selectableModesForLesson(lesson: Lesson): PracticeMode[] {
-  if (!lesson.contentSets || lesson.contentSets.length === 0) return [];
-
-  const supportedModes = new Set<ExerciseMode>();
-  for (const contentSet of lesson.contentSets) {
-    for (const mode of contentSet.modes ?? DEFAULT_EXERCISE_MODES) {
-      supportedModes.add(mode);
-    }
-  }
-
-  const requestedModes = lesson.selectableModes ?? [...supportedModes, "mixed"];
-  return requestedModes.filter((mode) => mode === "mixed" || supportedModes.has(mode));
-}
-
-export function selectExercisesForMode(lesson: Lesson, mode: PracticeMode): Exercise[] {
-  if (!lesson.contentSets || lesson.contentSets.length === 0) {
-    return [...lesson.exercises];
-  }
-
-  const exercises: Exercise[] = [];
-  for (const contentSet of lesson.contentSets) {
-    if (mode === "mixed") {
-      exercises.push(...generateAllExercises(contentSet));
-      continue;
-    }
-
-    const modes = contentSet.modes ?? DEFAULT_EXERCISE_MODES;
-    if (modes.includes(mode)) {
-      exercises.push(...generateExercises(contentSet, mode));
-    }
-  }
-
-  return exercises.length > 0 ? exercises : [...lesson.exercises];
-}
-
 // --- Recognition: see term → pick meaning ---
 
 function generateRecognition(items: ContentItem[]): Exercise[] {
   return items.map((item) => {
-    const distractors = items
-      .filter((i) => i.meaning !== item.meaning)
-      .sort(() => Math.random() - 0.5)
+    const distractors = shuffle(items.filter((i) => i.meaning !== item.meaning))
       .slice(0, 3)
       .map((i) => i.meaning);
 

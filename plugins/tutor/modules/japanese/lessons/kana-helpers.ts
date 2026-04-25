@@ -1,8 +1,8 @@
-import type { ChartBlank, Exercise } from "../../../core/lesson-types.ts";
-import { renderChartGrid } from "../../../core/chart-renderer.ts";
+import type { Exercise } from "../../../core/lesson-types.ts";
+import { pick, pickN } from "../../../core/random.ts";
 
 export function recognition(char: string, reading: string, pool: string[]): Exercise {
-  const distractors = pool.filter((r) => r !== reading).sort(() => Math.random() - 0.5).slice(0, 3);
+  const distractors = pickN(pool.filter((r) => r !== reading), 3);
   return {
     type: "recognition",
     prompt: `What sound does **${char}** make?`,
@@ -20,19 +20,48 @@ export function production(char: string, reading: string, kanaType: "hiragana" |
   };
 }
 
-export function chartReview(knownChars: [string, string][]): Exercise {
-  if (knownChars.length === 0) {
-    throw new Error("chartReview requires at least one character");
+export function renderChartGrid(
+  grid: (string | null)[][],
+  rowLabels?: string[],
+  colLabels?: string[],
+): string {
+  const cellWidth = 3;
+  const lines: string[] = [];
+
+  if (colLabels) {
+    const header = (rowLabels ? "   " : "") + colLabels.map((l) => l.padStart(cellWidth)).join(" ");
+    lines.push(header);
   }
 
-  const selected = knownChars;
+  for (let r = 0; r < grid.length; r++) {
+    let line = rowLabels ? `${(rowLabels[r] ?? "").padEnd(3)}` : "";
+    for (let c = 0; c < grid[r].length; c++) {
+      const cell = grid[r][c];
+      if (cell === null) {
+        line += " __".padStart(cellWidth + 1);
+      } else {
+        line += ` ${cell}`.padStart(cellWidth + 1);
+      }
+    }
+    lines.push(line);
+  }
+
+  return "```\n" + lines.join("\n") + "\n```";
+}
+
+export function chartReview(knownChars: [string, string][]): Exercise {
+  const gridSize = Math.min(knownChars.length, 10);
+  const selected = knownChars.slice(0, gridSize);
+
+  const blankIdx = selected.indexOf(pick(selected));
+
   const cols = 5;
-  const rows = Math.ceil(selected.length / cols);
+  const rows = Math.ceil(gridSize / cols);
   const grid: (string | null)[][] = [];
   const colLabels = ["a", "i", "u", "e", "o"];
   const rowLabels: string[] = [];
-  const blankIndexes = pickBlankIndexes(selected.length);
-  const blanks: ChartBlank[] = [];
+  let blankChar = "";
+  let blankReading = "";
 
   let idx = 0;
   for (let r = 0; r < rows; r++) {
@@ -40,15 +69,11 @@ export function chartReview(knownChars: [string, string][]): Exercise {
     const firstReading = selected[idx]?.[1] ?? "";
     rowLabels.push(firstReading.length > 1 ? firstReading[0] + "-" : "∅-");
 
-    for (let c = 0; c < cols && idx < selected.length; c++, idx++) {
-      if (blankIndexes.has(idx)) {
+    for (let c = 0; c < cols && idx < gridSize; c++, idx++) {
+      if (idx === blankIdx) {
         row.push(null);
-        blanks.push({
-          row: r,
-          col: c,
-          answer: selected[idx][0],
-          reading: selected[idx][1],
-        });
+        blankChar = selected[idx][0];
+        blankReading = selected[idx][1];
       } else {
         row.push(selected[idx][0]);
       }
@@ -56,36 +81,17 @@ export function chartReview(knownChars: [string, string][]): Exercise {
     grid.push(row);
   }
 
-  const firstBlank = blanks[0];
-  const distractorPool = selected
-    .map(([char]) => char)
-    .filter((c) => c !== firstBlank.answer)
-    .sort(() => Math.random() - 0.5)
-    .slice(0, 3);
+  const distractorPool = pickN(
+    selected.map(([char]) => char).filter((c) => c !== blankChar),
+    3
+  );
 
   const gridText = renderChartGrid(grid, rowLabels, colLabels);
 
   return {
     type: "chart",
-    prompt: `Fill the kana chart blanks in order. First reading: **${firstBlank.reading}**\n${gridText}`,
-    answer: firstBlank.answer,
+    prompt: `Which character goes in the blank? (reading: **${blankReading}**)\n${gridText}`,
+    answer: blankChar,
     distractors: distractorPool,
-    chart: {
-      grid,
-      blanks,
-      rowLabels,
-      colLabels,
-    },
   };
-}
-
-function pickBlankIndexes(count: number): Set<number> {
-  if (count <= 0) return new Set();
-  if (count <= 5) return new Set([count - 1]);
-
-  return new Set([
-    Math.min(2, count - 1),
-    Math.floor(count / 2),
-    count - 1,
-  ]);
 }
