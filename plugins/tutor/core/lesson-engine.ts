@@ -111,7 +111,11 @@ export function startLesson(
 }
 
 /** Score a single exercise answer */
-export function scoreExercise(exercise: Exercise, userAnswer: string): ExerciseResult & { feedback: string } {
+export function scoreExercise(
+  exercise: Exercise,
+  userAnswer: string,
+  exerciseIndex: number = 0
+): ExerciseResult & { feedback: string } {
   const normalized = userAnswer.trim().toLowerCase();
   const expected = exercise.answer.trim().toLowerCase();
 
@@ -128,7 +132,7 @@ export function scoreExercise(exercise: Exercise, userAnswer: string): ExerciseR
     feedback = `❌ The answer is **${exercise.answer}**`;
   }
 
-  return { index: 0, correct, userAnswer, feedback };
+  return { index: exerciseIndex, correct, userAnswer, feedback };
 }
 
 /** Complete a lesson — calculate score, unlock next lessons, add SRS items */
