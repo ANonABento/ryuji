@@ -8,6 +8,7 @@ import type { Reminder } from "../memory.ts";
 import {
   dateToSQLite,
   fromSQLiteDatetime,
+  isValidCron,
   normalizeTimeZone,
   parseNaturalTime,
   relativeTime,
@@ -18,14 +19,22 @@ function invalidTimeZoneMessage(timeZone: string): string {
 }
 
 function normalizeTimeZoneArg(value: unknown): string | null | undefined {
-  if (value == null || value === "") return null;
+  if (value == null) return null;
   if (typeof value !== "string") return undefined;
-  return normalizeTimeZone(value) ?? undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return normalizeTimeZone(trimmed) ?? undefined;
 }
 
 function parseDueAt(input: unknown, timeZone: string | null): Date | null {
   if (typeof input !== "string") return null;
   return parseNaturalTime(input, { timeZone });
+}
+
+function parseCronArg(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
 }
 
 /** Format a single reminder for display */
@@ -87,12 +96,20 @@ export const reminderTools: ToolDef[] = [
     },
     handler: async (args, ctx) => {
       const timezone = normalizeTimeZoneArg(args.timezone);
-      if (timezone === undefined) return err(invalidTimeZoneMessage(String(args.timezone)));
+      if (timezone === undefined) {
+        return err(invalidTimeZoneMessage(String(args.timezone)));
+      }
 
       const dueAt = parseDueAt(args.due_at, timezone);
       if (!dueAt) {
         return err(
           `Couldn't parse due_at "${String(args.due_at)}". Use a relative time, an ISO UTC/offset instant, or a local wall-clock time with a valid timezone.`
+        );
+      }
+      const cron = parseCronArg(args.cron);
+      if (cron && !isValidCron(cron)) {
+        return err(
+          `Invalid recurring pattern "${cron}". Use hourly, daily, weekly, monthly, or "every Xh".`
         );
       }
 
@@ -102,7 +119,7 @@ export const reminderTools: ToolDef[] = [
         args.message as string,
         dateToSQLite(dueAt),
         {
-          cron: args.cron as string | undefined,
+          cron,
           timezone,
           nagInterval: args.nag_interval as number | undefined,
           category: args.category as string | undefined,
@@ -113,9 +130,11 @@ export const reminderTools: ToolDef[] = [
       if (reminder) ctx.reminderScheduler.scheduleReminder(reminder);
 
       const ts = Math.floor(dueAt.getTime() / 1000);
-      const parts = [`Reminder set for <t:${ts}:R> (${dateToSQLite(dueAt)} UTC): ${args.message}`];
+      const parts = [
+        `Reminder set for <t:${ts}:R> (${dateToSQLite(dueAt)} UTC): ${args.message}`,
+      ];
       if (timezone) parts.push(`Timezone: ${timezone}`);
-      if (args.cron) parts.push(`Recurring: ${args.cron}`);
+      if (cron) parts.push(`Recurring: ${cron}`);
       if (args.nag_interval) parts.push(`Nag: every ${args.nag_interval}m until acknowledged`);
       if (args.category) parts.push(`Category: ${args.category}`);
       return text(parts.join("\n"));

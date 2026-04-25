@@ -101,6 +101,44 @@ test("set_reminder rejects invalid timezone names", async () => {
   memory.close();
 });
 
+test("set_reminder treats blank timezone as omitted", async () => {
+  const { memory } = await makeMemory();
+  const result = await tool("set_reminder").handler(
+    {
+      user_id: "u1",
+      chat_id: "c1",
+      message: "coffee",
+      due_at: "2026-04-25 09:00",
+      timezone: "  ",
+    },
+    fakeContext(memory)
+  );
+
+  expect(result.isError).toBeUndefined();
+  const reminder = memory.getActiveReminders("u1")[0];
+  expect(reminder.dueAt).toBe("2026-04-25 09:00:00");
+  expect(reminder.timezone).toBeNull();
+  memory.close();
+});
+
+test("set_reminder rejects invalid cron patterns", async () => {
+  const { memory } = await makeMemory();
+  const result = await tool("set_reminder").handler(
+    {
+      user_id: "u1",
+      chat_id: "c1",
+      message: "coffee",
+      due_at: "2026-04-25 09:00",
+      cron: "every weekday",
+    },
+    fakeContext(memory)
+  );
+
+  expect(result.isError).toBe(true);
+  expect(memory.getActiveReminders("u1")).toHaveLength(0);
+  memory.close();
+});
+
 test("set_reminder stores exact ISO instants without timezone reinterpretation", async () => {
   const { memory } = await makeMemory();
   const result = await tool("set_reminder").handler(

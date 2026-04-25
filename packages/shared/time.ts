@@ -106,6 +106,40 @@ export interface ZonedDateTimeParts {
 }
 
 const formatterCache = new Map<string, Intl.DateTimeFormat>();
+const zonedPartKeys = [
+  "year",
+  "month",
+  "day",
+  "hour",
+  "minute",
+  "second",
+] as const;
+type ZonedPartKey = (typeof zonedPartKeys)[number];
+const exactIsoInstantPattern =
+  /^\d{4}-\d{2}-\d{2}t\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:z|[+-]\d{2}:\d{2})$/i;
+const localDateTimePattern =
+  /^(\d{4})-(\d{2})-(\d{2})[ t](\d{1,2}):(\d{2})(?::(\d{2}))?$/i;
+
+const relativeUnitMs: Record<string, number> = {
+  s: 1000,
+  sec: 1000,
+  secs: 1000,
+  second: 1000,
+  seconds: 1000,
+  m: MS_PER_MIN,
+  min: MS_PER_MIN,
+  mins: MS_PER_MIN,
+  minute: MS_PER_MIN,
+  minutes: MS_PER_MIN,
+  h: MS_PER_HOUR,
+  hr: MS_PER_HOUR,
+  hrs: MS_PER_HOUR,
+  hour: MS_PER_HOUR,
+  hours: MS_PER_HOUR,
+  d: MS_PER_DAY,
+  day: MS_PER_DAY,
+  days: MS_PER_DAY,
+};
 
 function getFormatter(timeZone: string): Intl.DateTimeFormat {
   let formatter = formatterCache.get(timeZone);
@@ -123,6 +157,18 @@ function getFormatter(timeZone: string): Intl.DateTimeFormat {
     formatterCache.set(timeZone, formatter);
   }
   return formatter;
+}
+
+function isZonedPartKey(type: string): type is ZonedPartKey {
+  return zonedPartKeys.includes(type as ZonedPartKey);
+}
+
+function hasCompleteZonedParts(
+  values: Partial<Record<ZonedPartKey, number>>
+): values is Record<ZonedPartKey, number> {
+  return zonedPartKeys.every(
+    (key) => values[key] != null && !Number.isNaN(values[key])
+  );
 }
 
 /** Check if a string is a valid IANA timezone name. */
@@ -148,10 +194,12 @@ export function getZonedParts(date: Date, timeZone: string): ZonedDateTimeParts 
   const normalized = normalizeTimeZone(timeZone);
   if (!normalized) return null;
 
-  const values: Record<string, number> = {};
+  const values: Partial<Record<ZonedPartKey, number>> = {};
   for (const part of getFormatter(normalized).formatToParts(date)) {
-    if (part.type !== "literal") values[part.type] = parseInt(part.value, 10);
+    if (isZonedPartKey(part.type)) values[part.type] = parseInt(part.value, 10);
   }
+
+  if (!hasCompleteZonedParts(values)) return null;
 
   return {
     year: values.year,
@@ -285,6 +333,16 @@ function makeZonedDate(
   return zonedTimeToUtc({ year, month, day, hour, minute, second: 0 }, timeZone);
 }
 
+function parseRelativeDurationMs(input: string): number | null {
+  const match = input.match(
+    /^(?:in\s+)?(\d+)\s*(s|sec|secs|seconds?|m|min|mins|minutes?|h|hr|hrs|hours?|d|days?)$/
+  );
+  if (!match) return null;
+
+  const unitMs = relativeUnitMs[match[2]];
+  return unitMs ? parseInt(match[1], 10) * unitMs : null;
+}
+
 /** Parse natural time expressions into a Date. Returns null if unparseable. */
 export function parseNaturalTime(
   input: string,
@@ -300,55 +358,19 @@ export function parseNaturalTime(
   if (!lower) return null;
 
   // Exact ISO instants with UTC/offset are already absolute.
-  if (/^\d{4}-\d{2}-\d{2}t\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:z|[+-]\d{2}:\d{2})$/i.test(input.trim())) {
+  if (exactIsoInstantPattern.test(input.trim())) {
     const exact = new Date(input.trim());
     return Number.isNaN(exact.getTime()) ? null : exact;
   }
 
-  // Shorthand: "30s", "5m", "2h", "3d" (no spaces, no "in")
-  let match = lower.match(/^(\d+)\s*(s|sec|secs|seconds?)$/);
-  if (match) {
-    return new Date(now.getTime() + parseInt(match[1]) * 1000);
-  }
-  match = lower.match(/^(\d+)\s*(m|min|mins|minutes?)$/);
-  if (match) {
-    return new Date(now.getTime() + parseInt(match[1]) * MS_PER_MIN);
-  }
-  match = lower.match(/^(\d+)\s*(h|hr|hrs|hours?)$/);
-  if (match) {
-    return new Date(now.getTime() + parseInt(match[1]) * MS_PER_HOUR);
-  }
-  match = lower.match(/^(\d+)\s*(d|days?)$/);
-  if (match) {
-    return new Date(now.getTime() + parseInt(match[1]) * MS_PER_DAY);
-  }
-
-  // "in X seconds/sec/s"
-  match = lower.match(/^in\s+(\d+)\s*(s|sec|secs|seconds?)$/);
-  if (match) {
-    return new Date(now.getTime() + parseInt(match[1]) * 1000);
-  }
-
-  // "in X min/minutes/m"
-  match = lower.match(/^in\s+(\d+)\s*(m|min|mins|minutes?)$/);
-  if (match) {
-    return new Date(now.getTime() + parseInt(match[1]) * MS_PER_MIN);
-  }
-
-  // "in X hours/h/hr"
-  match = lower.match(/^in\s+(\d+)\s*(h|hr|hrs|hours?)$/);
-  if (match) {
-    return new Date(now.getTime() + parseInt(match[1]) * MS_PER_HOUR);
-  }
-
-  // "in X days/d"
-  match = lower.match(/^in\s+(\d+)\s*(d|days?)$/);
-  if (match) {
-    return new Date(now.getTime() + parseInt(match[1]) * MS_PER_DAY);
+  // "30s", "5m", "2h", "3d", or the same forms prefixed with "in".
+  const relativeMs = parseRelativeDurationMs(lower);
+  if (relativeMs != null) {
+    return new Date(now.getTime() + relativeMs);
   }
 
   // "Xh Ym" or "X hours Y minutes" (with or without "in")
-  match = lower.match(/^(?:in\s+)?(\d+)\s*h(?:ours?)?\s+(\d+)\s*m(?:in(?:ute)?s?)?$/);
+  let match = lower.match(/^(?:in\s+)?(\d+)\s*h(?:ours?)?\s+(\d+)\s*m(?:in(?:ute)?s?)?$/);
   if (match) {
     return new Date(
       now.getTime() +
@@ -406,7 +428,7 @@ export function parseNaturalTime(
   }
 
   // "YYYY-MM-DD HH:mm" or "YYYY-MM-DDTHH:mm" without timezone.
-  match = input.trim().match(/^(\d{4})-(\d{2})-(\d{2})[ t](\d{1,2}):(\d{2})(?::(\d{2}))?$/i);
+  match = input.trim().match(localDateTimePattern);
   if (match) {
     const parts = {
       year: parseInt(match[1], 10),
