@@ -212,13 +212,13 @@ function computePreferredExerciseType(
     if (!lesson) continue;
 
     for (const result of row.exerciseResults) {
-      const exercise = lesson.exercises[result.index];
-      if (!exercise) continue;
+      const exerciseType = result.exerciseType ?? lesson.exercises[result.index]?.type;
+      if (!exerciseType) continue;
 
-      const existing = typeStats.get(exercise.type) ?? { correct: 0, total: 0 };
+      const existing = typeStats.get(exerciseType) ?? { correct: 0, total: 0 };
       existing.total++;
       if (result.correct) existing.correct++;
-      typeStats.set(exercise.type, existing);
+      typeStats.set(exerciseType, existing);
     }
   }
 

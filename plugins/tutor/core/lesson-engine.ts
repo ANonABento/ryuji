@@ -148,7 +148,8 @@ export function completeLesson(
   db: LessonDB,
   userId: string,
   module: string,
-  lessonId: string
+  lessonId: string,
+  options: { totalExercises?: number } = {}
 ): { score: number; passed: boolean; totalCorrect: number; totalExercises: number } {
   const lesson = getLesson(module, lessonId);
   if (!lesson) return { score: 0, passed: false, totalCorrect: 0, totalExercises: 0 };
@@ -156,7 +157,7 @@ export function completeLesson(
   const progress = db.getProgress(userId, module, lessonId);
   if (!progress) return { score: 0, passed: false, totalCorrect: 0, totalExercises: 0 };
 
-  const totalExercises = lesson.exercises.length;
+  const totalExercises = options.totalExercises ?? lesson.exercises.length;
   const totalCorrect = progress.exerciseResults.filter((r) => r.correct).length;
   const score = totalExercises > 0 ? totalCorrect / totalExercises : 0;
   const passed = score >= MASTERY_THRESHOLD;
