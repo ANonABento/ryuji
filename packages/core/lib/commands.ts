@@ -70,7 +70,8 @@ registerCommand("reminders", {
       const lines = active.map((r) => {
         const ts = Math.floor(fromSQLiteDatetime(r.dueAt).getTime() / 1000);
         const cron = r.cron ? ` · ${r.cron}` : "";
-        return `⏰ **#${r.id}** — ${r.message} · <t:${ts}:R>${cron}`;
+        const timezone = r.timezone ? ` · ${r.timezone}` : "";
+        return `⏰ **#${r.id}** — ${r.message} · <t:${ts}:R>${timezone}${cron}`;
       });
       embed.addFields({ name: "Pending", value: lines.join("\n") });
     }

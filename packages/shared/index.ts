@@ -25,6 +25,12 @@ export {
   formatDuration,
   relativeTime,
   parseNaturalTime,
+  isValidTimeZone,
+  normalizeTimeZone,
+  getZonedParts,
+  zonedTimeToUtc,
+  addZonedCalendarDays,
+  addZonedCalendarMonths,
   isValidCron,
 } from "./time.ts";
 

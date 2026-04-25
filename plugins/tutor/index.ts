@@ -21,7 +21,6 @@ import { japaneseLessons, japaneseUnits } from "./modules/japanese/lessons/index
 
 import {
   buildExerciseButtons,
-  buildExerciseEmbed,
   buildLessonCompletionComponents,
   buildResultEmbed,
   buildSummaryEmbed,
@@ -30,6 +29,7 @@ import {
   handleTypedAnswer,
 } from "./lesson-interactions.ts";
 import { getActiveModule } from "./core/session.ts";
+import { EmbedBuilder } from "discord.js";
 import { updateFromLessonCompletion } from "./core/learner-profile.ts";
 
 // SRS reminder state (cleaned up in destroy)
@@ -147,11 +147,10 @@ const tutorPlugin: Plugin = {
 
     // Show next exercise
     const nextExercise = session.lesson.exercises[session.exerciseIndex];
-    const exerciseEmbed = buildExerciseEmbed(
-      session.lesson,
-      session.exerciseIndex,
-      nextExercise
-    );
+    const exerciseEmbed = new EmbedBuilder()
+      .setColor(0xfee75c)
+      .setTitle(`Exercise ${session.exerciseIndex + 1}/${session.lesson.exercises.length}`)
+      .setDescription(nextExercise.prompt);
 
     const components = buildExerciseButtons(
       nextExercise,
@@ -250,9 +249,7 @@ const tutorPlugin: Plugin = {
     // Destroy all modules
     for (const mod of listModules()) {
       if (mod.destroy) {
-        try {
-          await mod.destroy();
-        } catch (e: unknown) {
+        try { await mod.destroy(); } catch (e: unknown) {
           console.error(`Tutor: module destroy failed: ${errorMessage(e)}`);
         }
       }

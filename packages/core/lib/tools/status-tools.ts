@@ -167,7 +167,8 @@ export const statusTools: ToolDef[] = [
             const cron = r.cron ? ` (recurring: ${r.cron})` : "";
             const nag = r.nagInterval ? ` (nag every ${r.nagInterval}m)` : "";
             const cat = r.category ? ` [${r.category}]` : "";
-            return `  [#${r.id}]${cat} ${r.message} (due: ${r.dueAt})${cron}${nag}`;
+            const timezone = r.timezone ? ` (${r.timezone})` : "";
+            return `  [#${r.id}]${cat} ${r.message} (due: ${r.dueAt} UTC)${timezone}${cron}${nag}`;
           }
         ),
         "",

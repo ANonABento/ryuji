@@ -28,6 +28,7 @@ interface ReminderOpts {
   message: string;
   dueAt: Date;
   cron?: string;
+  timezone?: string | null;
   nagInterval?: number;
 }
 
@@ -46,6 +47,7 @@ export function createAndScheduleReminder(
     dateToSQLite(opts.dueAt),
     {
       cron: opts.cron,
+      timezone: opts.timezone,
       nagInterval: opts.nagInterval,
     }
   );
@@ -55,6 +57,7 @@ export function createAndScheduleReminder(
 
   const ts = Math.floor(opts.dueAt.getTime() / 1000);
   const parts = [`**Reminder set** for <t:${ts}:R>: ${opts.message}`];
+  if (opts.timezone) parts.push(`Timezone: ${opts.timezone}`);
   if (opts.cron) parts.push(`Recurring: ${opts.cron}`);
   if (opts.nagInterval) parts.push(`Nag mode: on (every ${opts.nagInterval}min until done)`);
 

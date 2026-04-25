@@ -6,38 +6,60 @@
 import type { TextChannel } from "discord.js";
 import type { AppContext } from "./types.ts";
 import type { Reminder } from "./memory.ts";
-import { dateToSQLite, fromSQLiteDatetime, MS_PER_MIN } from "./time.ts";
+import {
+  addZonedCalendarDays,
+  addZonedCalendarMonths,
+  dateToSQLite,
+  fromSQLiteDatetime,
+  MS_PER_DAY,
+  MS_PER_HOUR,
+  MS_PER_MIN,
+} from "./time.ts";
 import { buildReminderButtons } from "./handlers/reminder-buttons.ts";
 
 const MAX_TIMEOUT_MS = 2_147_483_647;
 
-/** Parse simple cron patterns into next due date */
-function getNextCronDate(cron: string, fromDate: Date): Date | null {
-  const next = new Date(fromDate);
-
+/** Parse simple cron patterns into next due date. */
+export function getNextCronDate(
+  cron: string,
+  fromDate: Date,
+  timeZone?: string | null
+): Date | null {
   switch (cron) {
     case "hourly":
-      next.setHours(next.getHours() + 1);
-      return next;
+      return new Date(fromDate.getTime() + MS_PER_HOUR);
     case "daily":
-      next.setDate(next.getDate() + 1);
-      return next;
+      return timeZone
+        ? addZonedCalendarDays(fromDate, 1, timeZone)
+        : new Date(fromDate.getTime() + MS_PER_DAY);
     case "weekly":
-      next.setDate(next.getDate() + 7);
-      return next;
+      return timeZone
+        ? addZonedCalendarDays(fromDate, 7, timeZone)
+        : new Date(fromDate.getTime() + 7 * MS_PER_DAY);
     case "monthly":
-      next.setMonth(next.getMonth() + 1);
-      return next;
+      return timeZone
+        ? addZonedCalendarMonths(fromDate, 1, timeZone)
+        : new Date(Date.UTC(
+            fromDate.getUTCFullYear(),
+            fromDate.getUTCMonth() + 1,
+            fromDate.getUTCDate(),
+            fromDate.getUTCHours(),
+            fromDate.getUTCMinutes(),
+            fromDate.getUTCSeconds()
+          ));
     default: {
       // Support "every Xh", "every Xm", "every Xd" patterns
       const match = cron.match(/^every\s+(\d+)\s*(m|min|h|hr|d|day)s?$/i);
       if (match) {
         const val = parseInt(match[1]);
         const unit = match[2].toLowerCase();
-        if (unit === "m" || unit === "min") next.setMinutes(next.getMinutes() + val);
-        else if (unit === "h" || unit === "hr") next.setHours(next.getHours() + val);
-        else if (unit === "d" || unit === "day") next.setDate(next.getDate() + val);
-        return next;
+        if (unit === "m" || unit === "min") return new Date(fromDate.getTime() + val * MS_PER_MIN);
+        if (unit === "h" || unit === "hr") return new Date(fromDate.getTime() + val * MS_PER_HOUR);
+        if (unit === "d" || unit === "day") {
+          return timeZone
+            ? addZonedCalendarDays(fromDate, val, timeZone)
+            : new Date(fromDate.getTime() + val * MS_PER_DAY);
+        }
       }
       return null;
     }
@@ -154,7 +176,11 @@ export class ReminderScheduler {
 
     // If recurring, create the next occurrence and schedule it
     if (reminder.cron) {
-      const nextDate = getNextCronDate(reminder.cron, fromSQLiteDatetime(reminder.dueAt));
+      const nextDate = getNextCronDate(
+        reminder.cron,
+        fromSQLiteDatetime(reminder.dueAt),
+        reminder.timezone
+      );
       if (nextDate) {
         const newId = this.ctx.memory.addReminder(
           reminder.userId,
@@ -163,6 +189,7 @@ export class ReminderScheduler {
           dateToSQLite(nextDate),
           {
             cron: reminder.cron,
+            timezone: reminder.timezone,
             nagInterval: reminder.nagInterval ?? undefined,
             category: reminder.category ?? undefined,
           }

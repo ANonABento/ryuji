@@ -10,7 +10,7 @@ import {
   TextInputStyle,
 } from "discord.js";
 import { registerModalHandler } from "../interactions.ts";
-import { parseNaturalTime, isValidCron } from "../time.ts";
+import { parseNaturalTime, isValidCron, normalizeTimeZone } from "../time.ts";
 import { createAndScheduleReminder } from "./shared.ts";
 
 // --- Modal builders ---
@@ -56,6 +56,15 @@ export function buildReminderModal(): ModalBuilder {
           .setPlaceholder("yes or no")
           .setRequired(false)
           .setMaxLength(3)
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId("timezone")
+          .setLabel("Timezone (optional)")
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder("e.g. America/New_York")
+          .setRequired(false)
+          .setMaxLength(64)
       )
     );
 }
@@ -130,9 +139,24 @@ registerModalHandler("modal-remind", async (interaction, _parts, ctx) => {
   const timeStr = interaction.fields.getTextInputValue("time");
   const recurring = interaction.fields.getTextInputValue("recurring") || null;
   const nagRaw = interaction.fields.getTextInputValue("nag")?.toLowerCase() || "";
+  let timezoneRaw = "";
+  try {
+    timezoneRaw = interaction.fields.getTextInputValue("timezone") || "";
+  } catch {
+    timezoneRaw = "";
+  }
+  const timezone = timezoneRaw.trim() ? normalizeTimeZone(timezoneRaw) : null;
   const nag = nagRaw === "yes" || nagRaw === "y";
 
-  const dueAt = parseNaturalTime(timeStr);
+  if (timezoneRaw.trim() && !timezone) {
+    await interaction.reply({
+      content: `Invalid timezone: "${timezoneRaw}". Use an IANA timezone such as America/New_York.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const dueAt = parseNaturalTime(timeStr, { timeZone: timezone });
   if (!dueAt) {
     await interaction.reply({
       content: `Couldn't parse time: "${timeStr}". Try "in 30 min", "tomorrow 9am", etc.`,
@@ -163,6 +187,7 @@ registerModalHandler("modal-remind", async (interaction, _parts, ctx) => {
     message,
     dueAt,
     cron: recurring ?? undefined,
+    timezone,
     nagInterval: nag ? 15 : undefined,
   });
 
