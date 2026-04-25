@@ -6,14 +6,7 @@
  */
 
 import type { LessonDB } from "./lesson-db.ts";
-import {
-  getExerciseAnswer,
-  type Lesson,
-  type Exercise,
-  type ExerciseResult,
-  type Unit,
-  type LessonStatus,
-} from "./lesson-types.ts";
+import type { Lesson, Exercise, ExerciseResult, Unit, LessonStatus } from "./lesson-types.ts";
 import { getSRS } from "./srs-instance.ts";
 
 const MASTERY_THRESHOLD = 0.8; // 80% to pass
@@ -124,8 +117,7 @@ export function scoreExercise(
   exerciseIndex: number = 0
 ): ExerciseResult & { feedback: string } {
   const normalized = userAnswer.trim().toLowerCase();
-  const expectedAnswer = getExerciseAnswer(exercise);
-  const expected = expectedAnswer.trim().toLowerCase();
+  const expected = exercise.answer.trim().toLowerCase();
 
   // Check main answer + alternatives
   const allAccepted = [expected, ...(exercise.accept ?? []).map((a) => a.trim().toLowerCase())];
@@ -137,10 +129,10 @@ export function scoreExercise(
   } else if (exercise.explanation) {
     feedback = `❌ ${exercise.explanation}`;
   } else {
-    feedback = `❌ The answer is **${expectedAnswer}**`;
+    feedback = `❌ The answer is **${exercise.answer}**`;
   }
 
-  return { index: exerciseIndex, correct, userAnswer, feedback };
+  return { index: exerciseIndex, correct, userAnswer, exerciseType: exercise.type, feedback };
 }
 
 /** Complete a lesson — calculate score, unlock next lessons, add SRS items */
@@ -149,7 +141,7 @@ export function completeLesson(
   userId: string,
   module: string,
   lessonId: string,
-  options: { totalExercises?: number } = {}
+  totalOverride?: number
 ): { score: number; passed: boolean; totalCorrect: number; totalExercises: number } {
   const lesson = getLesson(module, lessonId);
   if (!lesson) return { score: 0, passed: false, totalCorrect: 0, totalExercises: 0 };
@@ -157,7 +149,7 @@ export function completeLesson(
   const progress = db.getProgress(userId, module, lessonId);
   if (!progress) return { score: 0, passed: false, totalCorrect: 0, totalExercises: 0 };
 
-  const totalExercises = options.totalExercises ?? lesson.exercises.length;
+  const totalExercises = totalOverride ?? lesson.exercises.length;
   const totalCorrect = progress.exerciseResults.filter((r) => r.correct).length;
   const score = totalExercises > 0 ? totalCorrect / totalExercises : 0;
   const passed = score >= MASTERY_THRESHOLD;

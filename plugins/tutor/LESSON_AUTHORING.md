@@ -40,7 +40,8 @@ Set `furiganaLevel` on each lesson to control reading aids:
 Define content sets instead of hand-writing individual exercises. The exercise generator creates exercises automatically:
 
 ```typescript
-import { generateExercises, type ContentSet } from "../../../core/exercise-generator.ts";
+import type { ContentSet } from "../../../core/lesson-types.ts";
+import { generateExercises } from "../../../core/exercise-generator.ts";
 
 const greetingsContent: ContentSet = {
   items: [
@@ -67,11 +68,20 @@ const allExercises = generateAllExercises(greetingsContent);
 
 4 items × 3 modes = 12 exercises from one content set.
 
-Button modes require at least two distinct meanings. The generator skips
-impossible one-button recognition prompts and falls back from matching to
-recognition when a group does not have enough distinct answer choices.
+Lessons can expose a Discord mode picker by carrying source content sets alongside the authored default exercises:
 
-Mode selection in Discord is currently deferred. Lessons compile content sets into concrete exercises at module load time, so `/lesson` always presents the authored exercise order. Add a picker only after lesson data stores selectable practice-set metadata instead of replacing `Lesson.exercises`.
+```typescript
+{
+  exercises: [
+    ...generateExercises(greetingsContent, "recognition"),
+    ...generateExercises(greetingsContent, "production").slice(0, 3),
+  ],
+  contentSets: [greetingsContent],
+  selectableModes: ["recognition", "production", "matching", "mixed"],
+}
+```
+
+The in-memory lesson session stores the exact generated exercise list selected by the user. Scoring totals must read from the session exercise list, not the authored `Lesson.exercises` fallback.
 
 You can mix content set exercises with hand-written ones in the same lesson:
 
@@ -100,6 +110,16 @@ Target 10-12 exercises per lesson. Mix types:
 - 30% production (harder, builds recall)
 - 10% review/chart (reinforcement)
 
+### Chart Exercises
+
+Chart review exercises should store structured chart data, not only a rendered prompt string. Use the kana `chartReview()` helper where possible. It creates a `chart` exercise with:
+
+- `grid`: a 2D array where `null` marks blanks
+- `blanks`: ordered blank coordinates and answers
+- `rowLabels` / `colLabels`: optional labels for rendering
+
+At runtime, structured chart exercises expand into one scored exercise per blank. Button custom IDs use short tokens and never include raw kana or readings.
+
 ### Mastery Threshold
 
 80% to pass. Design exercises so a student who understood the intro should score ~90%. If too many students fail, the exercises are too hard — add easier warm-up exercises at the start.
@@ -107,8 +127,6 @@ Target 10-12 exercises per lesson. Mix types:
 ## Deferred Scope
 
 - Random word auto-posting needs a channel/config ownership model before it can run automatically. Keep `random_word` as an explicit tool until that exists.
-- User-selected exercise mode picking is deferred until active lesson sessions can store the exact selected exercise set and completion scoring can use that set as the denominator.
-- SRS reminder preferences are user-controlled through `srs_reminders` and persisted in `LessonDB`. Keep reminder opt-out and cooldown state there rather than in worker memory.
 
 ## Smoke Test
 

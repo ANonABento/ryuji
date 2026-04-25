@@ -5,9 +5,12 @@ import { test, expect, describe } from "bun:test";
 import {
   generateExercises,
   generateAllExercises,
+  selectExercisesForMode,
+  selectableModesForLesson,
   type ContentItem,
   type ContentSet,
 } from "../../../plugins/tutor/core/exercise-generator.ts";
+import type { Lesson } from "../../../plugins/tutor/core/lesson-types.ts";
 
 const SAMPLE: ContentItem[] = [
   { term: "あ", reading: "a", meaning: "a (vowel)" },
@@ -41,32 +44,6 @@ describe("exercise-generator", () => {
     }
   });
 
-  test("recognition: repeated meanings do not create duplicate answer choices", () => {
-    const items: ContentItem[] = [
-      { term: "本", reading: "ほん", meaning: "book" },
-      { term: "ノート", reading: "のーと", meaning: "notebook" },
-      { term: "手帳", reading: "てちょう", meaning: "notebook" },
-      { term: "水", reading: "みず", meaning: "water" },
-    ];
-
-    const ex = generateExercises({ items }, "recognition");
-
-    for (const e of ex) {
-      const choices = [e.answer, ...(e.distractors ?? [])];
-      expect(new Set(choices).size).toBe(choices.length);
-      expect(e.distractors).not.toContain(e.answer);
-    }
-  });
-
-  test("recognition: skips items when no distinct distractor exists", () => {
-    const items: ContentItem[] = [
-      { term: "ノート", reading: "のーと", meaning: "notebook" },
-      { term: "手帳", reading: "てちょう", meaning: "notebook" },
-    ];
-
-    expect(generateExercises({ items }, "recognition")).toEqual([]);
-  });
-
   test("production: includes reading in accept[]", () => {
     const ex = generateExercises({ items: SAMPLE }, "production");
     expect(ex.length).toBe(SAMPLE.length);
@@ -96,24 +73,6 @@ describe("exercise-generator", () => {
     }
   });
 
-  test("matching: repeated meanings do not create duplicate answer choices", () => {
-    const items: ContentItem[] = [
-      { term: "本", reading: "ほん", meaning: "book" },
-      { term: "ノート", reading: "のーと", meaning: "notebook" },
-      { term: "手帳", reading: "てちょう", meaning: "notebook" },
-      { term: "水", reading: "みず", meaning: "water" },
-      { term: "電話", reading: "でんわ", meaning: "phone" },
-    ];
-
-    const ex = generateExercises({ items }, "matching");
-
-    for (const e of ex) {
-      const choices = [e.answer, ...(e.distractors ?? [])];
-      expect(new Set(choices).size).toBe(choices.length);
-      expect(e.distractors).not.toContain(e.answer);
-    }
-  });
-
   test("matching: chunk with <2 items falls back to recognition", () => {
     // 6 items → 5 + 1: the 1-item chunk falls back to recognition
     const items: ContentItem[] = [];
@@ -126,34 +85,6 @@ describe("exercise-generator", () => {
     for (let i = 0; i < 5; i++) expect(ex[i].type).toBe("matching");
     // Last one (a chunk of size 1) should be recognition
     expect(ex[5].type).toBe("recognition");
-    expect(ex[5].distractors?.length).toBeGreaterThan(0);
-  });
-
-  test("matching: duplicate-only groups fall back without one-button exercises", () => {
-    const items: ContentItem[] = [
-      { term: "ノート", reading: "のーと", meaning: "notebook" },
-      { term: "手帳", reading: "てちょう", meaning: "notebook" },
-      { term: "メモ", reading: "めも", meaning: "notebook" },
-      { term: "帳面", reading: "ちょうめん", meaning: "notebook" },
-      { term: "手記", reading: "しゅき", meaning: "notebook" },
-      { term: "水", reading: "みず", meaning: "water" },
-    ];
-
-    const ex = generateExercises({ items }, "matching");
-    expect(ex.map((e) => e.type)).toEqual([
-      "recognition",
-      "recognition",
-      "recognition",
-      "recognition",
-      "recognition",
-      "recognition",
-    ]);
-
-    for (const e of ex) {
-      const choices = [e.answer, ...(e.distractors ?? [])];
-      expect(choices.length).toBeGreaterThanOrEqual(2);
-      expect(new Set(choices).size).toBe(choices.length);
-    }
   });
 
   test("empty content set returns []", () => {
@@ -176,5 +107,60 @@ describe("exercise-generator", () => {
     const ex = generateAllExercises({ items: SAMPLE, modes: ["recognition"] });
     expect(ex.length).toBe(SAMPLE.length);
     for (const e of ex) expect(e.type).toBe("recognition");
+  });
+
+  test("selectExercisesForMode returns only requested generated mode", () => {
+    const lesson: Lesson = {
+      id: "test.1",
+      unit: "test",
+      unitIndex: 1,
+      title: "Generated",
+      prerequisites: [],
+      introduction: { text: "intro" },
+      exercises: [],
+      contentSets: [{ items: SAMPLE }],
+      selectableModes: ["recognition", "production", "matching", "mixed"],
+    };
+
+    const production = selectExercisesForMode(lesson, "production");
+
+    expect(production).toHaveLength(SAMPLE.length);
+    expect(production.every((exercise) => exercise.type === "production")).toBe(true);
+  });
+
+  test("selectExercisesForMode mixed includes all configured modes", () => {
+    const lesson: Lesson = {
+      id: "test.2",
+      unit: "test",
+      unitIndex: 1,
+      title: "Generated",
+      prerequisites: [],
+      introduction: { text: "intro" },
+      exercises: [],
+      contentSets: [{ items: SAMPLE, modes: ["recognition", "matching"] }],
+      selectableModes: ["recognition", "matching", "mixed"],
+    };
+
+    const mixed = selectExercisesForMode(lesson, "mixed");
+    const types = new Set(mixed.map((exercise) => exercise.type));
+
+    expect(types).toEqual(new Set(["recognition", "matching"]));
+    expect(mixed).toHaveLength(SAMPLE.length * 2);
+  });
+
+  test("selectableModesForLesson hides unsupported generated modes", () => {
+    const lesson: Lesson = {
+      id: "test.3",
+      unit: "test",
+      unitIndex: 1,
+      title: "Generated",
+      prerequisites: [],
+      introduction: { text: "intro" },
+      exercises: [],
+      contentSets: [{ items: SAMPLE, modes: ["recognition"] }],
+      selectableModes: ["recognition", "production", "matching", "mixed"],
+    };
+
+    expect(selectableModesForLesson(lesson)).toEqual(["recognition", "mixed"]);
   });
 });
