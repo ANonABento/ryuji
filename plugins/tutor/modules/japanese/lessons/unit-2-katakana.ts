@@ -7,8 +7,8 @@
  * Lessons 2.7-2.8 use loanword practice via the exercise generator.
  */
 
-import type { Lesson, Exercise, IntroItem, LessonSRSItem } from "../../../core/lesson-types.ts";
-import { generateExercises, type ContentSet } from "../../../core/exercise-generator.ts";
+import type { Lesson, Exercise, IntroItem, LessonSRSItem, ContentSet } from "../../../core/lesson-types.ts";
+import { generateExercises } from "../../../core/exercise-generator.ts";
 import { recognition, production, chartReview } from "./kana-helpers.ts";
 
 function srsItems(pairs: [string, string][]): LessonSRSItem[] {
@@ -418,6 +418,8 @@ export const katakanaLessons: Lesson[] = [
       ...generateExercises(commonLoanwords, "recognition"),
       ...generateExercises(commonLoanwords, "production").slice(0, 2),
     ],
+    contentSets: [commonLoanwords],
+    selectableModes: ["recognition", "production", "matching", "mixed"],
     srsItems: commonLoanwords.items.map((item) => ({
       front: item.term,
       back: `${item.reading} (${item.meaning})`,
@@ -455,6 +457,8 @@ export const katakanaLessons: Lesson[] = [
       ...generateExercises(moreLoanwords, "recognition"),
       ...generateExercises(moreLoanwords, "production").slice(0, 2),
     ],
+    contentSets: [moreLoanwords],
+    selectableModes: ["recognition", "production", "matching", "mixed"],
     srsItems: moreLoanwords.items.map((item) => ({
       front: item.term,
       back: `${item.reading} (${item.meaning})`,
