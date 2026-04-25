@@ -189,7 +189,7 @@ export function buildExerciseButtons(
   return [];
 }
 
-function buildResultEmbed(
+export function buildResultEmbed(
   correct: boolean,
   feedback: string,
   correctSoFar: number,
@@ -201,7 +201,7 @@ function buildResultEmbed(
     .setFooter({ text: `Score: ${correctSoFar}/${total}` });
 }
 
-function buildSummaryEmbed(
+export function buildSummaryEmbed(
   lesson: Lesson,
   score: number,
   passed: boolean,
@@ -228,6 +228,24 @@ function buildSummaryEmbed(
   }
 
   return embed;
+}
+
+export function buildLessonCompletionComponents(
+  passed: boolean,
+  lessonId: string
+): ActionRowBuilder<ButtonBuilder>[] {
+  const customId = passed ? "lesson:next" : `lesson:retry:${lessonId}`;
+  const label = passed ? "Next Lesson →" : "Try Again";
+  const style = passed ? ButtonStyle.Success : ButtonStyle.Primary;
+
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(customId)
+        .setLabel(label)
+        .setStyle(style)
+    ),
+  ];
 }
 
 function buildProgressBar(ratio: number, length: number): string {
@@ -257,27 +275,7 @@ async function sendNextExercise(
     updateFromLessonCompletion(db, userId, module);
 
     const summary = buildSummaryEmbed(lesson, result.score, result.passed, result.totalCorrect, result.totalExercises);
-
-    const components: ActionRowBuilder<ButtonBuilder>[] = [];
-    if (result.passed) {
-      components.push(
-        new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId("lesson:next")
-            .setLabel("Next Lesson →")
-            .setStyle(ButtonStyle.Success)
-        )
-      );
-    } else {
-      components.push(
-        new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`lesson:retry:${lessonId}`)
-            .setLabel("Try Again")
-            .setStyle(ButtonStyle.Primary)
-        )
-      );
-    }
+    const components = buildLessonCompletionComponents(result.passed, lessonId);
 
     if (editMessage) {
       await interaction.update({ embeds: [summary], components });
@@ -312,7 +310,7 @@ registerCommand("lesson", {
     .setName("lesson")
     .setDescription("Start or continue a Japanese lesson")
     .toJSON(),
-  handler: async (interaction, ctx) => {
+  handler: async (interaction, _ctx) => {
     const db = getLessonDB();
     if (!db) {
       await interaction.reply({
@@ -426,7 +424,7 @@ registerCommand("progress", {
 
 // --- Button Handlers ---
 
-registerButtonHandler("lesson", async (interaction, parts, ctx) => {
+registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
   const action = parts[1];
   const userId = interaction.user.id;
   const db = getLessonDB();
