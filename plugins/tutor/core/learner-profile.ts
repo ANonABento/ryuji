@@ -5,11 +5,8 @@
 
 import { nowUTC } from "@choomfie/shared";
 import type { LessonDB } from "./lesson-db.ts";
+import type { ExerciseResult } from "./lesson-types.ts";
 import { getLesson, getAllLessons } from "./lesson-engine.ts";
-
-function todayUTC(): string {
-  return new Date().toISOString().split("T")[0];
-}
 
 export interface LearnerProfile {
   userId: string;
@@ -34,11 +31,19 @@ const AVG_SESSION_MINS = 5;
 const STRONG_SCORE_THRESHOLD = 0.9;
 const WEAK_SCORE_THRESHOLD = 0.7;
 
+/** Get a learner profile from DB */
+export function getProfile(db: LessonDB, userId: string, module: string): LearnerProfile | null {
+  return db.getProfile(userId, module);
+}
+
 /** Update profile after a lesson completion */
 export function updateFromLessonCompletion(
   db: LessonDB,
   userId: string,
   module: string,
+  lessonId: string,
+  score: number,
+  exerciseResults: ExerciseResult[]
 ): void {
   const profile = db.getProfile(userId, module) ?? makeDefaultProfile(userId, module);
   const allProgress = db.getAllProgress(userId, module);
@@ -87,7 +92,7 @@ export function updateFromLessonCompletion(
 
   // Update streak and lastActive
   updateStreak(profile);
-  profile.lastActive = todayUTC();
+  profile.lastActive = new Date().toISOString().split("T")[0];
 
   // Rough study time estimate
   profile.totalStudyMins = completed * AVG_SESSION_MINS;
@@ -111,7 +116,7 @@ export function updateFromSrsReview(
 
   // Update streak and lastActive
   updateStreak(profile);
-  profile.lastActive = todayUTC();
+  profile.lastActive = new Date().toISOString().split("T")[0];
 
   profile.updatedAt = nowUTC();
   db.upsertProfile(profile);
@@ -174,7 +179,7 @@ function makeDefaultProfile(userId: string, module: string): LearnerProfile {
 }
 
 function updateStreak(profile: LearnerProfile): void {
-  const today = todayUTC();
+  const today = new Date().toISOString().split("T")[0];
   if (!profile.lastActive) {
     profile.streak = 1;
     return;
