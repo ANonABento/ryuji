@@ -5,14 +5,16 @@ import { describe, expect, test } from "bun:test";
 import { japaneseLessons, japaneseUnits } from "../../../plugins/tutor/modules/japanese/lessons/index.ts";
 import { isButtonExercise } from "../../../plugins/tutor/core/lesson-types.ts";
 
+const EXPECTED_JAPANESE_UNIT_NAMES = [
+  "Hiragana",
+  "Katakana",
+  "First Words & Phrases",
+  "Basic Grammar",
+];
+
 describe("Japanese lesson catalog", () => {
   test("registers the four progress units from the same lesson registry", () => {
-    expect(japaneseUnits.map((unit) => unit.name)).toEqual([
-      "Hiragana",
-      "Katakana",
-      "First Words & Phrases",
-      "Basic Grammar",
-    ]);
+    expect(japaneseUnits.map((unit) => unit.name)).toEqual(EXPECTED_JAPANESE_UNIT_NAMES);
 
     const lessonIds = new Set(japaneseLessons.map((lesson) => lesson.id));
     const unitLessonIds = new Set(japaneseUnits.flatMap((unit) => unit.lessonIds));
@@ -71,6 +73,8 @@ describe("Japanese lesson catalog", () => {
     const emptyLessons: string[] = [];
     const emptyAnswers: string[] = [];
     const degenerateButtons: string[] = [];
+    const duplicateButtonOptions: string[] = [];
+    const selfDistractors: string[] = [];
     const impossibleMastery: string[] = [];
 
     for (const lesson of japaneseLessons) {
@@ -85,12 +89,19 @@ describe("Japanese lesson catalog", () => {
         if (isButtonExercise(exercise.type) && (exercise.distractors?.length ?? 0) === 0) {
           degenerateButtons.push(ref);
         }
+        if (isButtonExercise(exercise.type)) {
+          const options = [exercise.answer, ...(exercise.distractors ?? [])];
+          if (new Set(options).size !== options.length) duplicateButtonOptions.push(ref);
+          if ((exercise.distractors ?? []).includes(exercise.answer)) selfDistractors.push(ref);
+        }
       }
     }
 
     expect(emptyLessons).toEqual([]);
     expect(emptyAnswers).toEqual([]);
     expect(degenerateButtons).toEqual([]);
+    expect(duplicateButtonOptions).toEqual([]);
+    expect(selfDistractors).toEqual([]);
     expect(impossibleMastery).toEqual([]);
   });
 
