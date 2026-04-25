@@ -34,7 +34,7 @@ export const tutorTools: ToolDef[] = [
       }
       const level = getModuleLevel(userId, moduleName);
       const activeSession = getActiveSession(userId);
-      const promptCtx = activeSession?.lesson.furiganaLevel
+      const promptCtx = activeSession?.module === moduleName && activeSession.lesson.furiganaLevel
         ? { furiganaLevel: activeSession.lesson.furiganaLevel }
         : undefined;
       let prompt = mod.buildTutorPrompt(level, promptCtx);

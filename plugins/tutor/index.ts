@@ -18,7 +18,12 @@ import { getAllTutorTools } from "./tools/index.ts";
 import { listModules } from "./modules/index.ts";
 import { japaneseLessons, japaneseUnits } from "./modules/japanese/lessons/index.ts";
 
-import { hasActiveTypingExercise, handleTypedAnswer } from "./lesson-interactions.ts";
+import {
+  buildExerciseButtons,
+  clearActiveSession,
+  hasActiveTypingExercise,
+  handleTypedAnswer,
+} from "./lesson-interactions.ts";
 import {
   EmbedBuilder,
   ActionRowBuilder,
@@ -26,7 +31,6 @@ import {
   ButtonStyle,
 } from "discord.js";
 import { updateFromLessonCompletion } from "./core/learner-profile.ts";
-import { isButtonExercise } from "./core/lesson-types.ts";
 
 // SRS reminder state (cleaned up in destroy)
 let srsReminderTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -119,6 +123,7 @@ const tutorPlugin: Plugin = {
 
       // Update learner profile
       updateFromLessonCompletion(db!, userId, session.module);
+      clearActiveSession(userId);
 
       const pct = Math.round(completion.score * 100);
       const passed = completion.passed;
@@ -168,22 +173,14 @@ const tutorPlugin: Plugin = {
       .setTitle(`Exercise ${session.exerciseIndex + 1}/${session.lesson.exercises.length}`)
       .setDescription(nextExercise.prompt);
 
-    const components: ActionRowBuilder<ButtonBuilder>[] = [];
+    const components = buildExerciseButtons(
+      nextExercise,
+      session.lessonId,
+      session.exerciseIndex,
+      session
+    );
 
-    if (isButtonExercise(nextExercise.type)) {
-      const options = [nextExercise.answer, ...(nextExercise.distractors ?? [])];
-      const shuffled = options.sort(() => Math.random() - 0.5);
-      const row = new ActionRowBuilder<ButtonBuilder>();
-      for (let i = 0; i < Math.min(shuffled.length, 5); i++) {
-        row.addComponents(
-          new ButtonBuilder()
-            .setCustomId(`lesson:answer:${session.lessonId}:${session.exerciseIndex}:${shuffled[i]}`)
-            .setLabel(shuffled[i])
-            .setStyle(ButtonStyle.Secondary)
-        );
-      }
-      components.push(row);
-    } else {
+    if (components.length === 0) {
       exerciseEmbed.setFooter({
         text: `Type your answer below${nextExercise.hint ? ` · 💡 ${nextExercise.hint}` : ""}`,
       });
