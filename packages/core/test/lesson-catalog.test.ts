@@ -3,7 +3,11 @@
  */
 import { describe, expect, test } from "bun:test";
 import { japaneseLessons, japaneseUnits } from "../../../plugins/tutor/modules/japanese/lessons/index.ts";
-import { getActiveChartBlank, isButtonExercise } from "../../../plugins/tutor/core/lesson-types.ts";
+import {
+  getActiveChartBlank,
+  getExerciseAnswer,
+  isButtonExercise,
+} from "../../../plugins/tutor/core/lesson-types.ts";
 
 const EXPECTED_JAPANESE_UNIT_NAMES = [
   "Hiragana",
@@ -78,7 +82,7 @@ describe("Japanese lesson catalog", () => {
     const impossibleMastery: string[] = [];
     const missingChartData: string[] = [];
     const invalidChartBlanks: string[] = [];
-    const mismatchedChartAnswers: string[] = [];
+    const missingChartOptions: string[] = [];
 
     for (const lesson of japaneseLessons) {
       if (lesson.exercises.length === 0) emptyLessons.push(lesson.id);
@@ -93,9 +97,11 @@ describe("Japanese lesson catalog", () => {
           degenerateButtons.push(ref);
         }
         if (isButtonExercise(exercise.type)) {
-          const options = [exercise.answer, ...(exercise.distractors ?? [])];
+          const options = [getExerciseAnswer(exercise), ...(exercise.distractors ?? [])];
           if (new Set(options).size !== options.length) duplicateButtonOptions.push(ref);
-          if ((exercise.distractors ?? []).includes(exercise.answer)) selfDistractors.push(ref);
+          if ((exercise.distractors ?? []).includes(getExerciseAnswer(exercise))) {
+            selfDistractors.push(ref);
+          }
         }
         if (exercise.type === "chart") {
           if (!exercise.chart) {
@@ -106,13 +112,19 @@ describe("Japanese lesson catalog", () => {
           const activeBlank = getActiveChartBlank(exercise);
           if (!activeBlank || activeBlank.answer.trim().length === 0) {
             invalidChartBlanks.push(ref);
-          } else if (activeBlank.answer !== exercise.answer) {
-            mismatchedChartAnswers.push(ref);
+          } else if (![getExerciseAnswer(exercise), ...(exercise.distractors ?? [])].includes(activeBlank.answer)) {
+            missingChartOptions.push(ref);
           }
 
           for (const blank of exercise.chart.blanks) {
             const row = exercise.chart.grid[blank.row];
-            if (!row || blank.col < 0 || blank.col >= row.length || blank.answer.trim().length === 0) {
+            if (
+              !row ||
+              blank.col < 0 ||
+              blank.col >= row.length ||
+              row[blank.col] !== null ||
+              blank.answer.trim().length === 0
+            ) {
               invalidChartBlanks.push(ref);
               break;
             }
@@ -129,7 +141,7 @@ describe("Japanese lesson catalog", () => {
     expect(impossibleMastery).toEqual([]);
     expect(missingChartData).toEqual([]);
     expect(invalidChartBlanks).toEqual([]);
-    expect(mismatchedChartAnswers).toEqual([]);
+    expect(missingChartOptions).toEqual([]);
   });
 
   test("all lessons are reachable from root lessons through prerequisites", () => {

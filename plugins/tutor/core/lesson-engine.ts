@@ -7,7 +7,7 @@
 
 import type { LessonDB } from "./lesson-db.ts";
 import {
-  getActiveChartBlank,
+  getExerciseAnswer,
   type Lesson,
   type Exercise,
   type ExerciseResult,
@@ -124,7 +124,7 @@ export function scoreExercise(
   exerciseIndex: number = 0
 ): ExerciseResult & { feedback: string } {
   const normalized = userAnswer.trim().toLowerCase();
-  const expectedAnswer = getActiveChartBlank(exercise)?.answer ?? exercise.answer;
+  const expectedAnswer = getExerciseAnswer(exercise);
   const expected = expectedAnswer.trim().toLowerCase();
 
   // Check main answer + alternatives

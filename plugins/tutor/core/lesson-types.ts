@@ -114,3 +114,8 @@ export function getActiveChartBlank(exercise: Exercise): ChartBlank | null {
   const index = exercise.chart.currentBlankIndex ?? 0;
   return exercise.chart.blanks[index] ?? null;
 }
+
+/** Returns the answer that should be scored or offered for the current exercise state. */
+export function getExerciseAnswer(exercise: Exercise): string {
+  return getActiveChartBlank(exercise)?.answer ?? exercise.answer;
+}

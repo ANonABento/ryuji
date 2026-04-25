@@ -26,7 +26,12 @@ import {
   completeLesson,
   getProgressData,
 } from "./core/lesson-engine.ts";
-import { type Exercise, type Lesson, isButtonExercise } from "./core/lesson-types.ts";
+import {
+  getExerciseAnswer,
+  type Exercise,
+  type Lesson,
+  isButtonExercise,
+} from "./core/lesson-types.ts";
 import { updateFromLessonCompletion } from "./core/learner-profile.ts";
 
 // --- Active lesson sessions (in-memory, keyed by userId) ---
@@ -112,11 +117,12 @@ function shuffle<T>(items: T[]): T[] {
 
 export function buildButtonOptions(exercise: Exercise): string[] {
   if (!isButtonExercise(exercise.type)) return [];
+  const answer = getExerciseAnswer(exercise);
   const distractors = [...new Set(exercise.distractors ?? [])].filter(
-    (option) => option !== exercise.answer
+    (option) => option !== answer
   );
   const selectedDistractors = shuffle(distractors).slice(0, 4);
-  return shuffle([exercise.answer, ...selectedDistractors]);
+  return shuffle([answer, ...selectedDistractors]);
 }
 
 function buttonLabel(answer: string): string {

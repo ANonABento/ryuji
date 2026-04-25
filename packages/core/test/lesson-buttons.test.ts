@@ -148,4 +148,37 @@ describe("lesson button rendering", () => {
       expect(component.custom_id).not.toContain("あ");
     }
   });
+
+  test("chart buttons use the active blank answer when currentBlankIndex changes", () => {
+    const exercise: Exercise = {
+      type: "chart",
+      prompt: "Which character goes in the active blank?",
+      answer: "あ",
+      distractors: ["あ", "い", "う", "え"],
+      chart: {
+        grid: [
+          [null, "い"],
+          ["う", null],
+        ],
+        blanks: [
+          { row: 0, col: 0, answer: "あ", reading: "a" },
+          { row: 1, col: 1, answer: "お", reading: "o" },
+        ],
+        currentBlankIndex: 1,
+      },
+    };
+    const session = makeSession();
+
+    const options = buildButtonOptions(exercise);
+    const components = buttonComponents(session, exercise);
+
+    expect(getActiveChartBlank(exercise)?.answer).toBe("お");
+    expect(options).toContain("お");
+    expect(options.filter((option) => option === "お")).toHaveLength(1);
+    expect(scoreExercise(exercise, "お").correct).toBe(true);
+    expect([...session.answerOptionsByExercise.get(0)!.values()]).toContain("お");
+    for (const component of components) {
+      expect(component.custom_id).not.toContain("お");
+    }
+  });
 });
