@@ -1,7 +1,4 @@
-import type { ChartExercise, Exercise } from "../../../core/lesson-types.ts";
-import { renderChartPrompt } from "../../../core/chart.ts";
-
-export { renderChartGrid } from "../../../core/chart.ts";
+import type { Exercise } from "../../../core/lesson-types.ts";
 
 export function recognition(char: string, reading: string, pool: string[]): Exercise {
   const distractors = pool.filter((r) => r !== reading).sort(() => Math.random() - 0.5).slice(0, 3);
@@ -22,22 +19,48 @@ export function production(char: string, reading: string, kanaType: "hiragana" |
   };
 }
 
-export function chartReview(knownChars: [string, string][]): ChartExercise {
-  const gridSize = Math.min(knownChars.length, 20);
+export function renderChartGrid(
+  grid: (string | null)[][],
+  rowLabels?: string[],
+  colLabels?: string[],
+): string {
+  const cellWidth = 3;
+  const lines: string[] = [];
+
+  if (colLabels) {
+    const header = (rowLabels ? "   " : "") + colLabels.map((l) => l.padStart(cellWidth)).join(" ");
+    lines.push(header);
+  }
+
+  for (let r = 0; r < grid.length; r++) {
+    let line = rowLabels ? `${(rowLabels[r] ?? "").padEnd(3)}` : "";
+    for (let c = 0; c < grid[r].length; c++) {
+      const cell = grid[r][c];
+      if (cell === null) {
+        line += " __".padStart(cellWidth + 1);
+      } else {
+        line += ` ${cell}`.padStart(cellWidth + 1);
+      }
+    }
+    lines.push(line);
+  }
+
+  return "```\n" + lines.join("\n") + "\n```";
+}
+
+export function chartReview(knownChars: [string, string][]): Exercise {
+  const gridSize = Math.min(knownChars.length, 10);
   const selected = knownChars.slice(0, gridSize);
 
-  const blankCount = Math.min(3, Math.max(1, Math.floor(gridSize / 5)));
-  const blankIndexes = new Set<number>();
-  while (blankIndexes.size < blankCount) {
-    blankIndexes.add(Math.floor(Math.random() * gridSize));
-  }
+  const blankIdx = Math.floor(Math.random() * gridSize);
 
   const cols = 5;
   const rows = Math.ceil(gridSize / cols);
   const grid: (string | null)[][] = [];
   const colLabels = ["a", "i", "u", "e", "o"];
   const rowLabels: string[] = [];
-  const blanks: ChartExercise["blanks"] = [];
+  let blankChar = "";
+  let blankReading = "";
 
   let idx = 0;
   for (let r = 0; r < rows; r++) {
@@ -46,10 +69,10 @@ export function chartReview(knownChars: [string, string][]): ChartExercise {
     rowLabels.push(firstReading.length > 1 ? firstReading[0] + "-" : "∅-");
 
     for (let c = 0; c < cols && idx < gridSize; c++, idx++) {
-      if (blankIndexes.has(idx)) {
-        const [answer, reading] = selected[idx];
+      if (idx === blankIdx) {
         row.push(null);
-        blanks.push({ row: r, col: c, answer, reading });
+        blankChar = selected[idx][0];
+        blankReading = selected[idx][1];
       } else {
         row.push(selected[idx][0]);
       }
@@ -59,22 +82,16 @@ export function chartReview(knownChars: [string, string][]): ChartExercise {
 
   const distractorPool = selected
     .map(([char]) => char)
-    .filter((char) => !blanks.some((blank) => blank.answer === char))
+    .filter((c) => c !== blankChar)
     .sort(() => Math.random() - 0.5)
-    .slice(0, 8);
+    .slice(0, 3);
 
-  const answer = blanks[0]?.answer ?? selected[0]?.[0] ?? "";
+  const gridText = renderChartGrid(grid, rowLabels, colLabels);
 
-  const exercise: ChartExercise = {
+  return {
     type: "chart",
-    prompt: "",
-    answer,
+    prompt: `Which character goes in the blank? (reading: **${blankReading}**)\n${gridText}`,
+    answer: blankChar,
     distractors: distractorPool,
-    grid,
-    blanks,
-    rowLabels,
-    colLabels,
   };
-  exercise.prompt = renderChartPrompt(exercise);
-  return exercise;
 }
