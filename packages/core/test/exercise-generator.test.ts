@@ -5,12 +5,9 @@ import { test, expect, describe } from "bun:test";
 import {
   generateExercises,
   generateAllExercises,
-  selectExercisesForMode,
-  selectableModesForLesson,
   type ContentItem,
   type ContentSet,
 } from "../../../plugins/tutor/core/exercise-generator.ts";
-import type { Lesson } from "../../../plugins/tutor/core/lesson-types.ts";
 
 const SAMPLE: ContentItem[] = [
   { term: "あ", reading: "a", meaning: "a (vowel)" },
@@ -107,60 +104,5 @@ describe("exercise-generator", () => {
     const ex = generateAllExercises({ items: SAMPLE, modes: ["recognition"] });
     expect(ex.length).toBe(SAMPLE.length);
     for (const e of ex) expect(e.type).toBe("recognition");
-  });
-
-  test("selectExercisesForMode returns only requested generated mode", () => {
-    const lesson: Lesson = {
-      id: "test.1",
-      unit: "test",
-      unitIndex: 1,
-      title: "Generated",
-      prerequisites: [],
-      introduction: { text: "intro" },
-      exercises: [],
-      contentSets: [{ items: SAMPLE }],
-      selectableModes: ["recognition", "production", "matching", "mixed"],
-    };
-
-    const production = selectExercisesForMode(lesson, "production");
-
-    expect(production).toHaveLength(SAMPLE.length);
-    expect(production.every((exercise) => exercise.type === "production")).toBe(true);
-  });
-
-  test("selectExercisesForMode mixed includes all configured modes", () => {
-    const lesson: Lesson = {
-      id: "test.2",
-      unit: "test",
-      unitIndex: 1,
-      title: "Generated",
-      prerequisites: [],
-      introduction: { text: "intro" },
-      exercises: [],
-      contentSets: [{ items: SAMPLE, modes: ["recognition", "matching"] }],
-      selectableModes: ["recognition", "matching", "mixed"],
-    };
-
-    const mixed = selectExercisesForMode(lesson, "mixed");
-    const types = new Set(mixed.map((exercise) => exercise.type));
-
-    expect(types).toEqual(new Set(["recognition", "matching"]));
-    expect(mixed).toHaveLength(SAMPLE.length * 2);
-  });
-
-  test("selectableModesForLesson hides unsupported generated modes", () => {
-    const lesson: Lesson = {
-      id: "test.3",
-      unit: "test",
-      unitIndex: 1,
-      title: "Generated",
-      prerequisites: [],
-      introduction: { text: "intro" },
-      exercises: [],
-      contentSets: [{ items: SAMPLE, modes: ["recognition"] }],
-      selectableModes: ["recognition", "production", "matching", "mixed"],
-    };
-
-    expect(selectableModesForLesson(lesson)).toEqual(["recognition", "mixed"]);
   });
 });

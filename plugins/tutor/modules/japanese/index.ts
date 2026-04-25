@@ -6,6 +6,7 @@ import type { TutorModule, QuizQuestion, TutorPromptContext } from "../../core/t
 import { lookupJisho } from "./dictionary.ts";
 import { initFurigana } from "./furigana.ts";
 import { japaneseTools } from "./tools.ts";
+import { pick, pickN, shuffle } from "../../core/random.ts";
 
 const HIRAGANA = [
   ["あ", "a"], ["い", "i"], ["う", "u"], ["え", "e"], ["お", "o"],
@@ -55,15 +56,6 @@ const N5_VOCAB = [
   ["学生", "がくせい", "student"],
   ["友達", "ともだち", "friend"],
 ];
-
-function pick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
-function pickN<T>(arr: T[], n: number): T[] {
-  const shuffled = [...arr].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, n);
-}
 
 const LEVEL_GUIDES: Record<string, string> = {
   N5: `Student is a COMPLETE BEGINNER (JLPT N5).
@@ -191,9 +183,7 @@ Always be encouraging and patient. Language learning is hard!`;
         kanaSet.filter((k) => k[1] !== correct[1]),
         3
       );
-      const options = [correct[1], ...wrongOptions.map((w) => w[1])].sort(
-        () => Math.random() - 0.5
-      );
+      const options = shuffle([correct[1], ...wrongOptions.map((w) => w[1])]);
 
       return {
         question: `What is the reading of this ${setName}: **${correct[0]}**?`,
@@ -209,9 +199,7 @@ Always be encouraging and patient. Language learning is hard!`;
         N5_VOCAB.filter((v) => v[2] !== correct[2]),
         3
       );
-      const options = [correct[2], ...wrongOptions.map((w) => w[2])].sort(
-        () => Math.random() - 0.5
-      );
+      const options = shuffle([correct[2], ...wrongOptions.map((w) => w[2])]);
 
       return {
         question: `What does **${correct[0]}** (${correct[1]}) mean?`,
@@ -224,7 +212,7 @@ Always be encouraging and patient. Language learning is hard!`;
     // Grammar
     const q = pick(GRAMMAR_QUESTIONS);
     const correctAnswer = q.options[q.correctIndex];
-    const shuffled = [...q.options].sort(() => Math.random() - 0.5);
+    const shuffled = shuffle(q.options);
     return {
       ...q,
       options: shuffled,

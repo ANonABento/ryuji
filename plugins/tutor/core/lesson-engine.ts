@@ -132,7 +132,7 @@ export function scoreExercise(
     feedback = `❌ The answer is **${exercise.answer}**`;
   }
 
-  return { index: exerciseIndex, correct, userAnswer, exerciseType: exercise.type, feedback };
+  return { index: exerciseIndex, correct, userAnswer, feedback };
 }
 
 /** Complete a lesson — calculate score, unlock next lessons, add SRS items */
@@ -140,8 +140,7 @@ export function completeLesson(
   db: LessonDB,
   userId: string,
   module: string,
-  lessonId: string,
-  totalOverride?: number
+  lessonId: string
 ): { score: number; passed: boolean; totalCorrect: number; totalExercises: number } {
   const lesson = getLesson(module, lessonId);
   if (!lesson) return { score: 0, passed: false, totalCorrect: 0, totalExercises: 0 };
@@ -149,7 +148,7 @@ export function completeLesson(
   const progress = db.getProgress(userId, module, lessonId);
   if (!progress) return { score: 0, passed: false, totalCorrect: 0, totalExercises: 0 };
 
-  const totalExercises = totalOverride ?? lesson.exercises.length;
+  const totalExercises = lesson.exercises.length;
   const totalCorrect = progress.exerciseResults.filter((r) => r.correct).length;
   const score = totalExercises > 0 ? totalCorrect / totalExercises : 0;
   const passed = score >= MASTERY_THRESHOLD;
