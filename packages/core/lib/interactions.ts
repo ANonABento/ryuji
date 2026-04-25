@@ -12,21 +12,68 @@ import {
   type ButtonInteraction,
   type ChatInputCommandInteraction,
   type ModalSubmitInteraction,
+  type RESTPostAPIChatInputApplicationCommandsJSONBody,
 } from "discord.js";
 import type { AppContext } from "./types.ts";
 
 // Re-export shared registries so existing core imports keep working
 export {
-  registerButtonHandler,
-  registerModalHandler,
-  registerCommand,
   getCommandDefs,
   buttonHandlers,
   modalHandlers,
   commands,
 } from "@choomfie/shared";
 
-import { buttonHandlers, modalHandlers, commands } from "@choomfie/shared";
+import {
+  buttonHandlers,
+  modalHandlers,
+  commands,
+  registerButtonHandler as registerSharedButtonHandler,
+  registerModalHandler as registerSharedModalHandler,
+  registerCommand as registerSharedCommand,
+} from "@choomfie/shared";
+
+export type ButtonHandler = (
+  interaction: ButtonInteraction,
+  parts: string[],
+  ctx: AppContext
+) => Promise<void>;
+
+export type ModalHandler = (
+  interaction: ModalSubmitInteraction,
+  parts: string[],
+  ctx: AppContext
+) => Promise<void>;
+
+export type CommandHandler = (
+  interaction: ChatInputCommandInteraction,
+  ctx: AppContext
+) => Promise<void>;
+
+export function registerButtonHandler(prefix: string, handler: ButtonHandler) {
+  registerSharedButtonHandler(prefix, (interaction, parts, ctx) =>
+    handler(interaction, parts, ctx as AppContext)
+  );
+}
+
+export function registerModalHandler(prefix: string, handler: ModalHandler) {
+  registerSharedModalHandler(prefix, (interaction, parts, ctx) =>
+    handler(interaction, parts, ctx as AppContext)
+  );
+}
+
+export function registerCommand(
+  name: string,
+  def: {
+    data: RESTPostAPIChatInputApplicationCommandsJSONBody;
+    handler: CommandHandler;
+  }
+) {
+  registerSharedCommand(name, {
+    data: def.data,
+    handler: (interaction, ctx) => def.handler(interaction, ctx as AppContext),
+  });
+}
 
 // --- Error-safe interaction wrapper ---
 
