@@ -35,6 +35,25 @@ Set `furiganaLevel` on each lesson to control reading aids:
 | `chart` | Buttons + grid | Kana chart review |
 | `matching` | Buttons | Term-meaning pair matching |
 
+Chart exercises use the normal button-answer flow plus structured chart metadata:
+
+```typescript
+{
+  type: "chart",
+  prompt: "Which character goes in the blank? ...",
+  answer: "あ",
+  distractors: ["い", "う", "え"],
+  chart: {
+    grid: [[null, "い", "う", "え", "お"]],
+    blanks: [{ row: 0, col: 0, answer: "あ", reading: "a" }],
+    currentBlankIndex: 0,
+    colLabels: ["a", "i", "u", "e", "o"],
+  },
+}
+```
+
+Use `chartReview()` from `kana-helpers.ts` for kana chart reviews. It keeps the rendered grid, active blank, answer, and distractors consistent.
+
 ### Content Sets
 
 Define content sets instead of hand-writing individual exercises. The exercise generator creates exercises automatically:
@@ -103,7 +122,8 @@ Target 10-12 exercises per lesson. Mix types:
 ## Deferred Scope
 
 - Random word auto-posting needs a channel/config ownership model before it can run automatically. Keep `random_word` as an explicit tool until that exists.
-- Reminder opt-out needs a persisted user preference before SRS reminders can be user-controlled. Do not add ad-hoc in-memory opt-outs.
+- User-selected practice mode picking is deferred until lesson sessions store the selected concrete exercise list and score against that list.
+- Unit 2 is accepted as the current 8-lesson katakana unit for this pass. Expanding it to the draft 10-lesson outline should be a content task, not a schema hardening task.
 
 ## Smoke Test
 

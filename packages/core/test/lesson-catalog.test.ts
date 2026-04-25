@@ -3,7 +3,7 @@
  */
 import { describe, expect, test } from "bun:test";
 import { japaneseLessons, japaneseUnits } from "../../../plugins/tutor/modules/japanese/lessons/index.ts";
-import { isButtonExercise } from "../../../plugins/tutor/core/lesson-types.ts";
+import { getActiveChartBlank, isButtonExercise } from "../../../plugins/tutor/core/lesson-types.ts";
 
 const EXPECTED_JAPANESE_UNIT_NAMES = [
   "Hiragana",
@@ -76,6 +76,9 @@ describe("Japanese lesson catalog", () => {
     const duplicateButtonOptions: string[] = [];
     const selfDistractors: string[] = [];
     const impossibleMastery: string[] = [];
+    const missingChartData: string[] = [];
+    const invalidChartBlanks: string[] = [];
+    const mismatchedChartAnswers: string[] = [];
 
     for (const lesson of japaneseLessons) {
       if (lesson.exercises.length === 0) emptyLessons.push(lesson.id);
@@ -94,6 +97,27 @@ describe("Japanese lesson catalog", () => {
           if (new Set(options).size !== options.length) duplicateButtonOptions.push(ref);
           if ((exercise.distractors ?? []).includes(exercise.answer)) selfDistractors.push(ref);
         }
+        if (exercise.type === "chart") {
+          if (!exercise.chart) {
+            missingChartData.push(ref);
+            continue;
+          }
+
+          const activeBlank = getActiveChartBlank(exercise);
+          if (!activeBlank || activeBlank.answer.trim().length === 0) {
+            invalidChartBlanks.push(ref);
+          } else if (activeBlank.answer !== exercise.answer) {
+            mismatchedChartAnswers.push(ref);
+          }
+
+          for (const blank of exercise.chart.blanks) {
+            const row = exercise.chart.grid[blank.row];
+            if (!row || blank.col < 0 || blank.col >= row.length || blank.answer.trim().length === 0) {
+              invalidChartBlanks.push(ref);
+              break;
+            }
+          }
+        }
       }
     }
 
@@ -103,6 +127,9 @@ describe("Japanese lesson catalog", () => {
     expect(duplicateButtonOptions).toEqual([]);
     expect(selfDistractors).toEqual([]);
     expect(impossibleMastery).toEqual([]);
+    expect(missingChartData).toEqual([]);
+    expect(invalidChartBlanks).toEqual([]);
+    expect(mismatchedChartAnswers).toEqual([]);
   });
 
   test("all lessons are reachable from root lessons through prerequisites", () => {

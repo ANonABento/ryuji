@@ -6,7 +6,14 @@
  */
 
 import type { LessonDB } from "./lesson-db.ts";
-import type { Lesson, Exercise, ExerciseResult, Unit, LessonStatus } from "./lesson-types.ts";
+import {
+  getActiveChartBlank,
+  type Lesson,
+  type Exercise,
+  type ExerciseResult,
+  type Unit,
+  type LessonStatus,
+} from "./lesson-types.ts";
 import { getSRS } from "./srs-instance.ts";
 
 const MASTERY_THRESHOLD = 0.8; // 80% to pass
@@ -117,7 +124,8 @@ export function scoreExercise(
   exerciseIndex: number = 0
 ): ExerciseResult & { feedback: string } {
   const normalized = userAnswer.trim().toLowerCase();
-  const expected = exercise.answer.trim().toLowerCase();
+  const expectedAnswer = getActiveChartBlank(exercise)?.answer ?? exercise.answer;
+  const expected = expectedAnswer.trim().toLowerCase();
 
   // Check main answer + alternatives
   const allAccepted = [expected, ...(exercise.accept ?? []).map((a) => a.trim().toLowerCase())];
@@ -129,7 +137,7 @@ export function scoreExercise(
   } else if (exercise.explanation) {
     feedback = `❌ ${exercise.explanation}`;
   } else {
-    feedback = `❌ The answer is **${exercise.answer}**`;
+    feedback = `❌ The answer is **${expectedAnswer}**`;
   }
 
   return { index: exerciseIndex, correct, userAnswer, feedback };

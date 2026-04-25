@@ -2,6 +2,23 @@
  * Lesson system types — structured, mastery-gated progression.
  */
 
+/** Grid coordinate for a chart exercise blank. */
+export interface ChartBlank {
+  row: number;
+  col: number;
+  answer: string;
+  reading?: string;
+}
+
+/** Structured chart metadata for chart exercises. */
+export interface ChartExerciseData {
+  grid: (string | null)[][];
+  blanks: ChartBlank[];
+  currentBlankIndex?: number;
+  rowLabels?: string[];
+  colLabels?: string[];
+}
+
 /** A single exercise within a lesson */
 export interface Exercise {
   type:
@@ -16,6 +33,7 @@ export interface Exercise {
   prompt: string;
   answer: string;
   distractors?: string[]; // for MC/recognition (button labels)
+  chart?: ChartExerciseData; // for chart exercises
   accept?: string[]; // alternative accepted answers
   hint?: string;
   explanation?: string; // shown after answering (grammar lessons)
@@ -88,4 +106,11 @@ export function isButtonExercise(type: Exercise["type"]): boolean {
     type === "chart" ||
     type === "matching"
   );
+}
+
+/** Returns the active structured blank for a chart exercise, if present. */
+export function getActiveChartBlank(exercise: Exercise): ChartBlank | null {
+  if (exercise.type !== "chart" || !exercise.chart) return null;
+  const index = exercise.chart.currentBlankIndex ?? 0;
+  return exercise.chart.blanks[index] ?? null;
 }

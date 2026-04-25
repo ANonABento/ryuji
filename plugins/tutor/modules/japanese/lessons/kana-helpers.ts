@@ -1,4 +1,4 @@
-import type { Exercise } from "../../../core/lesson-types.ts";
+import type { ChartExerciseData, Exercise } from "../../../core/lesson-types.ts";
 
 export function recognition(char: string, reading: string, pool: string[]): Exercise {
   const distractors = pool.filter((r) => r !== reading).sort(() => Math.random() - 0.5).slice(0, 3);
@@ -61,6 +61,8 @@ export function chartReview(knownChars: [string, string][]): Exercise {
   const rowLabels: string[] = [];
   let blankChar = "";
   let blankReading = "";
+  let blankRow = 0;
+  let blankCol = 0;
 
   let idx = 0;
   for (let r = 0; r < rows; r++) {
@@ -73,6 +75,8 @@ export function chartReview(knownChars: [string, string][]): Exercise {
         row.push(null);
         blankChar = selected[idx][0];
         blankReading = selected[idx][1];
+        blankRow = r;
+        blankCol = c;
       } else {
         row.push(selected[idx][0]);
       }
@@ -87,11 +91,26 @@ export function chartReview(knownChars: [string, string][]): Exercise {
     .slice(0, 3);
 
   const gridText = renderChartGrid(grid, rowLabels, colLabels);
+  const chart: ChartExerciseData = {
+    grid,
+    rowLabels,
+    colLabels,
+    currentBlankIndex: 0,
+    blanks: [
+      {
+        row: blankRow,
+        col: blankCol,
+        answer: blankChar,
+        reading: blankReading,
+      },
+    ],
+  };
 
   return {
     type: "chart",
     prompt: `Which character goes in the blank? (reading: **${blankReading}**)\n${gridText}`,
     answer: blankChar,
     distractors: distractorPool,
+    chart,
   };
 }
