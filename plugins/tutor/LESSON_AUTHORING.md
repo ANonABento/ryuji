@@ -97,3 +97,13 @@ Target 10-12 exercises per lesson. Mix types:
 ### Mastery Threshold
 
 80% to pass. Design exercises so a student who understood the intro should score ~90%. If too many students fail, the exercises are too hard — add easier warm-up exercises at the start.
+
+## Smoke Test
+
+Run this manually in a development Discord server after lesson catalog changes:
+
+1. Use `/lesson` and confirm the intro embed appears for the first uncompleted lesson.
+2. Click `Start Exercises` and confirm the first exercise renders correctly: answer buttons for recognition, multiple-choice, chart, and matching exercises; `Type your answer below` for production and cloze exercises.
+3. Complete lesson `2.1` end-to-end and confirm the `Lesson Complete!` summary appears and lesson SRS items are added.
+4. Use `/progress` and confirm four unit bars appear: Hiragana, Katakana, First Words & Phrases, and Basic Grammar.
+5. While a `furiganaLevel: "partial"` lesson is active, call `tutor_prompt` and confirm the prompt includes the partial-furigana directive.
