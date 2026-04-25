@@ -1206,8 +1206,8 @@ async function main(): Promise<void> {
   await new Promise(() => {});
 }
 
-main().catch((err) => {
-  log(`Fatal error: ${err.message || err}`);
+main().catch((err: unknown) => {
+  log(`Fatal error: ${errorMessage(err)}`);
   console.error(err);
   process.exit(1);
 });
