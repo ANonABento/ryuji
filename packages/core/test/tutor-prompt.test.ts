@@ -2,7 +2,8 @@
  * Tests for tutor prompt context, including active lesson furigana guidance.
  */
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { commands } from "@choomfie/shared";
+import { commands, type PluginContext } from "@choomfie/shared";
+import type { ChatInputCommandInteraction } from "discord.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,6 +22,15 @@ const openDbs: LessonDB[] = [];
 function promptText(result: Awaited<ReturnType<(typeof tutorTools)[number]["handler"]>>): string {
   return result.content[0]?.text ?? "";
 }
+
+function lessonInteraction(userId: string): ChatInputCommandInteraction {
+  return {
+    user: { id: userId },
+    reply: async () => undefined,
+  } as unknown as ChatInputCommandInteraction;
+}
+
+const emptyContext = {} as PluginContext;
 
 async function makeDB(): Promise<LessonDB> {
   const dir = await mkdtemp(join(tmpdir(), "choomfie-tutor-prompt-"));
@@ -94,18 +104,12 @@ describe("tutor_prompt tool", () => {
     expect(lessonCommand).toBeDefined();
 
     const userId = "prompt-active-lesson-user";
-    await lessonCommand!.handler(
-      {
-        user: { id: userId },
-        reply: async () => {},
-      } as any,
-      {} as any
-    );
+    await lessonCommand!.handler(lessonInteraction(userId), emptyContext);
 
     const tool = tutorTools.find((t) => t.definition.name === "tutor_prompt");
     expect(tool).toBeDefined();
 
-    const result = await tool!.handler({ user_id: userId }, {} as any);
+    const result = await tool!.handler({ user_id: userId }, emptyContext);
     const prompt = promptText(result);
 
     expect(prompt).toContain("Furigana: ALWAYS show readings for every kanji");
@@ -138,7 +142,7 @@ describe("tutor_prompt tool", () => {
     const tool = tutorTools.find((t) => t.definition.name === "tutor_prompt");
     expect(tool).toBeDefined();
 
-    const result = await tool!.handler({ user_id: profile.userId }, {} as any);
+    const result = await tool!.handler({ user_id: profile.userId }, emptyContext);
     const prompt = promptText(result);
 
     expect(prompt).toContain("## Learner Profile");

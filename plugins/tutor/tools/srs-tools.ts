@@ -12,6 +12,10 @@ import { updateFromSrsReview } from "../core/learner-profile.ts";
 
 const DEFAULT_DECK = "jlpt-n5";
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export const srsTools: ToolDef[] = [
   {
     definition: {
@@ -45,8 +49,8 @@ export const srsTools: ToolDef[] = [
             ? vocabData.default
             : vocabData;
           srs.importDeck(userId, DEFAULT_DECK, cards);
-        } catch (e: any) {
-          return err(`Failed to import N5 deck: ${e.message}`);
+        } catch (e: unknown) {
+          return err(`Failed to import N5 deck: ${errorMessage(e)}`);
         }
       }
 
@@ -117,8 +121,8 @@ export const srsTools: ToolDef[] = [
         return text(
           `Rated **${result.card.front}** as **${args.rating}**. Next review in ${nextStr}.`
         );
-      } catch (e: any) {
-        return err(`SRS error: ${e.message}`);
+      } catch (e: unknown) {
+        return err(`SRS error: ${errorMessage(e)}`);
       }
     },
   },
@@ -149,6 +153,46 @@ export const srsTools: ToolDef[] = [
           `Total cards: ${stats.total}`,
           `Learned: ${stats.learned}`,
           `Due now: ${stats.due}`,
+        ].join("\n")
+      );
+    },
+  },
+  {
+    definition: {
+      name: "srs_reminders",
+      description: "Show or update SRS study reminder preferences for a user.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          user_id: { type: "string", description: "Discord user ID" },
+          enabled: {
+            type: "boolean",
+            description: "Set to true to enable reminders, false to opt out. Omit to check status.",
+          },
+        },
+        required: ["user_id"],
+      },
+    },
+    handler: async (args, _ctx) => {
+      const db = getLessonDB();
+      if (!db) return err("Lesson DB not initialized");
+
+      const userId = args.user_id as string;
+      const moduleName = getActiveModule(userId);
+      if (typeof args.enabled === "boolean") {
+        db.setSrsRemindersEnabled(userId, moduleName, args.enabled);
+      }
+
+      const settings = db.getSrsReminderSettings(userId, moduleName);
+      const state = settings.enabled ? "enabled" : "disabled";
+      const lastSent = settings.lastRemindedAt
+        ? new Date(settings.lastRemindedAt).toISOString()
+        : "never";
+
+      return text(
+        [
+          `SRS reminders are **${state}** for ${moduleName}.`,
+          `Last reminder sent: ${lastSent}`,
         ].join("\n")
       );
     },
