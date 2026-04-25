@@ -6,24 +6,8 @@
  * One content set → multiple exercise modes → 3x variety.
  */
 
-import type { Exercise } from "./lesson-types.ts";
-
-/** A single teachable item */
-export interface ContentItem {
-  term: string;      // e.g. "あ" or "食べる"
-  reading: string;   // e.g. "a" or "たべる"
-  meaning: string;   // e.g. "a (vowel)" or "to eat"
-}
-
-/** Exercise generation mode */
-export type ExerciseMode = "recognition" | "production" | "matching";
-
-/** A set of content that can generate exercises in multiple modes */
-export interface ContentSet {
-  items: ContentItem[];
-  /** Which modes to generate. Defaults to all. */
-  modes?: ExerciseMode[];
-}
+import type { ContentItem, ContentSet, Exercise, ExerciseMode, Lesson, LessonPracticeMode } from "./lesson-types.ts";
+export type { ContentItem, ContentSet, ExerciseMode } from "./lesson-types.ts";
 
 /**
  * Generate exercises from a content set in a given mode.
@@ -59,6 +43,25 @@ export function generateAllExercises(content: ContentSet): Exercise[] {
     exercises.push(...generateExercises(content, mode));
   }
   return exercises;
+}
+
+const MODE_TYPES: Record<ExerciseMode, Exercise["type"][]> = {
+  recognition: ["recognition", "multiple_choice", "chart"],
+  production: ["production", "cloze", "error_correction", "sentence_build"],
+  matching: ["matching"],
+};
+
+/** Select the concrete exercise list that should be scored for a lesson mode. */
+export function selectExercisesForMode(lesson: Lesson, mode: LessonPracticeMode): Exercise[] {
+  if (mode === "mixed") return lesson.exercises;
+  const allowed = new Set(MODE_TYPES[mode]);
+  return lesson.exercises.filter((exercise) => allowed.has(exercise.type));
+}
+
+/** Return modes that can produce at least one exercise for this concrete lesson. */
+export function getAvailablePracticeModes(lesson: Lesson): LessonPracticeMode[] {
+  const modes = ALL_MODES.filter((mode) => selectExercisesForMode(lesson, mode).length > 0);
+  return modes.length > 1 ? ["mixed", ...modes] : ["mixed"];
 }
 
 // --- Recognition: see term → pick meaning ---

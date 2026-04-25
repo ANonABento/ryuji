@@ -5,9 +5,12 @@ import { test, expect, describe } from "bun:test";
 import {
   generateExercises,
   generateAllExercises,
+  getAvailablePracticeModes,
+  selectExercisesForMode,
   type ContentItem,
   type ContentSet,
 } from "../../../plugins/tutor/core/exercise-generator.ts";
+import type { Lesson } from "../../../plugins/tutor/core/lesson-types.ts";
 
 const SAMPLE: ContentItem[] = [
   { term: "あ", reading: "a", meaning: "a (vowel)" },
@@ -104,5 +107,64 @@ describe("exercise-generator", () => {
     const ex = generateAllExercises({ items: SAMPLE, modes: ["recognition"] });
     expect(ex.length).toBe(SAMPLE.length);
     for (const e of ex) expect(e.type).toBe("recognition");
+  });
+
+  test("selectExercisesForMode filters the concrete scored exercise set", () => {
+    const lesson: Lesson = {
+      id: "test",
+      unit: "unit",
+      unitIndex: 1,
+      title: "Modes",
+      prerequisites: [],
+      introduction: { text: "intro" },
+      exercises: [
+        { type: "recognition", prompt: "p", answer: "a", distractors: ["b"] },
+        { type: "multiple_choice", prompt: "p", answer: "a", distractors: ["b"] },
+        {
+          type: "chart",
+          prompt: "p",
+          answer: "a",
+          distractors: ["b"],
+          grid: [[null]],
+          blanks: [{ row: 0, col: 0, answer: "a" }],
+        },
+        { type: "production", prompt: "p", answer: "a" },
+        { type: "cloze", prompt: "p", answer: "a" },
+        { type: "error_correction", prompt: "p", answer: "a" },
+        { type: "sentence_build", prompt: "p", answer: "a" },
+        { type: "matching", prompt: "p", answer: "a", distractors: ["b"] },
+      ],
+    };
+
+    expect(selectExercisesForMode(lesson, "mixed")).toHaveLength(8);
+    expect(selectExercisesForMode(lesson, "recognition").map((e) => e.type)).toEqual([
+      "recognition",
+      "multiple_choice",
+      "chart",
+    ]);
+    expect(selectExercisesForMode(lesson, "production").map((e) => e.type)).toEqual([
+      "production",
+      "cloze",
+      "error_correction",
+      "sentence_build",
+    ]);
+    expect(selectExercisesForMode(lesson, "matching").map((e) => e.type)).toEqual(["matching"]);
+  });
+
+  test("getAvailablePracticeModes exposes only non-empty choices plus mixed", () => {
+    const lesson: Lesson = {
+      id: "test",
+      unit: "unit",
+      unitIndex: 1,
+      title: "Modes",
+      prerequisites: [],
+      introduction: { text: "intro" },
+      exercises: [
+        { type: "production", prompt: "p", answer: "a" },
+        { type: "cloze", prompt: "p", answer: "a" },
+      ],
+    };
+
+    expect(getAvailablePracticeModes(lesson)).toEqual(["mixed"]);
   });
 });

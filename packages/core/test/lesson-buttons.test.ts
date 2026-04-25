@@ -6,9 +6,12 @@ import {
   buildAnswerCustomId,
   buildButtonOptions,
   buildExerciseButtons,
+  buildModePickerComponents,
+  getSessionExercisePrompt,
+  isTypingExercise,
   type ActiveLessonSession,
 } from "../../../plugins/tutor/lesson-interactions.ts";
-import type { Exercise, Lesson } from "../../../plugins/tutor/core/lesson-types.ts";
+import type { ChartExercise, Exercise, Lesson } from "../../../plugins/tutor/core/lesson-types.ts";
 
 type ButtonComponentJson = {
   custom_id: string;
@@ -32,7 +35,10 @@ function makeSession(): ActiveLessonSession {
     lessonId: lesson.id,
     exerciseIndex: 0,
     lesson,
+    exerciseSet: lesson.exercises,
+    selectedMode: null,
     answerOptionsByExercise: new Map(),
+    chartProgressByExercise: new Map(),
   };
 }
 
@@ -116,5 +122,75 @@ describe("lesson button rendering", () => {
 
   test("buildAnswerCustomId preserves the stable lesson answer shape", () => {
     expect(buildAnswerCustomId("3.1", 4, "abc123")).toBe("lesson:answer:3.1:4:abc123");
+  });
+
+  test("all non-button exercise types are handled as typed answers", () => {
+    expect(isTypingExercise({ type: "production", prompt: "p", answer: "a" })).toBe(true);
+    expect(isTypingExercise({ type: "cloze", prompt: "p", answer: "a" })).toBe(true);
+    expect(isTypingExercise({ type: "error_correction", prompt: "p", answer: "a" })).toBe(true);
+    expect(isTypingExercise({ type: "sentence_build", prompt: "p", answer: "a" })).toBe(true);
+    expect(
+      isTypingExercise({ type: "multiple_choice", prompt: "p", answer: "a", distractors: ["b"] })
+    ).toBe(false);
+  });
+
+  test("mode picker custom IDs stay short and parseable", () => {
+    const modeLesson: Lesson = {
+      ...lesson,
+      exercises: [
+        { type: "recognition", prompt: "p", answer: "a", distractors: ["b"] },
+        { type: "production", prompt: "p", answer: "a" },
+        { type: "matching", prompt: "p", answer: "a", distractors: ["b"] },
+      ],
+    };
+
+    const rows = buildModePickerComponents(modeLesson);
+    const components = rows[0].toJSON().components as ButtonComponentJson[];
+
+    expect(components.map((component) => component.custom_id)).toEqual([
+      "lesson:mode:test.1:mixed",
+      "lesson:mode:test.1:recognition",
+      "lesson:mode:test.1:production",
+      "lesson:mode:test.1:matching",
+    ]);
+    expect(components.every((component) => component.custom_id.length <= 100)).toBe(true);
+  });
+
+  test("structured chart prompts advance the highlighted blank", () => {
+    const exercise: ChartExercise = {
+      type: "chart",
+      prompt: "",
+      answer: "え",
+      distractors: ["お", "か", "こ"],
+      grid: [["あ", "い", "う", null, "お"], ["か", "き", null, "け", "こ"]],
+      blanks: [
+        { row: 0, col: 3, answer: "え", reading: "e" },
+        { row: 1, col: 2, answer: "く", reading: "ku" },
+      ],
+      rowLabels: ["∅-", "k-"],
+      colLabels: ["a", "i", "u", "e", "o"],
+    };
+    const chartLesson = { ...lesson, exercises: [exercise] };
+    const session: ActiveLessonSession = {
+      ...makeSession(),
+      lesson: chartLesson,
+      exerciseSet: chartLesson.exercises,
+    };
+
+    const initialPrompt = getSessionExercisePrompt(session, 0, exercise);
+    expect(initialPrompt).toContain("Fill blank 1/2");
+    expect(initialPrompt).toContain("??");
+
+    buildExerciseButtons(exercise, lesson.id, 0, session);
+    const storedOptions = [...session.answerOptionsByExercise.get("0:0")!.values()];
+    expect(storedOptions).toContain("え");
+    expect(storedOptions).not.toContain("く");
+
+    session.chartProgressByExercise.get(0)!.filledAnswers[0] = "え";
+    session.chartProgressByExercise.get(0)!.currentBlankIndex = 1;
+
+    const nextPrompt = getSessionExercisePrompt(session, 0, exercise);
+    expect(nextPrompt).toContain("Fill blank 2/2");
+    expect(nextPrompt).toContain("え");
   });
 });

@@ -25,6 +25,8 @@ import {
   buildResultEmbed,
   buildSummaryEmbed,
   clearActiveSession,
+  getSessionExercisePrompt,
+  getSessionExerciseSet,
   hasActiveTypingExercise,
   handleTypedAnswer,
 } from "./lesson-interactions.ts";
@@ -97,7 +99,7 @@ const tutorPlugin: Plugin = {
   ],
 
   async onMessage(message, ctx) {
-    // Handle typed answers for production/cloze exercises
+    // Handle typed answers for non-button lesson exercises.
     if (message.author.bot) return;
     const userId = message.author.id;
 
@@ -118,12 +120,15 @@ const tutorPlugin: Plugin = {
       exerciseResult.correct,
       exerciseResult.feedback,
       correctSoFar,
-      session.lesson.exercises.length
+      getSessionExerciseSet(session).length
     );
 
     // Check if lesson is done
-    if (session.exerciseIndex >= session.lesson.exercises.length) {
-      const completion = completeLesson(db, userId, session.module, session.lessonId);
+    const exerciseSet = getSessionExerciseSet(session);
+    if (session.exerciseIndex >= exerciseSet.length) {
+      const completion = completeLesson(db, userId, session.module, session.lessonId, {
+        totalExercises: exerciseSet.length,
+      });
 
       // Update learner profile
       updateFromLessonCompletion(db, userId, session.module);
@@ -146,11 +151,11 @@ const tutorPlugin: Plugin = {
     }
 
     // Show next exercise
-    const nextExercise = session.lesson.exercises[session.exerciseIndex];
+    const nextExercise = exerciseSet[session.exerciseIndex];
     const exerciseEmbed = new EmbedBuilder()
       .setColor(0xfee75c)
-      .setTitle(`Exercise ${session.exerciseIndex + 1}/${session.lesson.exercises.length}`)
-      .setDescription(nextExercise.prompt);
+      .setTitle(`Exercise ${session.exerciseIndex + 1}/${exerciseSet.length}`)
+      .setDescription(getSessionExercisePrompt(session, session.exerciseIndex, nextExercise));
 
     const components = buildExerciseButtons(
       nextExercise,
