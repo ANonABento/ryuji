@@ -29,10 +29,15 @@ import {
 } from "discord.js";
 import { completeLesson } from "./core/lesson-engine.ts";
 import { updateFromLessonCompletion } from "./core/learner-profile.ts";
+import { isButtonExercise } from "./core/lesson-types.ts";
 
 // SRS reminder timer handles (cleaned up in destroy)
 let srsReminderTimeout: ReturnType<typeof setTimeout> | null = null;
 let srsReminderInterval: ReturnType<typeof setInterval> | null = null;
+
+const SRS_REMINDER_INTERVAL_MS = 4 * 60 * 60 * 1000;
+const SRS_MIN_DUE = 5;
+const SRS_REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 const tutorPlugin: Plugin = {
   name: "tutor",
@@ -115,13 +120,7 @@ const tutorPlugin: Plugin = {
       const completion = completeLesson(db!, userId, session.module, session.lessonId);
 
       // Update learner profile
-      const completionProgress = db!.getProgress(userId, session.module, session.lessonId);
-      if (completionProgress) {
-        updateFromLessonCompletion(
-          db!, userId, session.module, session.lessonId,
-          completion.score, completionProgress.exerciseResults
-        );
-      }
+      updateFromLessonCompletion(db!, userId, session.module);
 
       const pct = Math.round(completion.score * 100);
       const passed = completion.passed;
@@ -175,7 +174,7 @@ const tutorPlugin: Plugin = {
     const isTyping = nextExercise.type === "production" || nextExercise.type === "cloze";
     const components: ActionRowBuilder<ButtonBuilder>[] = [];
 
-    if (!isTyping && (nextExercise.type === "recognition" || nextExercise.type === "multiple_choice" || nextExercise.type === "chart" || nextExercise.type === "matching")) {
+    if (!isTyping && isButtonExercise(nextExercise.type)) {
       const options = [nextExercise.answer, ...(nextExercise.distractors ?? [])];
       const shuffled = options.sort(() => Math.random() - 0.5);
       const row = new ActionRowBuilder<ButtonBuilder>();
@@ -225,13 +224,8 @@ const tutorPlugin: Plugin = {
     }
 
     // SRS study reminders — check every 4 hours
-    const SRS_REMINDER_INTERVAL = 4 * 60 * 60 * 1000; // 4 hours
-    const SRS_MIN_DUE = 5; // minimum due cards to trigger reminder
-
     // Track last reminder per user to avoid spam (in-memory, resets on restart which is fine)
     const lastSrsReminder = new Map<string, number>();
-
-    const SRS_REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
     const checkSrsReminders = async () => {
       const srs = getSRS();
@@ -249,7 +243,7 @@ const tutorPlugin: Plugin = {
         try {
           const user = await ctx.discord.users.fetch(userId);
           await user.send(
-            `\u{1F4DA} You have **${count} SRS cards** due for review! Keep your streak going.\nUse \`/srs_review\` or ask me to start a review session.`
+            `📚 You have **${count} SRS cards** due for review! Keep your streak going.\nUse \`/srs_review\` or ask me to start a review session.`
           );
           lastSrsReminder.set(userId, Date.now());
           console.error(`Tutor: sent SRS reminder to ${userId} (${count} due cards)`);
@@ -261,7 +255,7 @@ const tutorPlugin: Plugin = {
 
     // Run initial check after 1 minute (let Discord connect first), then every 4 hours
     srsReminderTimeout = setTimeout(checkSrsReminders, 60_000);
-    srsReminderInterval = setInterval(checkSrsReminders, SRS_REMINDER_INTERVAL);
+    srsReminderInterval = setInterval(checkSrsReminders, SRS_REMINDER_INTERVAL_MS);
   },
 
   async destroy() {
