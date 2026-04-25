@@ -3,19 +3,8 @@
  */
 
 import type { ToolDef, PluginContext } from "@choomfie/shared";
-import {
-  text,
-  err,
-  errorMessage,
-  parseNaturalTime,
-  dateToSQLite,
-} from "@choomfie/shared";
-import {
-  getYouTubeProvider,
-  getRedditProvider,
-  getRedditClient,
-  getYouTubeCommentClient,
-} from "./providers/index.ts";
+import { text, err } from "@choomfie/shared";
+import { getYouTubeProvider, getRedditProvider, getRedditClient, getYouTubeCommentClient } from "./providers/index.ts";
 import { LinkedInClient } from "./providers/linkedin/api.ts";
 import { TwitterClient } from "./providers/twitter/api.ts";
 import { withRetry } from "./providers/retry.ts";
@@ -26,20 +15,6 @@ import type { YouTubeCommentClient } from "./providers/youtube/api.ts";
 
 const yt = getYouTubeProvider();
 const reddit = getRedditProvider();
-
-interface SocialsConfig {
-  socials?: {
-    twitter?: {
-      username?: string;
-      password?: string;
-      email?: string;
-    };
-    linkedin?: {
-      clientId?: string;
-      clientSecret?: string;
-    };
-  };
-}
 
 /** LinkedIn client — lazily initialized when first tool is called (needs ctx.DATA_DIR + config) */
 let linkedInClient: LinkedInClient | null = null;
@@ -54,8 +29,8 @@ function getTwitterClient(): TwitterClient {
 }
 
 function getTwitterConfig(ctx: PluginContext): { username: string; password: string; email: string } {
-  const config = ctx.config.getConfig() as SocialsConfig;
-  const socialsConfig = config.socials?.twitter;
+  const config = ctx.config.getConfig();
+  const socialsConfig = (config as any).socials?.twitter;
 
   if (!socialsConfig?.username || !socialsConfig?.password || !socialsConfig?.email) {
     throw new Error(
@@ -83,8 +58,8 @@ let linkedInScheduler: LinkedInScheduler | null = null;
 function getLinkedInClient(ctx: PluginContext): LinkedInClient {
   if (linkedInClient) return linkedInClient;
 
-  const config = ctx.config.getConfig() as SocialsConfig;
-  const socialsConfig = config.socials?.linkedin;
+  const config = ctx.config.getConfig();
+  const socialsConfig = (config as any).socials?.linkedin;
 
   if (!socialsConfig?.clientId || !socialsConfig?.clientSecret) {
     throw new Error(
@@ -136,6 +111,7 @@ export function destroyLinkedInClient(): void {
   linkedInClient = null;
 }
 
+
 export const socialsTools: ToolDef[] = [
   // --- YouTube ---
   {
@@ -167,8 +143,8 @@ export const socialsTools: ToolDef[] = [
           )
           .join("\n\n");
         return text(formatted);
-      } catch (e: unknown) {
-        return err(`YouTube search failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`YouTube search failed: ${e.message}`);
       }
     },
   },
@@ -200,8 +176,8 @@ export const socialsTools: ToolDef[] = [
             .filter(Boolean)
             .join("\n")
         );
-      } catch (e: unknown) {
-        return err(`YouTube info failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`YouTube info failed: ${e.message}`);
       }
     },
   },
@@ -229,8 +205,8 @@ export const socialsTools: ToolDef[] = [
             ? transcript.slice(0, 3000) + "\n\n...(truncated)"
             : transcript
         );
-      } catch (e: unknown) {
-        return err(`Transcript failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`Transcript failed: ${e.message}`);
       }
     },
   },
@@ -268,8 +244,8 @@ export const socialsTools: ToolDef[] = [
           `It will automatically capture the authorization and shut down.\n` +
           `The link expires in 5 minutes.`
         );
-      } catch (e: unknown) {
-        return err(`YouTube auth failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`YouTube auth failed: ${e.message}`);
       }
     },
   },
@@ -323,8 +299,8 @@ export const socialsTools: ToolDef[] = [
           `Video: https://www.youtube.com/watch?v=${videoId}\n` +
           `Comment ID: ${result.commentId}`
         );
-      } catch (e: unknown) {
-        return err(`YouTube comment failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`YouTube comment failed: ${e.message}`);
       }
     },
   },
@@ -364,8 +340,8 @@ export const socialsTools: ToolDef[] = [
           )
           .join("\n\n");
         return text(formatted);
-      } catch (e: unknown) {
-        return err(`Reddit search failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`Reddit search failed: ${e.message}`);
       }
     },
   },
@@ -403,8 +379,8 @@ export const socialsTools: ToolDef[] = [
           )
           .join("\n\n");
         return text(formatted);
-      } catch (e: unknown) {
-        return err(`Reddit posts failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`Reddit posts failed: ${e.message}`);
       }
     },
   },
@@ -436,8 +412,8 @@ export const socialsTools: ToolDef[] = [
           )
           .join("\n\n");
         return text(formatted);
-      } catch (e: unknown) {
-        return err(`Reddit comments failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`Reddit comments failed: ${e.message}`);
       }
     },
   },
@@ -483,8 +459,8 @@ export const socialsTools: ToolDef[] = [
           `Username: u/${status.username}\n` +
           `Token expires in: ~${expiresIn} minutes (auto-refreshes)`
         );
-      } catch (e: unknown) {
-        return err(`Reddit auth check failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`Reddit auth check failed: ${e.message}`);
       }
     },
   },
@@ -556,8 +532,8 @@ export const socialsTools: ToolDef[] = [
           `Post ID: ${result.fullname}\n` +
           `URL: ${result.url}`
         );
-      } catch (e: unknown) {
-        return err(`Reddit post failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`Reddit post failed: ${e.message}`);
       }
     },
   },
@@ -607,8 +583,8 @@ export const socialsTools: ToolDef[] = [
           `Comment posted successfully.\n` +
           `Comment ID: ${result.fullname}`
         );
-      } catch (e: unknown) {
-        return err(`Reddit comment failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`Reddit comment failed: ${e.message}`);
       }
     },
   },
@@ -636,8 +612,8 @@ export const socialsTools: ToolDef[] = [
           `It will automatically capture the authorization and shut down.\n` +
           `The link expires in 5 minutes.`
         );
-      } catch (e: unknown) {
-        return err(`LinkedIn auth failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`LinkedIn auth failed: ${e.message}`);
       }
     },
   },
@@ -676,8 +652,8 @@ export const socialsTools: ToolDef[] = [
 
         const urlLine = result.url ? `\nURL: ${result.url}` : "";
         return text(`Posted to LinkedIn successfully.\nPost ID: ${result.id}${urlLine}`);
-      } catch (e: unknown) {
-        return err(`LinkedIn post failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`LinkedIn post failed: ${e.message}`);
       }
     },
   },
@@ -721,8 +697,8 @@ export const socialsTools: ToolDef[] = [
         if (monitor && result.id) monitor.trackPost(result.id, postText);
         const urlLine = result.url ? `\nURL: ${result.url}` : "";
         return text(`Posted to LinkedIn with image.\nPost ID: ${result.id}${urlLine}`);
-      } catch (e: unknown) {
-        return err(`LinkedIn image post failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`LinkedIn image post failed: ${e.message}`);
       }
     },
   },
@@ -763,8 +739,8 @@ export const socialsTools: ToolDef[] = [
         if (monitor && result.id) monitor.trackPost(result.id, postText);
         const urlLine = result.url ? `\nURL: ${result.url}` : "";
         return text(`Posted to LinkedIn with ${images.length} images.\nPost ID: ${result.id}${urlLine}`);
-      } catch (e: unknown) {
-        return err(`LinkedIn multi-image post failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`LinkedIn multi-image post failed: ${e.message}`);
       }
     },
   },
@@ -813,8 +789,8 @@ export const socialsTools: ToolDef[] = [
         if (monitor && result.id) monitor.trackPost(result.id, postText);
         const urlLine = result.url ? `\nURL: ${result.url}` : "";
         return text(`Posted to LinkedIn with link.\nPost ID: ${result.id}${urlLine}`);
-      } catch (e: unknown) {
-        return err(`LinkedIn link post failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`LinkedIn link post failed: ${e.message}`);
       }
     },
   },
@@ -847,8 +823,8 @@ export const socialsTools: ToolDef[] = [
         }
         await client.editPost(args.post_urn as string, newText);
         return text(`Edited LinkedIn post: ${args.post_urn}`);
-      } catch (e: unknown) {
-        return err(`LinkedIn edit failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`LinkedIn edit failed: ${e.message}`);
       }
     },
   },
@@ -893,8 +869,8 @@ export const socialsTools: ToolDef[] = [
 
         const urlLine = result.url ? `\nURL: ${result.url}` : "";
         return text(`Poll created on LinkedIn.\nPost ID: ${result.id}${urlLine}`);
-      } catch (e: unknown) {
-        return err(`LinkedIn poll failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`LinkedIn poll failed: ${e.message}`);
       }
     },
   },
@@ -927,8 +903,8 @@ export const socialsTools: ToolDef[] = [
         );
         const urlLine = result.url ? `\nURL: ${result.url}` : "";
         return text(`Reposted on LinkedIn.\nPost ID: ${result.id}${urlLine}`);
-      } catch (e: unknown) {
-        return err(`LinkedIn repost failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`LinkedIn repost failed: ${e.message}`);
       }
     },
   },
@@ -955,8 +931,8 @@ export const socialsTools: ToolDef[] = [
         const monitor = getLinkedInMonitor(ctx);
         if (monitor) monitor.untrackPost(args.post_urn as string);
         return text(`Deleted LinkedIn post: ${args.post_urn}`);
-      } catch (e: unknown) {
-        return err(`LinkedIn delete failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`LinkedIn delete failed: ${e.message}`);
       }
     },
   },
@@ -990,8 +966,8 @@ export const socialsTools: ToolDef[] = [
           )
           .join("\n\n");
         return text(formatted);
-      } catch (e: unknown) {
-        return err(`LinkedIn comments failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`LinkedIn comments failed: ${e.message}`);
       }
     },
   },
@@ -1023,8 +999,8 @@ export const socialsTools: ToolDef[] = [
           args.text as string
         );
         return text(`Comment posted.\nComment URN: ${commentUrn}`);
-      } catch (e: unknown) {
-        return err(`LinkedIn comment failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`LinkedIn comment failed: ${e.message}`);
       }
     },
   },
@@ -1056,8 +1032,8 @@ export const socialsTools: ToolDef[] = [
           "LIKE" | "CELEBRATE" | "SUPPORT" | "LOVE" | "INSIGHTFUL" | "FUNNY";
         await client.reactToPost(args.post_urn as string, reaction);
         return text(`Reacted to post with ${reaction}.`);
-      } catch (e: unknown) {
-        return err(`LinkedIn react failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`LinkedIn react failed: ${e.message}`);
       }
     },
   },
@@ -1116,6 +1092,8 @@ export const socialsTools: ToolDef[] = [
         const timeStr = args.time as string;
         let scheduledAt: string;
 
+        // Try parsing as relative time
+        const { parseNaturalTime, dateToSQLite } = await import("../../lib/time.ts");
         const parsed = parseNaturalTime(timeStr);
         if (parsed) {
           scheduledAt = dateToSQLite(parsed);
@@ -1143,8 +1121,8 @@ export const socialsTools: ToolDef[] = [
           `Type: ${mediaType}` +
           (post.firstComment ? `\nFirst comment: "${post.firstComment}"` : "")
         );
-      } catch (e: unknown) {
-        return err(`LinkedIn schedule failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`LinkedIn schedule failed: ${e.message}`);
       }
     },
   },
@@ -1198,8 +1176,8 @@ export const socialsTools: ToolDef[] = [
           )
           .join("\n\n");
         return text(`**LinkedIn Queue (${posts.length}):**\n\n${formatted}`);
-      } catch (e: unknown) {
-        return err(`LinkedIn queue failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`LinkedIn queue failed: ${e.message}`);
       }
     },
   },
@@ -1253,8 +1231,8 @@ export const socialsTools: ToolDef[] = [
           )
           .join("\n\n");
         return text(`**Tracked LinkedIn posts (${posts.length}):**\n\n${formatted}`);
-      } catch (e: unknown) {
-        return err(`LinkedIn monitor failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`LinkedIn monitor failed: ${e.message}`);
       }
     },
   },
@@ -1298,8 +1276,8 @@ export const socialsTools: ToolDef[] = [
         }
 
         return text(output);
-      } catch (e: unknown) {
-        return err(`LinkedIn analytics failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`LinkedIn analytics failed: ${e.message}`);
       }
     },
   },
@@ -1332,8 +1310,8 @@ export const socialsTools: ToolDef[] = [
           `URN: ${status.personUrn || "Unknown"}\n` +
           `Token expires in: ~${expiresIn} days`
         );
-      } catch (e: unknown) {
-        return err(`LinkedIn status check failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`LinkedIn status check failed: ${e.message}`);
       }
     },
   },
@@ -1352,8 +1330,8 @@ export const socialsTools: ToolDef[] = [
         const client = getTwitterClient();
         const result = await client.login(twitterConfig);
         return text(`Twitter: ${result}`);
-      } catch (e: unknown) {
-        return err(`Twitter auth failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`Twitter auth failed: ${e.message}`);
       }
     },
   },
@@ -1370,16 +1348,16 @@ export const socialsTools: ToolDef[] = [
         required: ["text"],
       },
     },
-    handler: async (args: Record<string, unknown>, ctx: PluginContext) => {
+    handler: async (args: any, ctx: PluginContext) => {
       try {
         const client = getTwitterClient();
         const result = await withRetry(
-          () => client.postTweet(args.text as string),
+          () => client.postTweet(args.text),
           { label: "twitter_post", maxAttempts: 2 },
         );
         return text(`Tweet posted!\nURL: ${result.url}\nID: ${result.id}`);
-      } catch (e: unknown) {
-        return err(`Tweet failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`Tweet failed: ${e.message}`);
       }
     },
   },
@@ -1397,16 +1375,16 @@ export const socialsTools: ToolDef[] = [
         required: ["text", "image"],
       },
     },
-    handler: async (args: Record<string, unknown>, ctx: PluginContext) => {
+    handler: async (args: any, ctx: PluginContext) => {
       try {
         const client = getTwitterClient();
         const result = await withRetry(
-          () => client.postTweetWithMedia(args.text as string, args.image as string),
+          () => client.postTweetWithMedia(args.text, args.image),
           { label: "twitter_post_image", maxAttempts: 2 },
         );
         return text(`Tweet with image posted!\nURL: ${result.url}\nID: ${result.id}`);
-      } catch (e: unknown) {
-        return err(`Tweet with image failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`Tweet with image failed: ${e.message}`);
       }
     },
   },
@@ -1427,16 +1405,16 @@ export const socialsTools: ToolDef[] = [
         required: ["tweets"],
       },
     },
-    handler: async (args: Record<string, unknown>, ctx: PluginContext) => {
+    handler: async (args: any, ctx: PluginContext) => {
       try {
         const client = getTwitterClient();
-        const results = await client.postThread(args.tweets as string[]);
+        const results = await client.postThread(args.tweets);
         const summary = results
           .map((r, i) => `${i + 1}. ${r.url}`)
           .join("\n");
         return text(`Thread posted! (${results.length} tweets)\n${summary}`);
-      } catch (e: unknown) {
-        return err(`Thread failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`Thread failed: ${e.message}`);
       }
     },
   },
@@ -1461,8 +1439,8 @@ export const socialsTools: ToolDef[] = [
           `Username: @${status.username || "unknown"}\n` +
           `Session: cookie-based (no expiry)`
         );
-      } catch (e: unknown) {
-        return err(`Twitter status check failed: ${errorMessage(e)}`);
+      } catch (e: any) {
+        return err(`Twitter status check failed: ${e.message}`);
       }
     },
   },
