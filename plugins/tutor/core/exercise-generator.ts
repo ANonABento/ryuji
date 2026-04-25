@@ -41,11 +41,15 @@ export function generateExercises(
   }
 }
 
-const ALL_MODES: ExerciseMode[] = ["recognition", "production", "matching"];
+export const DEFAULT_EXERCISE_MODES: readonly ExerciseMode[] = [
+  "recognition",
+  "production",
+  "matching",
+];
 
 /** Generate all available exercises from a content set (one per mode) */
 export function generateAllExercises(content: ContentSet): Exercise[] {
-  const modes = content.modes ?? ALL_MODES;
+  const modes = content.modes ?? DEFAULT_EXERCISE_MODES;
   const exercises: Exercise[] = [];
   for (const mode of modes) {
     exercises.push(...generateExercises(content, mode));
@@ -58,7 +62,7 @@ export function selectableModesForLesson(lesson: Lesson): PracticeMode[] {
 
   const supportedModes = new Set<ExerciseMode>();
   for (const contentSet of lesson.contentSets) {
-    for (const mode of contentSet.modes ?? ALL_MODES) {
+    for (const mode of contentSet.modes ?? DEFAULT_EXERCISE_MODES) {
       supportedModes.add(mode);
     }
   }
@@ -79,7 +83,7 @@ export function selectExercisesForMode(lesson: Lesson, mode: PracticeMode): Exer
       continue;
     }
 
-    const modes = contentSet.modes ?? ALL_MODES;
+    const modes = contentSet.modes ?? DEFAULT_EXERCISE_MODES;
     if (modes.includes(mode)) {
       exercises.push(...generateExercises(contentSet, mode));
     }

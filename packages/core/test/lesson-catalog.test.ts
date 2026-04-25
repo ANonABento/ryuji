@@ -4,6 +4,7 @@
 import { describe, expect, test } from "bun:test";
 import { japaneseLessons, japaneseUnits } from "../../../plugins/tutor/modules/japanese/lessons/index.ts";
 import { isButtonExercise, type ExerciseMode } from "../../../plugins/tutor/core/lesson-types.ts";
+import { DEFAULT_EXERCISE_MODES } from "../../../plugins/tutor/core/exercise-generator.ts";
 
 const EXPECTED_JAPANESE_UNIT_NAMES = [
   "Hiragana",
@@ -120,7 +121,7 @@ describe("Japanese lesson catalog", () => {
           terms.add(item.term);
           meanings.add(item.meaning);
         }
-        for (const mode of contentSet.modes ?? ["recognition", "production", "matching"]) {
+        for (const mode of contentSet.modes ?? DEFAULT_EXERCISE_MODES) {
           supportedContentModes.add(mode);
         }
         if (terms.size !== contentSet.items.length || meanings.size !== contentSet.items.length) {
