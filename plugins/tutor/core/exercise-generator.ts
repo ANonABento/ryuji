@@ -69,19 +69,28 @@ export function generateAllExercises(content: ContentSet): Exercise[] {
 
 // --- Recognition: see term → pick meaning ---
 
-function generateRecognition(items: ContentItem[]): Exercise[] {
-  return items.map((item) => {
-    const distractors = uniqueMeaningsExcept(items, item.meaning)
+function generateRecognition(
+  items: ContentItem[],
+  distractorPool: ContentItem[] = items
+): Exercise[] {
+  const exercises: Exercise[] = [];
+
+  for (const item of items) {
+    const distractors = uniqueMeaningsExcept(distractorPool, item.meaning)
       .sort(() => Math.random() - 0.5)
       .slice(0, 3);
 
-    return {
+    if (distractors.length === 0) continue;
+
+    exercises.push({
       type: "recognition" as const,
       prompt: `What does **${item.term}** (${item.reading}) mean?`,
       answer: item.meaning,
       distractors,
-    };
-  });
+    });
+  }
+
+  return exercises;
 }
 
 // --- Production: see meaning → type term ---
@@ -105,8 +114,14 @@ function generateMatching(items: ContentItem[]): Exercise[] {
   for (let i = 0; i < items.length; i += maxPerGroup) {
     const group = items.slice(i, i + maxPerGroup);
     if (group.length < 2) {
-      // Too few for matching, fall back to recognition
-      exercises.push(...generateRecognition(group));
+      // Too few for matching; use the full content set for recognition distractors.
+      exercises.push(...generateRecognition(group, items));
+      continue;
+    }
+
+    if ([...new Set(group.map((item) => item.meaning))].length < 2) {
+      // Matching cannot work without at least two distinct button choices.
+      exercises.push(...generateRecognition(group, items));
       continue;
     }
 

@@ -67,6 +67,10 @@ const allExercises = generateAllExercises(greetingsContent);
 
 4 items × 3 modes = 12 exercises from one content set.
 
+Button modes require at least two distinct meanings. The generator skips
+impossible one-button recognition prompts and falls back from matching to
+recognition when a group does not have enough distinct answer choices.
+
 Mode selection in Discord is currently deferred. Lessons compile content sets into concrete exercises at module load time, so `/lesson` always presents the authored exercise order. Add a picker only after lesson data stores selectable practice-set metadata instead of replacing `Lesson.exercises`.
 
 You can mix content set exercises with hand-written ones in the same lesson:
