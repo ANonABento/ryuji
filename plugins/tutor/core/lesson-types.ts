@@ -2,6 +2,40 @@
  * Lesson system types — structured, mastery-gated progression.
  */
 
+/** Runtime-generated practice mode for content sets. */
+export type ExerciseMode = "recognition" | "production" | "matching";
+
+/** User-facing mode choices for generated practice. */
+export type PracticeMode = ExerciseMode | "mixed";
+
+/** A single teachable item */
+export interface ContentItem {
+  term: string;
+  reading: string;
+  meaning: string;
+}
+
+/** A set of content that can generate exercises in multiple modes */
+export interface ContentSet {
+  items: ContentItem[];
+  /** Which modes to generate. Defaults to all. */
+  modes?: ExerciseMode[];
+}
+
+export interface ChartBlank {
+  row: number;
+  col: number;
+  answer: string;
+  reading?: string;
+}
+
+export interface ChartExerciseData {
+  grid: (string | null)[][];
+  blanks: ChartBlank[];
+  rowLabels?: string[];
+  colLabels?: string[];
+}
+
 /** A single exercise within a lesson */
 export interface Exercise {
   type:
@@ -19,6 +53,8 @@ export interface Exercise {
   accept?: string[]; // alternative accepted answers
   hint?: string;
   explanation?: string; // shown after answering (grammar lessons)
+  chart?: ChartExerciseData; // structured chart data for chart exercises
+  chartBlankIndex?: number; // runtime expansion index for chart blank scoring
 }
 
 /** An item to introduce in the lesson intro */
@@ -56,6 +92,8 @@ export interface Lesson {
   prerequisites: string[]; // lesson IDs that must be completed first
   introduction: LessonIntro;
   exercises: Exercise[];
+  contentSets?: ContentSet[];
+  selectableModes?: PracticeMode[];
   srsItems?: LessonSRSItem[];
   skillsTaught?: string[];
   furiganaLevel?: "full" | "partial" | "none";
@@ -75,6 +113,7 @@ export interface ExerciseResult {
   index: number;
   correct: boolean;
   userAnswer?: string;
+  exerciseType?: Exercise["type"];
 }
 
 /** Lesson progress status */

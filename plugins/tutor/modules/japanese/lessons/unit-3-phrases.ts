@@ -6,8 +6,8 @@
  * exercises where appropriate.
  */
 
-import type { Lesson, LessonSRSItem } from "../../../core/lesson-types.ts";
-import { generateExercises, type ContentSet } from "../../../core/exercise-generator.ts";
+import type { Lesson, LessonSRSItem, ContentSet } from "../../../core/lesson-types.ts";
+import { generateExercises } from "../../../core/exercise-generator.ts";
 import { vocabSRS, cloze, mc } from "./phrase-helpers.ts";
 
 // --- Content Sets ---
@@ -133,6 +133,8 @@ export const phraseLessons: Lesson[] = [
         "The casual おはよう becomes polite by adding ございます.",
       ),
     ],
+    contentSets: [greetingsContent],
+    selectableModes: ["recognition", "production", "matching", "mixed"],
     srsItems: vocabSRS(greetingsContent.items, "greetings"),
     skillsTaught: ["greetings"],
     furiganaLevel: "full",
@@ -181,6 +183,8 @@ export const phraseLessons: Lesson[] = [
         "よろしくおねがいします literally means 'please treat me well' — used to wrap up introductions.",
       ),
     ],
+    contentSets: [introContent],
+    selectableModes: ["recognition", "production", "matching", "mixed"],
     srsItems: vocabSRS(introContent.items, "self_intro"),
     skillsTaught: ["self_intro"],
     furiganaLevel: "full",
@@ -216,6 +220,8 @@ export const phraseLessons: Lesson[] = [
         "The sequence is: いち (1), に (2), さん (3), よん (4), ご (5).",
       ),
     ],
+    contentSets: [numbersContent],
+    selectableModes: ["recognition", "production", "matching", "mixed"],
     srsItems: vocabSRS(numbersContent.items, "numbers"),
     skillsTaught: ["numbers"],
     furiganaLevel: "full",
@@ -252,6 +258,8 @@ export const phraseLessons: Lesson[] = [
         "After Monday (げつ) and Tuesday (か) comes Wednesday (すい).",
       ),
     ],
+    contentSets: [daysContent],
+    selectableModes: ["recognition", "production", "matching", "mixed"],
     srsItems: vocabSRS(daysContent.items, "days"),
     skillsTaught: ["days_of_week"],
     furiganaLevel: "full",
@@ -294,6 +302,8 @@ export const phraseLessons: Lesson[] = [
         "みずをのむ = 'to drink water'. みず = water, のむ = to drink.",
       ),
     ],
+    contentSets: [objectsContent],
+    selectableModes: ["recognition", "production", "matching", "mixed"],
     srsItems: vocabSRS(objectsContent.items, "objects"),
     skillsTaught: ["common_objects"],
     furiganaLevel: "full",
@@ -335,6 +345,8 @@ export const phraseLessons: Lesson[] = [
         "ほんをみる = 'to look at/read a book'. を marks the object.",
       ),
     ],
+    contentSets: [verbsContent],
+    selectableModes: ["recognition", "production", "matching", "mixed"],
     srsItems: vocabSRS(verbsContent.items, "verbs"),
     skillsTaught: ["common_verbs"],
     furiganaLevel: "full",
@@ -375,6 +387,8 @@ export const phraseLessons: Lesson[] = [
         ["いい (good)", "ちいさい (small)", "おおきい (big)"],
       ),
     ],
+    contentSets: [adjectivesContent],
+    selectableModes: ["recognition", "production", "matching", "mixed"],
     srsItems: vocabSRS(adjectivesContent.items, "adjectives"),
     skillsTaught: ["common_adjectives"],
     furiganaLevel: "full",

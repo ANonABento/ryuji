@@ -3,7 +3,8 @@
  */
 import { describe, expect, test } from "bun:test";
 import { japaneseLessons, japaneseUnits } from "../../../plugins/tutor/modules/japanese/lessons/index.ts";
-import { isButtonExercise } from "../../../plugins/tutor/core/lesson-types.ts";
+import { isButtonExercise, type ExerciseMode } from "../../../plugins/tutor/core/lesson-types.ts";
+import { DEFAULT_EXERCISE_MODES } from "../../../plugins/tutor/core/exercise-generator.ts";
 
 const EXPECTED_JAPANESE_UNIT_NAMES = [
   "Hiragana",
@@ -76,6 +77,8 @@ describe("Japanese lesson catalog", () => {
     const duplicateButtonOptions: string[] = [];
     const selfDistractors: string[] = [];
     const impossibleMastery: string[] = [];
+    const malformedCharts: string[] = [];
+    const malformedContentSets: string[] = [];
 
     for (const lesson of japaneseLessons) {
       if (lesson.exercises.length === 0) emptyLessons.push(lesson.id);
@@ -94,6 +97,42 @@ describe("Japanese lesson catalog", () => {
           if (new Set(options).size !== options.length) duplicateButtonOptions.push(ref);
           if ((exercise.distractors ?? []).includes(exercise.answer)) selfDistractors.push(ref);
         }
+        if (exercise.type === "chart") {
+          if (!exercise.chart || exercise.chart.blanks.length === 0) {
+            malformedCharts.push(ref);
+          } else {
+            for (const blank of exercise.chart.blanks) {
+              const cell = exercise.chart.grid[blank.row]?.[blank.col];
+              if (cell !== null || blank.answer.trim().length === 0) {
+                malformedCharts.push(ref);
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      const contentSets = lesson.contentSets ?? [];
+      const supportedContentModes = new Set<ExerciseMode>();
+      for (const [setIndex, contentSet] of contentSets.entries()) {
+        const terms = new Set<string>();
+        const meanings = new Set<string>();
+        for (const item of contentSet.items) {
+          terms.add(item.term);
+          meanings.add(item.meaning);
+        }
+        for (const mode of contentSet.modes ?? DEFAULT_EXERCISE_MODES) {
+          supportedContentModes.add(mode);
+        }
+        if (terms.size !== contentSet.items.length || meanings.size !== contentSet.items.length) {
+          malformedContentSets.push(`${lesson.id}#content-${setIndex}`);
+        }
+      }
+
+      for (const mode of lesson.selectableModes ?? []) {
+        if (mode !== "mixed" && !supportedContentModes.has(mode)) {
+          malformedContentSets.push(`${lesson.id}#mode-${mode}`);
+        }
       }
     }
 
@@ -103,6 +142,8 @@ describe("Japanese lesson catalog", () => {
     expect(duplicateButtonOptions).toEqual([]);
     expect(selfDistractors).toEqual([]);
     expect(impossibleMastery).toEqual([]);
+    expect(malformedCharts).toEqual([]);
+    expect(malformedContentSets).toEqual([]);
   });
 
   test("all lessons are reachable from root lessons through prerequisites", () => {

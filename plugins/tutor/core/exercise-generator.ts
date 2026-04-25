@@ -6,24 +6,16 @@
  * One content set → multiple exercise modes → 3x variety.
  */
 
-import type { Exercise } from "./lesson-types.ts";
+import type {
+  ContentItem,
+  ContentSet,
+  Exercise,
+  ExerciseMode,
+  Lesson,
+  PracticeMode,
+} from "./lesson-types.ts";
 
-/** A single teachable item */
-export interface ContentItem {
-  term: string;      // e.g. "あ" or "食べる"
-  reading: string;   // e.g. "a" or "たべる"
-  meaning: string;   // e.g. "a (vowel)" or "to eat"
-}
-
-/** Exercise generation mode */
-export type ExerciseMode = "recognition" | "production" | "matching";
-
-/** A set of content that can generate exercises in multiple modes */
-export interface ContentSet {
-  items: ContentItem[];
-  /** Which modes to generate. Defaults to all. */
-  modes?: ExerciseMode[];
-}
+export type { ContentItem, ContentSet, ExerciseMode } from "./lesson-types.ts";
 
 /**
  * Generate exercises from a content set in a given mode.
@@ -49,26 +41,11 @@ export function generateExercises(
   }
 }
 
-const DEFAULT_EXERCISE_MODES: readonly ExerciseMode[] = [
+export const DEFAULT_EXERCISE_MODES: readonly ExerciseMode[] = [
   "recognition",
   "production",
   "matching",
 ];
-
-function uniqueMeaningsExcept(items: ContentItem[], answer: string): string[] {
-  return [...new Set(items.map((item) => item.meaning))].filter(
-    (meaning) => meaning !== answer
-  );
-}
-
-function shuffle<T>(items: readonly T[]): T[] {
-  const shuffled = [...items];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-}
 
 /** Generate all available exercises from a content set (one per mode) */
 export function generateAllExercises(content: ContentSet): Exercise[] {
@@ -80,30 +57,58 @@ export function generateAllExercises(content: ContentSet): Exercise[] {
   return exercises;
 }
 
+export function selectableModesForLesson(lesson: Lesson): PracticeMode[] {
+  if (!lesson.contentSets || lesson.contentSets.length === 0) return [];
+
+  const supportedModes = new Set<ExerciseMode>();
+  for (const contentSet of lesson.contentSets) {
+    for (const mode of contentSet.modes ?? DEFAULT_EXERCISE_MODES) {
+      supportedModes.add(mode);
+    }
+  }
+
+  const requestedModes = lesson.selectableModes ?? [...supportedModes, "mixed"];
+  return requestedModes.filter((mode) => mode === "mixed" || supportedModes.has(mode));
+}
+
+export function selectExercisesForMode(lesson: Lesson, mode: PracticeMode): Exercise[] {
+  if (!lesson.contentSets || lesson.contentSets.length === 0) {
+    return [...lesson.exercises];
+  }
+
+  const exercises: Exercise[] = [];
+  for (const contentSet of lesson.contentSets) {
+    if (mode === "mixed") {
+      exercises.push(...generateAllExercises(contentSet));
+      continue;
+    }
+
+    const modes = contentSet.modes ?? DEFAULT_EXERCISE_MODES;
+    if (modes.includes(mode)) {
+      exercises.push(...generateExercises(contentSet, mode));
+    }
+  }
+
+  return exercises.length > 0 ? exercises : [...lesson.exercises];
+}
+
 // --- Recognition: see term → pick meaning ---
 
-function generateRecognition(
-  items: ContentItem[],
-  distractorPool: ContentItem[] = items
-): Exercise[] {
-  const exercises: Exercise[] = [];
+function generateRecognition(items: ContentItem[]): Exercise[] {
+  return items.map((item) => {
+    const distractors = items
+      .filter((i) => i.meaning !== item.meaning)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 3)
+      .map((i) => i.meaning);
 
-  for (const item of items) {
-    const distractors = shuffle(
-      uniqueMeaningsExcept(distractorPool, item.meaning)
-    ).slice(0, 3);
-
-    if (distractors.length === 0) continue;
-
-    exercises.push({
+    return {
       type: "recognition" as const,
       prompt: `What does **${item.term}** (${item.reading}) mean?`,
       answer: item.meaning,
       distractors,
-    });
-  }
-
-  return exercises;
+    };
+  });
 }
 
 // --- Production: see meaning → type term ---
@@ -127,21 +132,17 @@ function generateMatching(items: ContentItem[]): Exercise[] {
   for (let i = 0; i < items.length; i += maxPerGroup) {
     const group = items.slice(i, i + maxPerGroup);
     if (group.length < 2) {
-      // Too few for matching; use the full content set for recognition distractors.
-      exercises.push(...generateRecognition(group, items));
-      continue;
-    }
-
-    if ([...new Set(group.map((item) => item.meaning))].length < 2) {
-      // Matching cannot work without at least two distinct button choices.
-      exercises.push(...generateRecognition(group, items));
+      // Too few for matching, fall back to recognition
+      exercises.push(...generateRecognition(group));
       continue;
     }
 
     // Create one exercise per pair in the group
     // Each exercise shows a term and asks to pick the matching meaning
     for (const item of group) {
-      const distractors = uniqueMeaningsExcept(group, item.meaning);
+      const distractors = group
+        .filter((g) => g.meaning !== item.meaning)
+        .map((g) => g.meaning);
 
       exercises.push({
         type: "matching" as const,

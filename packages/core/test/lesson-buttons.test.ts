@@ -4,8 +4,12 @@
 import { describe, expect, test } from "bun:test";
 import {
   buildAnswerCustomId,
+  buildChartCustomId,
   buildButtonOptions,
   buildExerciseButtons,
+  buildModeCustomId,
+  expandExercisesForSession,
+  setSessionMode,
   type ActiveLessonSession,
 } from "../../../plugins/tutor/lesson-interactions.ts";
 import type { Exercise, Lesson } from "../../../plugins/tutor/core/lesson-types.ts";
@@ -32,6 +36,7 @@ function makeSession(): ActiveLessonSession {
     lessonId: lesson.id,
     exerciseIndex: 0,
     lesson,
+    exercises: lesson.exercises,
     answerOptionsByExercise: new Map(),
   };
 }
@@ -116,5 +121,57 @@ describe("lesson button rendering", () => {
 
   test("buildAnswerCustomId preserves the stable lesson answer shape", () => {
     expect(buildAnswerCustomId("3.1", 4, "abc123")).toBe("lesson:answer:3.1:4:abc123");
+  });
+
+  test("mode and chart custom IDs are stable and short", () => {
+    expect(buildModeCustomId("3.1", "matching")).toBe("lesson:mode:3.1:matching");
+    expect(buildChartCustomId("1.3", 12, 2, "0")).toBe("lesson:chart:1.3:12:2:0");
+    expect(buildChartCustomId("1.3", 12, 2, "0").length).toBeLessThanOrEqual(100);
+  });
+
+  test("chart exercises expand into one scored runtime exercise per blank", () => {
+    const chart: Exercise = {
+      type: "chart",
+      prompt: "chart",
+      answer: "あ",
+      distractors: ["い", "う"],
+      chart: {
+        grid: [[null, "い"], ["う", null]],
+        blanks: [
+          { row: 0, col: 0, answer: "あ", reading: "a" },
+          { row: 1, col: 1, answer: "え", reading: "e" },
+        ],
+      },
+    };
+
+    const expanded = expandExercisesForSession([chart]);
+
+    expect(expanded).toHaveLength(2);
+    expect(expanded.map((exercise) => exercise.answer)).toEqual(["あ", "え"]);
+    expect(expanded.map((exercise) => exercise.chartBlankIndex)).toEqual([0, 1]);
+    expect(expanded[0].prompt).toContain("??");
+  });
+
+  test("selecting a mode replaces the session exercise list", () => {
+    const session = makeSession();
+    session.lesson = {
+      ...lesson,
+      contentSets: [
+        {
+          items: [
+            { term: "あ", reading: "a", meaning: "a (vowel)" },
+            { term: "い", reading: "i", meaning: "i (vowel)" },
+          ],
+        },
+      ],
+      selectableModes: ["recognition", "production", "matching", "mixed"],
+    };
+    session.exercises = [];
+
+    setSessionMode(session, "production");
+
+    expect(session.selectedMode).toBe("production");
+    expect(session.exercises).toHaveLength(2);
+    expect(session.exercises.every((exercise) => exercise.type === "production")).toBe(true);
   });
 });
