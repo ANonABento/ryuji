@@ -24,6 +24,7 @@ import {
   hasActiveTypingExercise,
   handleTypedAnswer,
 } from "./lesson-interactions.ts";
+import { getActiveModule } from "./core/session.ts";
 import {
   EmbedBuilder,
   ActionRowBuilder,
@@ -35,7 +36,6 @@ import { updateFromLessonCompletion } from "./core/learner-profile.ts";
 // SRS reminder state (cleaned up in destroy)
 let srsReminderTimeout: ReturnType<typeof setTimeout> | null = null;
 let srsReminderInterval: ReturnType<typeof setInterval> | null = null;
-const lastSrsReminder = new Map<string, number>();
 
 const SRS_REMINDER_INTERVAL_MS = 4 * 60 * 60 * 1000;
 const SRS_MIN_DUE = 5;
@@ -66,7 +66,8 @@ const tutorPlugin: Plugin = {
     "8. Use `srs_review` to start a flashcard review session",
     "9. Use `srs_rate` after they answer a flashcard (again/hard/good/easy)",
     "10. Use `srs_stats` to show their progress",
-    "11. Module-specific tools (e.g. `convert_kana` for Japanese) are also available",
+    "11. Use `srs_reminders` when they ask to check, enable, or disable SRS reminders",
+    "12. Module-specific tools (e.g. `convert_kana` for Japanese) are also available",
     "",
     "**Learning flow:** Lessons (learn new material) → SRS (retain it) → Conversation (use it naturally)",
     "",
@@ -90,6 +91,7 @@ const tutorPlugin: Plugin = {
     "srs_review",
     "srs_rate",
     "srs_stats",
+    "srs_reminders",
     "lesson_status",
     "convert_kana",
     "random_word",
@@ -216,17 +218,26 @@ const tutorPlugin: Plugin = {
       }
     }
 
+    if (!ctx.discord) {
+      console.error("Tutor: Discord unavailable, SRS reminder timer disabled");
+      return;
+    }
+
     // SRS study reminders — check every 4 hours
     const checkSrsReminders = async () => {
       const srs = getSRS();
       if (!srs) return;
+      if (!ctx.discord?.users?.fetch) return;
 
       const dueCounts = srs.getDueCountByUser();
       for (const [userId, count] of dueCounts) {
         if (count < SRS_MIN_DUE) continue;
+        const module = getActiveModule(userId);
+        const reminderSettings = lessonDb.getSrsReminderSettings(userId, module);
+        if (!reminderSettings.enabled) continue;
 
         // Don't remind more than once per 24h
-        const lastReminded = lastSrsReminder.get(userId) ?? 0;
+        const lastReminded = reminderSettings.lastRemindedAt;
         if (Date.now() - lastReminded < SRS_REMINDER_COOLDOWN_MS) continue;
 
         // Send DM reminder
@@ -235,7 +246,8 @@ const tutorPlugin: Plugin = {
           await user.send(
             `📚 You have **${count} SRS cards** due for review! Keep your streak going.\nUse \`/srs_review\` or ask me to start a review session.`
           );
-          lastSrsReminder.set(userId, Date.now());
+          const remindedAt = Date.now();
+          lessonDb.recordSrsReminderSent(userId, module, remindedAt);
           console.error(`Tutor: sent SRS reminder to ${userId} (${count} due cards)`);
         } catch {
           // User not reachable via DM
