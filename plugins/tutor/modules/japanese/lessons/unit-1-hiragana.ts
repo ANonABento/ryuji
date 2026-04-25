@@ -6,27 +6,9 @@
  */
 
 import type { Lesson, Exercise, IntroItem, LessonSRSItem } from "../../../core/lesson-types.ts";
+import { recognition, production, chartReview } from "./kana-helpers.ts";
 
-// --- Helpers ---
-
-function recognition(char: string, reading: string, pool: string[]): Exercise {
-  const distractors = pool.filter((r) => r !== reading).sort(() => Math.random() - 0.5).slice(0, 3);
-  return {
-    type: "recognition",
-    prompt: `What sound does **${char}** make?`,
-    answer: reading,
-    distractors,
-  };
-}
-
-function production(char: string, reading: string): Exercise {
-  return {
-    type: "production",
-    prompt: `Type the hiragana for **"${reading}"**`,
-    answer: char,
-    accept: [reading], // accept romaji too for beginners
-  };
-}
+// --- Local helpers ---
 
 function wordReading(word: string, reading: string, meaning: string, pool: string[]): Exercise {
   const distractors = pool.filter((r) => r !== reading).slice(0, 3);
@@ -96,16 +78,17 @@ export const hiraganaLessons: Lesson[] = [
       recognition("う", "u", VOWEL_READINGS),
       recognition("え", "e", VOWEL_READINGS),
       recognition("お", "o", VOWEL_READINGS),
-      production("あ", "a"),
-      production("い", "i"),
-      production("う", "u"),
+      production("あ", "a", "hiragana"),
+      production("い", "i", "hiragana"),
+      production("う", "u", "hiragana"),
       recognition("お", "o", VOWEL_READINGS),
       recognition("え", "e", VOWEL_READINGS),
-      production("え", "e"),
-      production("お", "o"),
+      production("え", "e", "hiragana"),
+      production("お", "o", "hiragana"),
     ],
     srsItems: srsItems([["あ", "a"], ["い", "i"], ["う", "u"], ["え", "e"], ["お", "o"]]),
     skillsTaught: ["hiragana_vowels"],
+    furiganaLevel: "full",
   },
 
   // --- Lesson 1.2: K-row ---
@@ -131,17 +114,18 @@ export const hiraganaLessons: Lesson[] = [
       recognition("く", "ku", [...K_READINGS, ...VOWEL_READINGS]),
       recognition("け", "ke", [...K_READINGS, ...VOWEL_READINGS]),
       recognition("こ", "ko", [...K_READINGS, ...VOWEL_READINGS]),
-      production("か", "ka"),
-      production("き", "ki"),
+      production("か", "ka", "hiragana"),
+      production("き", "ki", "hiragana"),
       // Mix in vowels for review
       recognition("あ", "a", [...K_READINGS, ...VOWEL_READINGS]),
       recognition("う", "u", [...K_READINGS, ...VOWEL_READINGS]),
-      production("く", "ku"),
-      production("け", "ke"),
-      production("こ", "ko"),
+      production("く", "ku", "hiragana"),
+      production("け", "ke", "hiragana"),
+      production("こ", "ko", "hiragana"),
     ],
     srsItems: srsItems([["か", "ka"], ["き", "ki"], ["く", "ku"], ["け", "ke"], ["こ", "ko"]]),
     skillsTaught: ["hiragana_k"],
+    furiganaLevel: "full",
   },
 
   // --- Lesson 1.3: S-row ---
@@ -167,17 +151,24 @@ export const hiraganaLessons: Lesson[] = [
       recognition("す", "su", [...S_READINGS, ...VOWEL_READINGS]),
       recognition("せ", "se", [...S_READINGS, ...K_READINGS]),
       recognition("そ", "so", [...S_READINGS, ...VOWEL_READINGS]),
-      production("さ", "sa"),
-      production("し", "shi"),
+      production("さ", "sa", "hiragana"),
+      production("し", "shi", "hiragana"),
       // Review
       recognition("か", "ka", [...S_READINGS, ...K_READINGS]),
       recognition("き", "ki", [...S_READINGS, ...K_READINGS]),
-      production("す", "su"),
-      production("せ", "se"),
-      production("そ", "so"),
+      production("す", "su", "hiragana"),
+      production("せ", "se", "hiragana"),
+      production("そ", "so", "hiragana"),
+      // Chart review: vowels + K + S (15 chars)
+      chartReview([
+        ["あ", "a"], ["い", "i"], ["う", "u"], ["え", "e"], ["お", "o"],
+        ["か", "ka"], ["き", "ki"], ["く", "ku"], ["け", "ke"], ["こ", "ko"],
+        ["さ", "sa"], ["し", "shi"], ["す", "su"], ["せ", "se"], ["そ", "so"],
+      ]),
     ],
     srsItems: srsItems([["さ", "sa"], ["し", "shi"], ["す", "su"], ["せ", "se"], ["そ", "so"]]),
     skillsTaught: ["hiragana_s"],
+    furiganaLevel: "full",
   },
 
   // --- Lesson 1.4: T-row ---
@@ -203,17 +194,18 @@ export const hiraganaLessons: Lesson[] = [
       recognition("つ", "tsu", [...T_READINGS, ...K_READINGS]),
       recognition("て", "te", [...T_READINGS, ...VOWEL_READINGS]),
       recognition("と", "to", [...T_READINGS, ...S_READINGS]),
-      production("た", "ta"),
-      production("ち", "chi"),
-      production("つ", "tsu"),
+      production("た", "ta", "hiragana"),
+      production("ち", "chi", "hiragana"),
+      production("つ", "tsu", "hiragana"),
       // Review
       recognition("し", "shi", [...T_READINGS, ...S_READINGS]),
       recognition("さ", "sa", [...T_READINGS, ...S_READINGS]),
-      production("て", "te"),
-      production("と", "to"),
+      production("て", "te", "hiragana"),
+      production("と", "to", "hiragana"),
     ],
     srsItems: srsItems([["た", "ta"], ["ち", "chi"], ["つ", "tsu"], ["て", "te"], ["と", "to"]]),
     skillsTaught: ["hiragana_t"],
+    furiganaLevel: "full",
   },
 
   // --- Lesson 1.5: N-row ---
@@ -239,17 +231,18 @@ export const hiraganaLessons: Lesson[] = [
       recognition("ぬ", "nu", [...N_READINGS, ...S_READINGS]),
       recognition("ね", "ne", [...N_READINGS, ...K_READINGS]),
       recognition("の", "no", [...N_READINGS, ...T_READINGS]),
-      production("な", "na"),
-      production("に", "ni"),
-      production("の", "no"),
+      production("な", "na", "hiragana"),
+      production("に", "ni", "hiragana"),
+      production("の", "no", "hiragana"),
       // Review
       recognition("た", "ta", [...N_READINGS, ...T_READINGS]),
       recognition("つ", "tsu", [...N_READINGS, ...T_READINGS]),
-      production("ぬ", "nu"),
-      production("ね", "ne"),
+      production("ぬ", "nu", "hiragana"),
+      production("ね", "ne", "hiragana"),
     ],
     srsItems: srsItems([["な", "na"], ["に", "ni"], ["ぬ", "nu"], ["ね", "ne"], ["の", "no"]]),
     skillsTaught: ["hiragana_n"],
+    furiganaLevel: "full",
   },
 
   // --- Lesson 1.6: H-row ---
@@ -275,17 +268,27 @@ export const hiraganaLessons: Lesson[] = [
       recognition("ふ", "fu", [...H_READINGS, ...K_READINGS]),
       recognition("へ", "he", [...H_READINGS, ...T_READINGS]),
       recognition("ほ", "ho", [...H_READINGS, ...N_READINGS]),
-      production("は", "ha"),
-      production("ひ", "hi"),
-      production("ふ", "fu"),
+      production("は", "ha", "hiragana"),
+      production("ひ", "hi", "hiragana"),
+      production("ふ", "fu", "hiragana"),
       // Review
       recognition("ね", "ne", [...H_READINGS, ...N_READINGS]),
       recognition("の", "no", [...H_READINGS, ...N_READINGS]),
-      production("へ", "he"),
-      production("ほ", "ho"),
+      production("へ", "he", "hiragana"),
+      production("ほ", "ho", "hiragana"),
+      // Chart review: vowels + K + S + T + N + H (30 chars)
+      chartReview([
+        ["あ", "a"], ["い", "i"], ["う", "u"], ["え", "e"], ["お", "o"],
+        ["か", "ka"], ["き", "ki"], ["く", "ku"], ["け", "ke"], ["こ", "ko"],
+        ["さ", "sa"], ["し", "shi"], ["す", "su"], ["せ", "se"], ["そ", "so"],
+        ["た", "ta"], ["ち", "chi"], ["つ", "tsu"], ["て", "te"], ["と", "to"],
+        ["な", "na"], ["に", "ni"], ["ぬ", "nu"], ["ね", "ne"], ["の", "no"],
+        ["は", "ha"], ["ひ", "hi"], ["ふ", "fu"], ["へ", "he"], ["ほ", "ho"],
+      ]),
     ],
     srsItems: srsItems([["は", "ha"], ["ひ", "hi"], ["ふ", "fu"], ["へ", "he"], ["ほ", "ho"]]),
     skillsTaught: ["hiragana_h"],
+    furiganaLevel: "full",
   },
 
   // --- Lesson 1.7: M-row ---
@@ -311,17 +314,18 @@ export const hiraganaLessons: Lesson[] = [
       recognition("む", "mu", [...M_READINGS, ...N_READINGS]),
       recognition("め", "me", [...M_READINGS, ...H_READINGS]),
       recognition("も", "mo", [...M_READINGS, ...H_READINGS]),
-      production("ま", "ma"),
-      production("み", "mi"),
-      production("む", "mu"),
+      production("ま", "ma", "hiragana"),
+      production("み", "mi", "hiragana"),
+      production("む", "mu", "hiragana"),
       // Review
       recognition("ふ", "fu", [...M_READINGS, ...H_READINGS]),
       recognition("ほ", "ho", [...M_READINGS, ...H_READINGS]),
-      production("め", "me"),
-      production("も", "mo"),
+      production("め", "me", "hiragana"),
+      production("も", "mo", "hiragana"),
     ],
     srsItems: srsItems([["ま", "ma"], ["み", "mi"], ["む", "mu"], ["め", "me"], ["も", "mo"]]),
     skillsTaught: ["hiragana_m"],
+    furiganaLevel: "full",
   },
 
   // --- Lesson 1.8: Y-row + R-row ---
@@ -353,16 +357,28 @@ export const hiraganaLessons: Lesson[] = [
       recognition("る", "ru", [...YRW_READINGS, ...H_READINGS]),
       recognition("れ", "re", [...YRW_READINGS, ...N_READINGS]),
       recognition("ろ", "ro", [...YRW_READINGS, ...H_READINGS]),
-      production("や", "ya"),
-      production("ゆ", "yu"),
-      production("ら", "ra"),
-      production("る", "ru"),
+      production("や", "ya", "hiragana"),
+      production("ゆ", "yu", "hiragana"),
+      production("ら", "ra", "hiragana"),
+      production("る", "ru", "hiragana"),
+      // Chart review: all through Y+R rows (38 chars)
+      chartReview([
+        ["あ", "a"], ["い", "i"], ["う", "u"], ["え", "e"], ["お", "o"],
+        ["か", "ka"], ["き", "ki"], ["く", "ku"], ["け", "ke"], ["こ", "ko"],
+        ["さ", "sa"], ["し", "shi"], ["す", "su"], ["せ", "se"], ["そ", "so"],
+        ["た", "ta"], ["ち", "chi"], ["つ", "tsu"], ["て", "te"], ["と", "to"],
+        ["な", "na"], ["に", "ni"], ["ぬ", "nu"], ["ね", "ne"], ["の", "no"],
+        ["は", "ha"], ["ひ", "hi"], ["ふ", "fu"], ["へ", "he"], ["ほ", "ho"],
+        ["ま", "ma"], ["み", "mi"], ["む", "mu"], ["め", "me"], ["も", "mo"],
+        ["や", "ya"], ["ゆ", "yu"], ["よ", "yo"],
+      ]),
     ],
     srsItems: srsItems([
       ["や", "ya"], ["ゆ", "yu"], ["よ", "yo"],
       ["ら", "ra"], ["り", "ri"], ["る", "ru"], ["れ", "re"], ["ろ", "ro"],
     ]),
     skillsTaught: ["hiragana_y", "hiragana_r"],
+    furiganaLevel: "full",
   },
 
   // --- Lesson 1.9: W-row + ん ---
@@ -384,9 +400,9 @@ export const hiraganaLessons: Lesson[] = [
       recognition("わ", "wa", [...YRW_READINGS, ...H_READINGS]),
       recognition("を", "wo", [...YRW_READINGS, ...VOWEL_READINGS]),
       recognition("ん", "n", [...YRW_READINGS, ...N_READINGS]),
-      production("わ", "wa"),
-      production("を", "wo"),
-      production("ん", "n"),
+      production("わ", "wa", "hiragana"),
+      production("を", "wo", "hiragana"),
+      production("ん", "n", "hiragana"),
       // Comprehensive review
       recognition("あ", "a", ALL_BASIC),
       recognition("か", "ka", ALL_BASIC),
@@ -397,6 +413,7 @@ export const hiraganaLessons: Lesson[] = [
     ],
     srsItems: srsItems([["わ", "wa"], ["を", "wo"], ["ん", "n"]]),
     skillsTaught: ["hiragana_w", "hiragana_nn"],
+    furiganaLevel: "full",
   },
 
   // --- Lesson 1.10: Review + Word Reading ---
@@ -438,5 +455,6 @@ export const hiraganaLessons: Lesson[] = [
       ["おはよう", "ohayou (good morning)"],
     ]),
     skillsTaught: ["hiragana_words"],
+    furiganaLevel: "full",
   },
 ];
