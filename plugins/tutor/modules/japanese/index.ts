@@ -2,7 +2,7 @@
  * Japanese tutor module.
  */
 
-import type { TutorModule, QuizQuestion } from "../../core/types.ts";
+import type { TutorModule, QuizQuestion, TutorPromptContext } from "../../core/types.ts";
 import { lookupJisho } from "./dictionary.ts";
 import { initFurigana } from "./furigana.ts";
 import { japaneseTools } from "./tools.ts";
@@ -152,8 +152,16 @@ export const japaneseModule: TutorModule = {
     return lookupJisho(query);
   },
 
-  buildTutorPrompt(level: string): string {
-    return `You are a Japanese language tutor. ${LEVEL_GUIDES[level] || LEVEL_GUIDES.N5}
+  buildTutorPrompt(level: string, ctx?: TutorPromptContext): string {
+    const furiganaDirective = (() => {
+      const fl = ctx?.furiganaLevel;
+      if (fl === "full") return "\nFurigana: ALWAYS show readings for every kanji — 食[た]べる.";
+      if (fl === "partial") return "\nFurigana: only show readings for uncommon kanji; common N5 kanji can appear bare.";
+      if (fl === "none") return "\nFurigana: do not add furigana — the student is reviewing without aids.";
+      return "";
+    })();
+
+    return `You are a Japanese language tutor. ${LEVEL_GUIDES[level] || LEVEL_GUIDES.N5}${furiganaDirective}
 
 When the student writes in Japanese, respond with a JSON block:
 \`\`\`json

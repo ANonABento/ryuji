@@ -23,6 +23,11 @@ export interface QuizQuestion {
   explanation: string;
 }
 
+/** Optional context passed to buildTutorPrompt — derived from the user's active lesson. */
+export interface TutorPromptContext {
+  furiganaLevel?: "full" | "partial" | "none";
+}
+
 export interface TutorModule {
   /** Module identifier, e.g. "japanese", "math", "trivia" */
   name: string;
@@ -40,8 +45,9 @@ export interface TutorModule {
   /** Look up a word/term (languages: dictionary, programming: docs, etc.) */
   lookup?(query: string): Promise<DictionaryEntry[]>;
 
-  /** Build a system prompt for the AI tutor at the given level */
-  buildTutorPrompt?(level: string): string;
+  /** Build a system prompt for the AI tutor at the given level. Optional
+   *  per-lesson context lets modules adjust output (e.g. furigana density). */
+  buildTutorPrompt?(level: string, ctx?: TutorPromptContext): string;
 
   /** Generate a quiz question at the given level */
   generateQuiz?(level: string, type: string): QuizQuestion;

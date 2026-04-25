@@ -29,6 +29,8 @@ import {
   getUnits,
 } from "./core/lesson-engine.ts";
 import type { Exercise, Lesson } from "./core/lesson-types.ts";
+import { isButtonExercise } from "./core/lesson-types.ts";
+import { updateFromLessonCompletion } from "./core/learner-profile.ts";
 
 // --- Active lesson sessions (in-memory, keyed by userId) ---
 
@@ -95,7 +97,7 @@ function buildExerciseButtons(
   lessonId: string,
   exerciseIndex: number
 ): ActionRowBuilder<ButtonBuilder>[] {
-  if (exercise.type === "recognition" || exercise.type === "multiple_choice") {
+  if (isButtonExercise(exercise.type)) {
     // Shuffle answer + distractors
     const options = [exercise.answer, ...(exercise.distractors ?? [])];
     const shuffled = options.sort(() => Math.random() - 0.5);
@@ -179,6 +181,9 @@ async function sendNextExercise(
   if (exerciseIndex >= lesson.exercises.length) {
     const result = completeLesson(db, userId, module, lessonId);
     activeSessions.delete(userId);
+
+    // Update learner profile
+    updateFromLessonCompletion(db, userId, module);
 
     const summary = buildSummaryEmbed(lesson, result.score, result.passed, result.totalCorrect, result.totalExercises);
 

@@ -27,7 +27,7 @@ describe("plugin tool registration", () => {
     ]);
   });
 
-  test("tutor plugin exports 11 tools", async () => {
+  test("tutor plugin exports 12 tools", async () => {
     const mod = await import("@choomfie/tutor");
     const plugin = mod.default;
     const names = (plugin.tools ?? []).map((t: any) => t.definition.name);
@@ -42,7 +42,8 @@ describe("plugin tool registration", () => {
     expect(names).toContain("srs_rate");
     expect(names).toContain("srs_stats");
     expect(names).toContain("lesson_status");
-    expect(names.length).toBe(11);
+    expect(names).toContain("random_word");
+    expect(names.length).toBe(12);
   });
 
   test("socials plugin exports 33 tools", async () => {
@@ -63,6 +64,11 @@ describe("plugin tool registration", () => {
     expect(names).toContain("linkedin_auth");
     expect(names).toContain("linkedin_post");
     expect(names).toContain("linkedin_status");
+    expect(names).toContain("twitter_auth");
+    expect(names).toContain("twitter_post");
+    expect(names).toContain("twitter_post_image");
+    expect(names).toContain("twitter_thread");
+    expect(names).toContain("twitter_status");
     expect(names.length).toBe(33);
   });
 });

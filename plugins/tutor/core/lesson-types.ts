@@ -10,7 +10,9 @@ export interface Exercise {
     | "cloze" // fill the blank
     | "multiple_choice" // general MC (buttons)
     | "error_correction" // find the mistake
-    | "sentence_build"; // arrange words
+    | "sentence_build" // arrange words
+    | "chart" // fill in partial kana grid
+    | "matching"; // match term to meaning (buttons)
   prompt: string;
   answer: string;
   distractors?: string[]; // for MC/recognition (button labels)
@@ -56,6 +58,7 @@ export interface Lesson {
   exercises: Exercise[];
   srsItems?: LessonSRSItem[];
   skillsTaught?: string[];
+  furiganaLevel?: "full" | "partial" | "none";
 }
 
 /** Unit metadata for progress display */
@@ -76,3 +79,13 @@ export interface ExerciseResult {
 
 /** Lesson progress status */
 export type LessonStatus = "locked" | "available" | "in_progress" | "completed";
+
+/** Returns true for exercise types that present answer choices as buttons */
+export function isButtonExercise(type: Exercise["type"]): boolean {
+  return (
+    type === "recognition" ||
+    type === "multiple_choice" ||
+    type === "chart" ||
+    type === "matching"
+  );
+}

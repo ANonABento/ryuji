@@ -7,6 +7,47 @@
 import { Database } from "bun:sqlite";
 import { nowUTC } from "@choomfie/shared";
 import type { ExerciseResult, LessonStatus } from "./lesson-types.ts";
+import type { LearnerProfile } from "./learner-profile.ts";
+
+type LessonProgressDbRow = {
+  user_id: string;
+  module: string;
+  lesson_id: string;
+  status: LessonStatus;
+  score: number | null;
+  attempts: number;
+  current_exercise: number;
+  exercise_results: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+};
+
+type LearnerProfileDbRow = {
+  user_id: string;
+  module: string;
+  level: string;
+  lessons_completed: number;
+  total_lessons: number;
+  avg_score: number;
+  strong_areas: string | null;
+  weak_areas: string | null;
+  srs_total: number;
+  srs_learned: number;
+  srs_due: number;
+  total_study_mins: number;
+  streak: number;
+  last_active: string;
+  preferred_exercise_type: string;
+  updated_at: string;
+};
+
+type CountRow = { c: number };
+type StatusCountRow = { status: string; c: number };
+
+function parseJsonArray<T>(value: string | null | undefined): T[] {
+  if (!value) return [];
+  return JSON.parse(value) as T[];
+}
 
 export interface LessonProgressRow {
   userId: string;
@@ -48,6 +89,26 @@ export class LessonDB {
 
       CREATE INDEX IF NOT EXISTS idx_lesson_user_module
         ON lesson_progress(user_id, module);
+
+      CREATE TABLE IF NOT EXISTS learner_profiles (
+        user_id TEXT NOT NULL,
+        module TEXT NOT NULL,
+        level TEXT DEFAULT 'N5',
+        lessons_completed INTEGER DEFAULT 0,
+        total_lessons INTEGER DEFAULT 0,
+        avg_score REAL DEFAULT 0,
+        strong_areas TEXT DEFAULT '[]',
+        weak_areas TEXT DEFAULT '[]',
+        srs_total INTEGER DEFAULT 0,
+        srs_learned INTEGER DEFAULT 0,
+        srs_due INTEGER DEFAULT 0,
+        total_study_mins INTEGER DEFAULT 0,
+        streak INTEGER DEFAULT 0,
+        last_active TEXT DEFAULT '',
+        preferred_exercise_type TEXT DEFAULT '',
+        updated_at TEXT DEFAULT (datetime('now')),
+        PRIMARY KEY (user_id, module)
+      );
     `);
   }
 
@@ -55,7 +116,7 @@ export class LessonDB {
   getProgress(userId: string, module: string, lessonId: string): LessonProgressRow | null {
     const row = this.db
       .query("SELECT * FROM lesson_progress WHERE user_id = ? AND module = ? AND lesson_id = ?")
-      .get(userId, module, lessonId) as any;
+      .get(userId, module, lessonId) as LessonProgressDbRow | null;
     return row ? this.rowToProgress(row) : null;
   }
 
@@ -63,7 +124,7 @@ export class LessonDB {
   getAllProgress(userId: string, module: string): LessonProgressRow[] {
     const rows = this.db
       .query("SELECT * FROM lesson_progress WHERE user_id = ? AND module = ? ORDER BY lesson_id")
-      .all(userId, module) as any[];
+      .all(userId, module) as LessonProgressDbRow[];
     return rows.map(this.rowToProgress);
   }
 
@@ -136,7 +197,7 @@ export class LessonDB {
       .query(
         "SELECT COUNT(*) as c FROM lesson_progress WHERE user_id = ? AND module = ? AND status = 'completed'"
       )
-      .get(userId, module) as any;
+      .get(userId, module) as CountRow | null;
     return row?.c ?? 0;
   }
 
@@ -148,7 +209,7 @@ export class LessonDB {
          WHERE user_id = ? AND module = ?
          GROUP BY status`
       )
-      .all(userId, module) as any[];
+      .all(userId, module) as StatusCountRow[];
 
     const counts: Record<string, number> = {};
     let total = 0;
@@ -163,6 +224,59 @@ export class LessonDB {
     };
   }
 
+  /** Get learner profile for a user+module */
+  getProfile(userId: string, module: string): LearnerProfile | null {
+    const row = this.db
+      .query("SELECT * FROM learner_profiles WHERE user_id = ? AND module = ?")
+      .get(userId, module) as LearnerProfileDbRow | null;
+    return row ? this.rowToProfile(row) : null;
+  }
+
+  /** Insert or update a learner profile */
+  upsertProfile(profile: LearnerProfile): void {
+    this.db
+      .query(
+        `INSERT INTO learner_profiles
+           (user_id, module, level, lessons_completed, total_lessons, avg_score,
+            strong_areas, weak_areas, srs_total, srs_learned, srs_due,
+            total_study_mins, streak, last_active, preferred_exercise_type, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(user_id, module) DO UPDATE SET
+           level = excluded.level,
+           lessons_completed = excluded.lessons_completed,
+           total_lessons = excluded.total_lessons,
+           avg_score = excluded.avg_score,
+           strong_areas = excluded.strong_areas,
+           weak_areas = excluded.weak_areas,
+           srs_total = excluded.srs_total,
+           srs_learned = excluded.srs_learned,
+           srs_due = excluded.srs_due,
+           total_study_mins = excluded.total_study_mins,
+           streak = excluded.streak,
+           last_active = excluded.last_active,
+           preferred_exercise_type = excluded.preferred_exercise_type,
+           updated_at = excluded.updated_at`
+      )
+      .run(
+        profile.userId,
+        profile.module,
+        profile.level,
+        profile.lessonsCompleted,
+        profile.totalLessons,
+        profile.avgScore,
+        JSON.stringify(profile.strongAreas),
+        JSON.stringify(profile.weakAreas),
+        profile.srsTotal,
+        profile.srsLearned,
+        profile.srsDue,
+        profile.totalStudyMins,
+        profile.streak,
+        profile.lastActive,
+        profile.preferredExerciseType,
+        profile.updatedAt
+      );
+  }
+
   close() {
     try {
       this.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
@@ -170,16 +284,37 @@ export class LessonDB {
     this.db.close();
   }
 
-  private rowToProgress(row: any): LessonProgressRow {
+  private rowToProfile(row: LearnerProfileDbRow): LearnerProfile {
+    return {
+      userId: row.user_id,
+      module: row.module,
+      level: row.level,
+      lessonsCompleted: row.lessons_completed,
+      totalLessons: row.total_lessons,
+      avgScore: row.avg_score,
+      strongAreas: parseJsonArray<string>(row.strong_areas),
+      weakAreas: parseJsonArray<string>(row.weak_areas),
+      srsTotal: row.srs_total,
+      srsLearned: row.srs_learned,
+      srsDue: row.srs_due,
+      totalStudyMins: row.total_study_mins,
+      streak: row.streak,
+      lastActive: row.last_active,
+      preferredExerciseType: row.preferred_exercise_type,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  private rowToProgress(row: LessonProgressDbRow): LessonProgressRow {
     return {
       userId: row.user_id,
       module: row.module,
       lessonId: row.lesson_id,
-      status: row.status as LessonStatus,
+      status: row.status,
       score: row.score,
       attempts: row.attempts,
       currentExercise: row.current_exercise,
-      exerciseResults: JSON.parse(row.exercise_results || "[]"),
+      exerciseResults: parseJsonArray<ExerciseResult>(row.exercise_results),
       startedAt: row.started_at,
       completedAt: row.completed_at,
     };
