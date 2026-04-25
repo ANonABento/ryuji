@@ -44,6 +44,7 @@ describe("plugin tool registration", () => {
     expect(names).toContain("lesson_status");
     expect(names).toContain("random_word");
     expect(names.length).toBe(12);
+    expect(plugin.userTools.every((name: string) => names.includes(name))).toBe(true);
   });
 
   test("socials plugin exports 33 tools", async () => {
