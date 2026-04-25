@@ -11,6 +11,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { randomBytes } from "node:crypto";
+import type { LinkedInProfile, LinkedInPostResult } from "../types.ts";
 
 // --- Constants ---
 
@@ -33,18 +34,6 @@ export interface LinkedInTokens {
   refreshExpiresAt?: number; // Unix ms
   personUrn?: string; // urn:li:person:{id}
   name?: string;
-}
-
-export interface LinkedInProfile {
-  sub: string; // person ID
-  name: string;
-  email?: string;
-  picture?: string;
-}
-
-export interface LinkedInPostResult {
-  id: string;
-  url?: string;
 }
 
 interface PendingAuth {
