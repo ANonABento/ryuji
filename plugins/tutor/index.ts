@@ -20,17 +20,15 @@ import { japaneseLessons, japaneseUnits } from "./modules/japanese/lessons/index
 
 import {
   buildExerciseButtons,
+  buildLessonCompletionComponents,
+  buildResultEmbed,
+  buildSummaryEmbed,
   clearActiveSession,
   hasActiveTypingExercise,
   handleTypedAnswer,
 } from "./lesson-interactions.ts";
 import { getActiveModule } from "./core/session.ts";
-import {
-  EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-} from "discord.js";
+import { EmbedBuilder } from "discord.js";
 import { updateFromLessonCompletion } from "./core/learner-profile.ts";
 
 // SRS reminder state (cleaned up in destroy)
@@ -111,58 +109,36 @@ const tutorPlugin: Plugin = {
 
     // Get correct count from DB
     const db = getLessonDB();
-    const progress = db?.getProgress(userId, session.module, session.lessonId);
+    if (!db) return;
+    const progress = db.getProgress(userId, session.module, session.lessonId);
     const correctSoFar = progress?.exerciseResults.filter((r) => r.correct).length ?? 0;
 
-    const resultEmbed = new EmbedBuilder()
-      .setColor(exerciseResult.correct ? 0x57f287 : 0xed4245)
-      .setDescription(exerciseResult.feedback)
-      .setFooter({ text: `Score: ${correctSoFar}/${session.lesson.exercises.length}` });
+    const resultEmbed = buildResultEmbed(
+      exerciseResult.correct,
+      exerciseResult.feedback,
+      correctSoFar,
+      session.lesson.exercises.length
+    );
 
     // Check if lesson is done
     if (session.exerciseIndex >= session.lesson.exercises.length) {
-      const completion = completeLesson(db!, userId, session.module, session.lessonId);
+      const completion = completeLesson(db, userId, session.module, session.lessonId);
 
       // Update learner profile
-      updateFromLessonCompletion(db!, userId, session.module);
+      updateFromLessonCompletion(db, userId, session.module);
       clearActiveSession(userId);
 
-      const pct = Math.round(completion.score * 100);
-      const passed = completion.passed;
-
-      const summaryEmbed = new EmbedBuilder()
-        .setTitle(passed ? "🎉 Lesson Complete!" : "📝 Keep Practicing!")
-        .setColor(passed ? 0x57f287 : 0xfee75c)
-        .setDescription(
-          `**${session.lesson.title}** — ${pct}% (${completion.totalCorrect}/${completion.totalExercises})`
-        );
-
-      const components: ActionRowBuilder<ButtonBuilder>[] = [];
-      if (passed) {
-        if (session.lesson.srsItems && session.lesson.srsItems.length > 0) {
-          summaryEmbed.addFields({
-            name: "📚 Added to SRS",
-            value: `${session.lesson.srsItems.length} items added to your review deck`,
-          });
-        }
-        components.push(
-          new ActionRowBuilder<ButtonBuilder>().addComponents(
-            new ButtonBuilder()
-              .setCustomId("lesson:next")
-              .setLabel("Next Lesson →")
-              .setStyle(ButtonStyle.Success)
-          )
-        );
-      } else {
-        components.push(
-          new ActionRowBuilder<ButtonBuilder>().addComponents(
-            new ButtonBuilder()
-              .setCustomId(`lesson:retry:${session.lessonId}`)
-              .setLabel("Try Again")
-              .setStyle(ButtonStyle.Primary)
-          )
-        );
-      }
+      const summaryEmbed = buildSummaryEmbed(
+        session.lesson,
+        completion.score,
+        completion.passed,
+        completion.totalCorrect,
+        completion.totalExercises
+      );
+      const components = buildLessonCompletionComponents(
+        completion.passed,
+        session.lessonId
+      );
 
       await message.reply({ embeds: [resultEmbed, summaryEmbed], components });
       return;
