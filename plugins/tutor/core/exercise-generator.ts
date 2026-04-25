@@ -46,33 +46,14 @@ export function generateExercises(
       return generateProduction(items);
     case "matching":
       return generateMatching(items);
+    default:
+      return generateRecognition(items);
   }
-}
-
-const DEFAULT_EXERCISE_MODES: readonly ExerciseMode[] = [
-  "recognition",
-  "production",
-  "matching",
-];
-
-function uniqueMeaningsExcept(items: ContentItem[], answer: string): string[] {
-  return [...new Set(items.map((item) => item.meaning))].filter(
-    (meaning) => meaning !== answer
-  );
-}
-
-function shuffle<T>(items: readonly T[]): T[] {
-  const shuffled = [...items];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
 }
 
 /** Generate all available exercises from a content set (one per mode) */
 export function generateAllExercises(content: ContentSet): Exercise[] {
-  const modes = content.modes ?? DEFAULT_EXERCISE_MODES;
+  const modes = content.modes ?? ["recognition", "production", "matching"];
   const exercises: Exercise[] = [];
   for (const mode of modes) {
     exercises.push(...generateExercises(content, mode));
@@ -82,28 +63,21 @@ export function generateAllExercises(content: ContentSet): Exercise[] {
 
 // --- Recognition: see term → pick meaning ---
 
-function generateRecognition(
-  items: ContentItem[],
-  distractorPool: ContentItem[] = items
-): Exercise[] {
-  const exercises: Exercise[] = [];
+function generateRecognition(items: ContentItem[]): Exercise[] {
+  return items.map((item) => {
+    const distractors = items
+      .filter((i) => i.meaning !== item.meaning)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 3)
+      .map((i) => i.meaning);
 
-  for (const item of items) {
-    const distractors = shuffle(
-      uniqueMeaningsExcept(distractorPool, item.meaning)
-    ).slice(0, 3);
-
-    if (distractors.length === 0) continue;
-
-    exercises.push({
+    return {
       type: "recognition" as const,
       prompt: `What does **${item.term}** (${item.reading}) mean?`,
       answer: item.meaning,
       distractors,
-    });
-  }
-
-  return exercises;
+    };
+  });
 }
 
 // --- Production: see meaning → type term ---
@@ -127,21 +101,17 @@ function generateMatching(items: ContentItem[]): Exercise[] {
   for (let i = 0; i < items.length; i += maxPerGroup) {
     const group = items.slice(i, i + maxPerGroup);
     if (group.length < 2) {
-      // Too few for matching; use the full content set for recognition distractors.
-      exercises.push(...generateRecognition(group, items));
-      continue;
-    }
-
-    if ([...new Set(group.map((item) => item.meaning))].length < 2) {
-      // Matching cannot work without at least two distinct button choices.
-      exercises.push(...generateRecognition(group, items));
+      // Too few for matching, fall back to recognition
+      exercises.push(...generateRecognition(group));
       continue;
     }
 
     // Create one exercise per pair in the group
     // Each exercise shows a term and asks to pick the matching meaning
     for (const item of group) {
-      const distractors = uniqueMeaningsExcept(group, item.meaning);
+      const distractors = group
+        .filter((g) => g.meaning !== item.meaning)
+        .map((g) => g.meaning);
 
       exercises.push({
         type: "matching" as const,

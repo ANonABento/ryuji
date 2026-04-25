@@ -67,12 +67,6 @@ const allExercises = generateAllExercises(greetingsContent);
 
 4 items × 3 modes = 12 exercises from one content set.
 
-Button modes require at least two distinct meanings. The generator skips
-impossible one-button recognition prompts and falls back from matching to
-recognition when a group does not have enough distinct answer choices.
-
-Mode selection in Discord is currently deferred. Lessons compile content sets into concrete exercises at module load time, so `/lesson` always presents the authored exercise order. Add a picker only after lesson data stores selectable practice-set metadata instead of replacing `Lesson.exercises`.
-
 You can mix content set exercises with hand-written ones in the same lesson:
 
 ```typescript
@@ -103,19 +97,3 @@ Target 10-12 exercises per lesson. Mix types:
 ### Mastery Threshold
 
 80% to pass. Design exercises so a student who understood the intro should score ~90%. If too many students fail, the exercises are too hard — add easier warm-up exercises at the start.
-
-## Deferred Scope
-
-- Random word auto-posting needs a channel/config ownership model before it can run automatically. Keep `random_word` as an explicit tool until that exists.
-- User-selected exercise mode picking is deferred until active lesson sessions can store the exact selected exercise set and completion scoring can use that set as the denominator.
-- SRS reminder preferences are user-controlled through `srs_reminders` and persisted in `LessonDB`. Keep reminder opt-out and cooldown state there rather than in worker memory.
-
-## Smoke Test
-
-Run this manually in a development Discord server after lesson catalog changes:
-
-1. Use `/lesson` and confirm the intro embed appears for the first uncompleted lesson.
-2. Click `Start Exercises` and confirm the first exercise renders correctly: answer buttons for recognition, multiple-choice, chart, and matching exercises; `Type your answer below` for production and cloze exercises.
-3. Complete lesson `2.1` end-to-end and confirm the `Lesson Complete!` summary appears and lesson SRS items are added.
-4. Use `/progress` and confirm four unit bars appear: Hiragana, Katakana, First Words & Phrases, and Basic Grammar.
-5. While a `furiganaLevel: "partial"` lesson is active, call `tutor_prompt` and confirm the prompt includes the partial-furigana directive.

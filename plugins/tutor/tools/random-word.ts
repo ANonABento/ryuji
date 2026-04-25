@@ -11,7 +11,7 @@ let vocabCache: Array<{ front: string; back: string; reading: string }> | null =
 async function getVocab() {
   if (vocabCache) return vocabCache;
   const data = await import("../modules/japanese/data/n5-vocab.json");
-  vocabCache = data.default;
+  vocabCache = Array.isArray(data.default) ? data.default : data;
   return vocabCache;
 }
 
