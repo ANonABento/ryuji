@@ -25,13 +25,10 @@ import {
   scoreExercise,
   completeLesson,
   getProgressData,
+  getLesson,
+  getUnits,
 } from "./core/lesson-engine.ts";
 import type { Exercise, Lesson } from "./core/lesson-types.ts";
-import { isButtonExercise, isTypingExercise } from "./core/lesson-types.ts";
-import {
-  countCorrectResults,
-  getShuffledExerciseChoices,
-} from "./core/exercise-utils.ts";
 import { updateFromLessonCompletion } from "./core/learner-profile.ts";
 
 // --- Active lesson sessions (in-memory, keyed by userId) ---
@@ -99,14 +96,17 @@ function buildExerciseButtons(
   lessonId: string,
   exerciseIndex: number
 ): ActionRowBuilder<ButtonBuilder>[] {
-  if (isButtonExercise(exercise.type)) {
+  if (exercise.type === "recognition" || exercise.type === "multiple_choice" || exercise.type === "chart" || exercise.type === "matching") {
+    // Shuffle answer + distractors
+    const options = [exercise.answer, ...(exercise.distractors ?? [])];
+    const shuffled = options.sort(() => Math.random() - 0.5);
+
     const row = new ActionRowBuilder<ButtonBuilder>();
-    const choices = getShuffledExerciseChoices(exercise);
-    for (let i = 0; i < Math.min(choices.length, 5); i++) {
+    for (let i = 0; i < Math.min(shuffled.length, 5); i++) {
       row.addComponents(
         new ButtonBuilder()
-          .setCustomId(`lesson:answer:${lessonId}:${exerciseIndex}:${choices[i]}`)
-          .setLabel(choices[i])
+          .setCustomId(`lesson:answer:${lessonId}:${exerciseIndex}:${shuffled[i]}`)
+          .setLabel(shuffled[i])
           .setStyle(ButtonStyle.Secondary)
       );
     }
@@ -182,7 +182,10 @@ async function sendNextExercise(
     activeSessions.delete(userId);
 
     // Update learner profile
-    updateFromLessonCompletion(db, userId, module);
+    const progress = db.getProgress(userId, module, lessonId);
+    if (progress) {
+      updateFromLessonCompletion(db, userId, module, lessonId, result.score, progress.exerciseResults);
+    }
 
     const summary = buildSummaryEmbed(lesson, result.score, result.passed, result.totalCorrect, result.totalExercises);
 
@@ -356,7 +359,7 @@ registerCommand("progress", {
 
 // --- Button Handlers ---
 
-registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
+registerButtonHandler("lesson", async (interaction, parts, ctx) => {
   const action = parts[1];
   const userId = interaction.user.id;
   const db = getLessonDB();
@@ -406,7 +409,7 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
 
     // Count correct so far
     const progress = db.getProgress(userId, session.module, lessonId);
-    const correctSoFar = countCorrectResults(progress?.exerciseResults);
+    const correctSoFar = (progress?.exerciseResults.filter((r) => r.correct).length ?? 0) + (result.correct ? 1 : 0);
 
     // Move to next exercise
     session.exerciseIndex = exerciseIndex + 1;
@@ -530,7 +533,7 @@ export function handleTypedAnswer(
   if (!exercise) return null;
 
   // Only handle typing exercises
-  if (!isTypingExercise(exercise.type)) return null;
+  if (exercise.type !== "production" && exercise.type !== "cloze") return null;
 
   const db = getLessonDB();
   if (!db) return null;
@@ -554,15 +557,10 @@ export function hasActiveTypingExercise(userId: string): boolean {
   if (!session) return false;
   const exercise = session.lesson.exercises[session.exerciseIndex];
   if (!exercise) return false;
-  return isTypingExercise(exercise.type);
+  return exercise.type === "production" || exercise.type === "cloze";
 }
 
 /** Get active session for a user */
-function getActiveSession(userId: string): ActiveSession | undefined {
+export function getActiveSession(userId: string): ActiveSession | undefined {
   return activeSessions.get(userId);
-}
-
-/** Clear any active session for a user */
-export function clearActiveSession(userId: string): void {
-  activeSessions.delete(userId);
 }

@@ -9,22 +9,6 @@ import { FSRS, createEmptyCard, Rating, type Card } from "ts-fsrs";
 import { Database } from "bun:sqlite";
 import { nowUTC, toSQLiteDatetime } from "@choomfie/shared";
 
-type SRSCardDbRow = {
-  id: number;
-  user_id: string;
-  front: string;
-  back: string;
-  reading: string;
-  deck: string;
-  tags: string;
-  card_state: string;
-  next_review: string;
-  created_at: string;
-};
-
-type CountRow = { c: number };
-type DueCountRow = { user_id: string; count: number };
-
 export interface SRSCard {
   id: number;
   userId: string;
@@ -132,7 +116,7 @@ export class SRSManager {
       : `SELECT * FROM srs_cards WHERE user_id = ? AND next_review <= ? ORDER BY next_review ASC LIMIT ?`;
 
     const params = deck ? [userId, deck, now, limit] : [userId, now, limit];
-    const rows = this.db.query(query).all(...params) as SRSCardDbRow[];
+    const rows = this.db.query(query).all(...params) as any[];
     return rows.map(this.rowToCard);
   }
 
@@ -143,7 +127,7 @@ export class SRSManager {
   ): ReviewResult {
     const row = this.db
       .query("SELECT * FROM srs_cards WHERE id = ?")
-      .get(cardId) as SRSCardDbRow | null;
+      .get(cardId) as any;
 
     if (!row) throw new Error(`Card #${cardId} not found`);
     if (row.user_id !== userId) {
@@ -189,7 +173,7 @@ export class SRSManager {
     const params = deck ? [userId, deck] : [userId];
 
     const total = (
-      this.db.query(`SELECT COUNT(*) as c FROM srs_cards WHERE ${where}`).get(...params) as CountRow
+      this.db.query(`SELECT COUNT(*) as c FROM srs_cards WHERE ${where}`).get(...params) as any
     ).c;
 
     const due = (
@@ -197,7 +181,7 @@ export class SRSManager {
         .query(
           `SELECT COUNT(*) as c FROM srs_cards WHERE ${where} AND next_review <= ?`
         )
-        .get(...params, now) as CountRow
+        .get(...params, now) as any
     ).c;
 
     const learned = (
@@ -205,7 +189,7 @@ export class SRSManager {
         .query(
           `SELECT COUNT(*) as c FROM srs_cards WHERE ${where} AND card_state != ?`
         )
-        .get(...params, this.emptyCardState) as CountRow
+        .get(...params, this.emptyCardState) as any
     ).c;
 
     return { total, due, learned };
@@ -216,7 +200,7 @@ export class SRSManager {
     const now = nowUTC();
     const rows = this.db.query(
       `SELECT user_id, COUNT(*) as count FROM srs_cards WHERE next_review <= ? GROUP BY user_id`
-    ).all(now) as DueCountRow[];
+    ).all(now) as Array<{ user_id: string; count: number }>;
 
     const result = new Map<string, number>();
     for (const row of rows) {
@@ -231,12 +215,12 @@ export class SRSManager {
         .query(
           "SELECT COUNT(*) as c FROM srs_cards WHERE user_id = ? AND deck = ?"
         )
-        .get(userId, deck) as CountRow
+        .get(userId, deck) as any
     ).c;
     return count > 0;
   }
 
-  private rowToCard(row: SRSCardDbRow): SRSCard {
+  private rowToCard(row: any): SRSCard {
     return {
       id: row.id,
       userId: row.user_id,

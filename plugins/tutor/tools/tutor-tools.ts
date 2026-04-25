@@ -8,7 +8,7 @@ import { text, err } from "@choomfie/shared";
 import { getActiveModule, getModuleLevel, setLevel } from "../core/session.ts";
 import { getModule } from "../modules/index.ts";
 import { getLessonDB } from "../core/lesson-db-instance.ts";
-import { formatForPrompt } from "../core/learner-profile.ts";
+import { getProfile, formatForPrompt } from "../core/learner-profile.ts";
 import { getActiveSession } from "../lesson-interactions.ts";
 
 export const tutorTools: ToolDef[] = [
@@ -42,7 +42,7 @@ export const tutorTools: ToolDef[] = [
       // Append learner profile if available
       const db = getLessonDB();
       if (db) {
-        const profile = db.getProfile(userId, moduleName);
+        const profile = getProfile(db, userId, moduleName);
         if (profile) {
           prompt += "\n\n" + formatForPrompt(profile);
         }
@@ -102,8 +102,8 @@ export const tutorTools: ToolDef[] = [
           .join("\n\n");
 
         return text(formatted);
-      } catch (error: unknown) {
-        return err(`Lookup error: ${error instanceof Error ? error.message : String(error)}`);
+      } catch (e: any) {
+        return err(`Lookup error: ${e.message}`);
       }
     },
   },

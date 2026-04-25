@@ -7,7 +7,6 @@
  */
 
 import type { Exercise } from "./lesson-types.ts";
-import { pickRandomItems } from "./exercise-utils.ts";
 
 /** A single teachable item */
 export interface ContentItem {
@@ -66,10 +65,11 @@ export function generateAllExercises(content: ContentSet): Exercise[] {
 
 function generateRecognition(items: ContentItem[]): Exercise[] {
   return items.map((item) => {
-    const distractors = pickRandomItems(
-      items.filter((i) => i.meaning !== item.meaning),
-      3,
-    ).map((i) => i.meaning);
+    const distractors = items
+      .filter((i) => i.meaning !== item.meaning)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 3)
+      .map((i) => i.meaning);
 
     return {
       type: "recognition" as const,
