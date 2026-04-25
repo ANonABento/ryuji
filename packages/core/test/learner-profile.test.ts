@@ -124,31 +124,6 @@ describe("updateFromLessonCompletion", () => {
     expect(p.lessonsCompleted).toBe(2);
     db.close();
   });
-
-  test("preferred exercise type uses stored result metadata for filtered mode sessions", async () => {
-    const db = await makeDB();
-    db.startLesson("u1", "test-module", "1.1");
-    db.saveExerciseResult("u1", "test-module", "1.1", 0, {
-      index: 0,
-      exerciseType: "production",
-      correct: true,
-      userAnswer: "a",
-    });
-    db.saveExerciseResult("u1", "test-module", "1.1", 1, {
-      index: 1,
-      exerciseType: "production",
-      correct: true,
-      userAnswer: "b",
-    });
-    db.completeLesson("u1", "test-module", "1.1", 1);
-
-    updateFromLessonCompletion(db, "u1", "test-module");
-
-    expect(db.getProfile("u1", "test-module")!.preferredExerciseType).toBe(
-      "production (100% accuracy)"
-    );
-    db.close();
-  });
 });
 
 describe("streak math", () => {
