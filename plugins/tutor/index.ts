@@ -18,8 +18,6 @@ import { getAllTutorTools } from "./tools/index.ts";
 import { listModules } from "./modules/index.ts";
 import { japaneseLessons, japaneseUnits } from "./modules/japanese/lessons/index.ts";
 
-// Side-effect import: registers /lesson, /progress commands + button handlers
-import "./lesson-interactions.ts";
 import { hasActiveTypingExercise, handleTypedAnswer } from "./lesson-interactions.ts";
 import {
   EmbedBuilder,
@@ -170,11 +168,9 @@ const tutorPlugin: Plugin = {
       .setTitle(`Exercise ${session.exerciseIndex + 1}/${session.lesson.exercises.length}`)
       .setDescription(nextExercise.prompt);
 
-    // Build buttons for MC exercises, or typing prompt
-    const isTyping = nextExercise.type === "production" || nextExercise.type === "cloze";
     const components: ActionRowBuilder<ButtonBuilder>[] = [];
 
-    if (!isTyping && isButtonExercise(nextExercise.type)) {
+    if (isButtonExercise(nextExercise.type)) {
       const options = [nextExercise.answer, ...(nextExercise.distractors ?? [])];
       const shuffled = options.sort(() => Math.random() - 0.5);
       const row = new ActionRowBuilder<ButtonBuilder>();
