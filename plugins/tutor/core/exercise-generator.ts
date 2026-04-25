@@ -6,16 +6,24 @@
  * One content set → multiple exercise modes → 3x variety.
  */
 
-import type {
-  ContentItem,
-  ContentSet,
-  Exercise,
-  ExerciseMode,
-  Lesson,
-  PracticeMode,
-} from "./lesson-types.ts";
+import type { Exercise } from "./lesson-types.ts";
 
-export type { ContentItem, ContentSet, ExerciseMode } from "./lesson-types.ts";
+/** A single teachable item */
+export interface ContentItem {
+  term: string;      // e.g. "あ" or "食べる"
+  reading: string;   // e.g. "a" or "たべる"
+  meaning: string;   // e.g. "a (vowel)" or "to eat"
+}
+
+/** Exercise generation mode */
+export type ExerciseMode = "recognition" | "production" | "matching";
+
+/** A set of content that can generate exercises in multiple modes */
+export interface ContentSet {
+  items: ContentItem[];
+  /** Which modes to generate. Defaults to all. */
+  modes?: ExerciseMode[];
+}
 
 /**
  * Generate exercises from a content set in a given mode.
@@ -38,58 +46,19 @@ export function generateExercises(
       return generateProduction(items);
     case "matching":
       return generateMatching(items);
+    default:
+      return generateRecognition(items);
   }
 }
 
-export const DEFAULT_EXERCISE_MODES: readonly ExerciseMode[] = [
-  "recognition",
-  "production",
-  "matching",
-];
-
 /** Generate all available exercises from a content set (one per mode) */
 export function generateAllExercises(content: ContentSet): Exercise[] {
-  const modes = content.modes ?? DEFAULT_EXERCISE_MODES;
+  const modes = content.modes ?? ["recognition", "production", "matching"];
   const exercises: Exercise[] = [];
   for (const mode of modes) {
     exercises.push(...generateExercises(content, mode));
   }
   return exercises;
-}
-
-export function selectableModesForLesson(lesson: Lesson): PracticeMode[] {
-  if (!lesson.contentSets || lesson.contentSets.length === 0) return [];
-
-  const supportedModes = new Set<ExerciseMode>();
-  for (const contentSet of lesson.contentSets) {
-    for (const mode of contentSet.modes ?? DEFAULT_EXERCISE_MODES) {
-      supportedModes.add(mode);
-    }
-  }
-
-  const requestedModes = lesson.selectableModes ?? [...supportedModes, "mixed"];
-  return requestedModes.filter((mode) => mode === "mixed" || supportedModes.has(mode));
-}
-
-export function selectExercisesForMode(lesson: Lesson, mode: PracticeMode): Exercise[] {
-  if (!lesson.contentSets || lesson.contentSets.length === 0) {
-    return [...lesson.exercises];
-  }
-
-  const exercises: Exercise[] = [];
-  for (const contentSet of lesson.contentSets) {
-    if (mode === "mixed") {
-      exercises.push(...generateAllExercises(contentSet));
-      continue;
-    }
-
-    const modes = contentSet.modes ?? DEFAULT_EXERCISE_MODES;
-    if (modes.includes(mode)) {
-      exercises.push(...generateExercises(contentSet, mode));
-    }
-  }
-
-  return exercises.length > 0 ? exercises : [...lesson.exercises];
 }
 
 // --- Recognition: see term → pick meaning ---

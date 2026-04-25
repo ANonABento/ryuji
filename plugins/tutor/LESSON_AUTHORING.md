@@ -40,8 +40,7 @@ Set `furiganaLevel` on each lesson to control reading aids:
 Define content sets instead of hand-writing individual exercises. The exercise generator creates exercises automatically:
 
 ```typescript
-import type { ContentSet } from "../../../core/lesson-types.ts";
-import { generateExercises } from "../../../core/exercise-generator.ts";
+import { generateExercises, type ContentSet } from "../../../core/exercise-generator.ts";
 
 const greetingsContent: ContentSet = {
   items: [
@@ -67,21 +66,6 @@ const allExercises = generateAllExercises(greetingsContent);
 | `matching` | Buttons | Match term to meaning (sequential pairs) |
 
 4 items × 3 modes = 12 exercises from one content set.
-
-Lessons can expose a Discord mode picker by carrying source content sets alongside the authored default exercises:
-
-```typescript
-{
-  exercises: [
-    ...generateExercises(greetingsContent, "recognition"),
-    ...generateExercises(greetingsContent, "production").slice(0, 3),
-  ],
-  contentSets: [greetingsContent],
-  selectableModes: ["recognition", "production", "matching", "mixed"],
-}
-```
-
-The in-memory lesson session stores the exact generated exercise list selected by the user. Scoring totals must read from the session exercise list, not the authored `Lesson.exercises` fallback.
 
 You can mix content set exercises with hand-written ones in the same lesson:
 
@@ -110,30 +94,6 @@ Target 10-12 exercises per lesson. Mix types:
 - 30% production (harder, builds recall)
 - 10% review/chart (reinforcement)
 
-### Chart Exercises
-
-Chart review exercises should store structured chart data, not only a rendered prompt string. Use the kana `chartReview()` helper where possible. It creates a `chart` exercise with:
-
-- `grid`: a 2D array where `null` marks blanks
-- `blanks`: ordered blank coordinates and answers
-- `rowLabels` / `colLabels`: optional labels for rendering
-
-At runtime, structured chart exercises expand into one scored exercise per blank. Button custom IDs use short tokens and never include raw kana or readings.
-
 ### Mastery Threshold
 
 80% to pass. Design exercises so a student who understood the intro should score ~90%. If too many students fail, the exercises are too hard — add easier warm-up exercises at the start.
-
-## Deferred Scope
-
-- Random word auto-posting needs a channel/config ownership model before it can run automatically. Keep `random_word` as an explicit tool until that exists.
-
-## Smoke Test
-
-Run this manually in a development Discord server after lesson catalog changes:
-
-1. Use `/lesson` and confirm the intro embed appears for the first uncompleted lesson.
-2. Click `Start Exercises` and confirm the first exercise renders correctly: answer buttons for recognition, multiple-choice, chart, and matching exercises; `Type your answer below` for production and cloze exercises.
-3. Complete lesson `2.1` end-to-end and confirm the `Lesson Complete!` summary appears and lesson SRS items are added.
-4. Use `/progress` and confirm four unit bars appear: Hiragana, Katakana, First Words & Phrases, and Basic Grammar.
-5. While a `furiganaLevel: "partial"` lesson is active, call `tutor_prompt` and confirm the prompt includes the partial-furigana directive.
