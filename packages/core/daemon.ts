@@ -29,7 +29,7 @@ import {
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import { readFile, writeFile, unlink, mkdir } from "node:fs/promises";
-import { findMonorepoRoot } from "@choomfie/shared";
+import { errorMessage, findMonorepoRoot } from "@choomfie/shared";
 
 // --- Constants ---
 
@@ -141,7 +141,12 @@ async function acquirePid(): Promise<void> {
         const output = (await new Response(proc.stdout).text()).trim();
         await proc.exited;
 
-        if (output && (output.includes("daemon.ts") || output.includes("meta.ts"))) {
+        if (
+          output &&
+          (output.includes("daemon.ts") ||
+            output.includes("meta.ts") ||
+            output.includes("choomfie"))
+        ) {
           // Check if it's orphaned (parent = 1 = launchd)
           const ppid = parseInt(output.trim(), 10);
           const isOrphaned = ppid === 1;
@@ -340,8 +345,8 @@ async function startSession(
   state.session = session;
 
   // Start consuming the session stream in the background
-  consumeSessionStream(state).catch((err) => {
-    log(`Session stream error: ${err.message || err}`);
+  consumeSessionStream(state).catch((err: unknown) => {
+    log(`Session stream error: ${errorMessage(err)}`);
     handleStreamError(state, err);
   });
 
@@ -398,8 +403,8 @@ async function consumeSessionStream(state: MetaState): Promise<void> {
     for await (const message of state.session) {
       handleSessionMessage(state, message);
     }
-  } catch (err: any) {
-    if (err.name === "AbortError") {
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === "AbortError") {
       log("Session aborted");
     } else {
       throw err; // Re-throw so the caller's .catch() handles it
@@ -415,14 +420,16 @@ const MAX_ERROR_RETRIES = 10;
  * Handle session stream errors with auto-restart and exponential backoff.
  * Uses a loop instead of recursion to prevent stack overflow on persistent failures.
  */
-async function handleStreamError(state: MetaState, err: any): Promise<void> {
+async function handleStreamError(state: MetaState, err: unknown): Promise<void> {
   if (state.state === "CYCLING" || state.state === "DRAINING") {
     verbose("Stream error during cycling/draining — ignoring");
     return;
   }
 
   for (let attempt = 1; attempt <= MAX_ERROR_RETRIES; attempt++) {
-    log(`Session stream failed: ${err.message || err} (attempt ${attempt}/${MAX_ERROR_RETRIES})`);
+    log(
+      `Session stream failed: ${errorMessage(err)} (attempt ${attempt}/${MAX_ERROR_RETRIES})`
+    );
 
     // Clean up current session and stop monitoring
     stopWorkerHealthMonitor(state);
@@ -450,7 +457,7 @@ async function handleStreamError(state: MetaState, err: any): Promise<void> {
       await startSession(state, lastSummary);
       log("Session restarted successfully after error");
       return; // Success — exit retry loop
-    } catch (restartErr: any) {
+    } catch (restartErr: unknown) {
       err = restartErr; // Use this error for the next iteration's log
     }
   }
@@ -503,7 +510,8 @@ function handleSessionMessage(state: MetaState, message: SDKMessage): void {
     }
 
     case "system": {
-      if ((message as any).subtype === "compact_boundary") {
+      const systemMessage = message as SDKMessage & { subtype?: string };
+      if (systemMessage.subtype === "compact_boundary") {
         log("Context compaction occurred");
       }
       break;
@@ -543,10 +551,10 @@ function startContextMonitor(state: MetaState): void {
         log("Threshold reached — initiating session cycle");
         await cycleSession(state, tokens);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       state.contextCheckFailures++;
       log(
-        `Context check failed (${state.contextCheckFailures}/${CONTEXT_CHECK_FAILURE_LIMIT}): ${err.message || err}`
+        `Context check failed (${state.contextCheckFailures}/${CONTEXT_CHECK_FAILURE_LIMIT}): ${errorMessage(err)}`
       );
 
       // Fall back to turn-count-based cycling if context checks keep failing
@@ -614,8 +622,8 @@ async function captureHandoffSummary(state: MetaState): Promise<string> {
       log(`Using lastAssistantText as summary (${state.lastAssistantText.length} chars)`);
       return state.lastAssistantText;
     }
-  } catch (err: any) {
-    log(`Handoff summary capture failed: ${err.message || err}`);
+  } catch (err: unknown) {
+    log(`Handoff summary capture failed: ${errorMessage(err)}`);
     // Try the last assistant text as fallback
     if (state.lastAssistantText) {
       log("Falling back to last assistant text for summary");
@@ -686,8 +694,8 @@ async function cycleSession(state: MetaState, tokenCount?: number): Promise<void
   try {
     state.closeGenerator?.();
     state.session?.close();
-  } catch (err: any) {
-    log(`Error closing session: ${err.message || err}`);
+  } catch (err: unknown) {
+    log(`Error closing session: ${errorMessage(err)}`);
   }
 
   state.session = null;
@@ -732,8 +740,8 @@ async function testCycle(): Promise<void> {
   try {
     const result = await waitForResult(state, 30_000);
     log(`Got response: ${result.result?.slice(0, 200)}`);
-  } catch (err: any) {
-    log(`Response wait failed: ${err.message}`);
+  } catch (err: unknown) {
+    log(`Response wait failed: ${errorMessage(err)}`);
   }
 
   // Wait 10 seconds then trigger cycle
@@ -785,8 +793,8 @@ async function testCycle(): Promise<void> {
   try {
     const result2 = await waitForResult(state, 30_000);
     log(`Post-cycle response: ${result2.result?.slice(0, 200)}`);
-  } catch (err: any) {
-    log(`Post-cycle response wait failed: ${err.message}`);
+  } catch (err: unknown) {
+    log(`Post-cycle response wait failed: ${errorMessage(err)}`);
   }
 
   log("=== TEST COMPLETE: Session Cycling ===");
@@ -826,8 +834,8 @@ async function benchmark(): Promise<void> {
       const elapsed = performance.now() - start;
       latencies.push(elapsed);
       log(`  Latency: ${elapsed.toFixed(0)}ms`);
-    } catch (err: any) {
-      log(`  FAILED: ${err.message}`);
+    } catch (err: unknown) {
+      log(`  FAILED: ${errorMessage(err)}`);
     }
 
     // Small gap between messages
@@ -935,8 +943,8 @@ function startWorkerHealthMonitor(state: MetaState): void {
   state.workerHealthTimer = setInterval(async () => {
     try {
       await checkWorkerHealth(state);
-    } catch (err: any) {
-      log(`Worker health check error: ${err.message || err}`);
+    } catch (err: unknown) {
+      log(`Worker health check error: ${errorMessage(err)}`);
     }
   }, WORKER_HEALTH_INTERVAL);
 }
@@ -985,8 +993,8 @@ async function writeDaemonState(state: MetaState): Promise<void> {
 
   try {
     await writeFile(DAEMON_STATE_PATH, JSON.stringify(data, null, 2));
-  } catch (err: any) {
-    log(`Failed to write daemon state: ${err.message}`);
+  } catch (err: unknown) {
+    log(`Failed to write daemon state: ${errorMessage(err)}`);
   }
 }
 
@@ -1094,8 +1102,8 @@ async function stopDaemon(): Promise<void> {
     await unlink(PID_PATH).catch(() => {});
     console.error("Daemon killed");
     process.exit(0);
-  } catch (err: any) {
-    console.error(`Failed to stop daemon: ${err.message}`);
+  } catch (err: unknown) {
+    console.error(`Failed to stop daemon: ${errorMessage(err)}`);
     process.exit(1);
   }
 }
