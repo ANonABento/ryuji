@@ -51,6 +51,12 @@ export function generateExercises(
 
 const ALL_MODES: ExerciseMode[] = ["recognition", "production", "matching"];
 
+function uniqueMeaningsExcept(items: ContentItem[], answer: string): string[] {
+  return [...new Set(items.map((item) => item.meaning))].filter(
+    (meaning) => meaning !== answer
+  );
+}
+
 /** Generate all available exercises from a content set (one per mode) */
 export function generateAllExercises(content: ContentSet): Exercise[] {
   const modes = content.modes ?? ALL_MODES;
@@ -65,11 +71,9 @@ export function generateAllExercises(content: ContentSet): Exercise[] {
 
 function generateRecognition(items: ContentItem[]): Exercise[] {
   return items.map((item) => {
-    const distractors = items
-      .filter((i) => i.meaning !== item.meaning)
+    const distractors = uniqueMeaningsExcept(items, item.meaning)
       .sort(() => Math.random() - 0.5)
-      .slice(0, 3)
-      .map((i) => i.meaning);
+      .slice(0, 3);
 
     return {
       type: "recognition" as const,
@@ -109,9 +113,7 @@ function generateMatching(items: ContentItem[]): Exercise[] {
     // Create one exercise per pair in the group
     // Each exercise shows a term and asks to pick the matching meaning
     for (const item of group) {
-      const distractors = group
-        .filter((g) => g.meaning !== item.meaning)
-        .map((g) => g.meaning);
+      const distractors = uniqueMeaningsExcept(group, item.meaning);
 
       exercises.push({
         type: "matching" as const,

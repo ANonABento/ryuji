@@ -41,6 +41,23 @@ describe("exercise-generator", () => {
     }
   });
 
+  test("recognition: repeated meanings do not create duplicate answer choices", () => {
+    const items: ContentItem[] = [
+      { term: "本", reading: "ほん", meaning: "book" },
+      { term: "ノート", reading: "のーと", meaning: "notebook" },
+      { term: "手帳", reading: "てちょう", meaning: "notebook" },
+      { term: "水", reading: "みず", meaning: "water" },
+    ];
+
+    const ex = generateExercises({ items }, "recognition");
+
+    for (const e of ex) {
+      const choices = [e.answer, ...(e.distractors ?? [])];
+      expect(new Set(choices).size).toBe(choices.length);
+      expect(e.distractors).not.toContain(e.answer);
+    }
+  });
+
   test("production: includes reading in accept[]", () => {
     const ex = generateExercises({ items: SAMPLE }, "production");
     expect(ex.length).toBe(SAMPLE.length);
@@ -67,6 +84,24 @@ describe("exercise-generator", () => {
     // Remaining group of 3 still has >=2 items so stays as matching
     for (let i = 5; i < 8; i++) {
       expect(ex[i].type).toBe("matching");
+    }
+  });
+
+  test("matching: repeated meanings do not create duplicate answer choices", () => {
+    const items: ContentItem[] = [
+      { term: "本", reading: "ほん", meaning: "book" },
+      { term: "ノート", reading: "のーと", meaning: "notebook" },
+      { term: "手帳", reading: "てちょう", meaning: "notebook" },
+      { term: "水", reading: "みず", meaning: "water" },
+      { term: "電話", reading: "でんわ", meaning: "phone" },
+    ];
+
+    const ex = generateExercises({ items }, "matching");
+
+    for (const e of ex) {
+      const choices = [e.answer, ...(e.distractors ?? [])];
+      expect(new Set(choices).size).toBe(choices.length);
+      expect(e.distractors).not.toContain(e.answer);
     }
   });
 

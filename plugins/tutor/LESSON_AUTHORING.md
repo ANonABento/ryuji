@@ -103,7 +103,8 @@ Target 10-12 exercises per lesson. Mix types:
 ## Deferred Scope
 
 - Random word auto-posting needs a channel/config ownership model before it can run automatically. Keep `random_word` as an explicit tool until that exists.
-- Reminder opt-out needs a persisted user preference before SRS reminders can be user-controlled. Do not add ad-hoc in-memory opt-outs.
+- User-selected exercise mode picking is deferred until active lesson sessions can store the exact selected exercise set and completion scoring can use that set as the denominator.
+- SRS reminder preferences are user-controlled through `srs_reminders` and persisted in `LessonDB`. Keep reminder opt-out and cooldown state there rather than in worker memory.
 
 ## Smoke Test
 
