@@ -79,7 +79,7 @@ describe("updateFromLessonCompletion", () => {
   test("creates a profile row on first completion", async () => {
     const db = await makeDB();
     completeLessonInDb(db, "u1", "test-module", "1.1", 1.0);
-    updateFromLessonCompletion(db, "u1", "test-module");
+    updateFromLessonCompletion(db, "u1", "test-module", "1.1", 1.0, []);
 
     const p = db.getProfile("u1", "test-module");
     expect(p).not.toBeNull();
@@ -92,7 +92,7 @@ describe("updateFromLessonCompletion", () => {
   test("strong areas appear when avg score > 0.9 in a skill", async () => {
     const db = await makeDB();
     completeLessonInDb(db, "u1", "test-module", "1.1", 0.95);
-    updateFromLessonCompletion(db, "u1", "test-module");
+    updateFromLessonCompletion(db, "u1", "test-module", "1.1", 0.95, []);
 
     const p = db.getProfile("u1", "test-module")!;
     expect(p.strongAreas).toContain("vowels");
@@ -103,7 +103,7 @@ describe("updateFromLessonCompletion", () => {
   test("weak areas appear when avg score < 0.7 in a skill", async () => {
     const db = await makeDB();
     completeLessonInDb(db, "u1", "test-module", "1.2", 0.6);
-    updateFromLessonCompletion(db, "u1", "test-module");
+    updateFromLessonCompletion(db, "u1", "test-module", "1.2", 0.6, []);
 
     const p = db.getProfile("u1", "test-module")!;
     expect(p.weakAreas).toContain("k_row");
@@ -114,39 +114,14 @@ describe("updateFromLessonCompletion", () => {
   test("avg score is recomputed across all completed lessons", async () => {
     const db = await makeDB();
     completeLessonInDb(db, "u1", "test-module", "1.1", 1.0);
-    updateFromLessonCompletion(db, "u1", "test-module");
+    updateFromLessonCompletion(db, "u1", "test-module", "1.1", 1.0, []);
 
     completeLessonInDb(db, "u1", "test-module", "1.2", 0.5);
-    updateFromLessonCompletion(db, "u1", "test-module");
+    updateFromLessonCompletion(db, "u1", "test-module", "1.2", 0.5, []);
 
     const p = db.getProfile("u1", "test-module")!;
     expect(p.avgScore).toBeCloseTo(0.75, 2);
     expect(p.lessonsCompleted).toBe(2);
-    db.close();
-  });
-
-  test("preferred exercise type uses stored result metadata for filtered mode sessions", async () => {
-    const db = await makeDB();
-    db.startLesson("u1", "test-module", "1.1");
-    db.saveExerciseResult("u1", "test-module", "1.1", 0, {
-      index: 0,
-      exerciseType: "production",
-      correct: true,
-      userAnswer: "a",
-    });
-    db.saveExerciseResult("u1", "test-module", "1.1", 1, {
-      index: 1,
-      exerciseType: "production",
-      correct: true,
-      userAnswer: "b",
-    });
-    db.completeLesson("u1", "test-module", "1.1", 1);
-
-    updateFromLessonCompletion(db, "u1", "test-module");
-
-    expect(db.getProfile("u1", "test-module")!.preferredExerciseType).toBe(
-      "production (100% accuracy)"
-    );
     db.close();
   });
 });
@@ -155,7 +130,7 @@ describe("streak math", () => {
   test("first activity sets streak to 1", async () => {
     const db = await makeDB();
     completeLessonInDb(db, "u1", "test-module", "1.1", 1);
-    updateFromLessonCompletion(db, "u1", "test-module");
+    updateFromLessonCompletion(db, "u1", "test-module", "1.1", 1, []);
     expect(db.getProfile("u1", "test-module")!.streak).toBe(1);
     db.close();
   });
@@ -163,10 +138,10 @@ describe("streak math", () => {
   test("same-day double activity does not increment streak", async () => {
     const db = await makeDB();
     completeLessonInDb(db, "u1", "test-module", "1.1", 1);
-    updateFromLessonCompletion(db, "u1", "test-module");
+    updateFromLessonCompletion(db, "u1", "test-module", "1.1", 1, []);
 
     completeLessonInDb(db, "u1", "test-module", "1.2", 1);
-    updateFromLessonCompletion(db, "u1", "test-module");
+    updateFromLessonCompletion(db, "u1", "test-module", "1.2", 1, []);
 
     expect(db.getProfile("u1", "test-module")!.streak).toBe(1);
     db.close();
@@ -198,7 +173,7 @@ describe("streak math", () => {
     db.upsertProfile(profile);
 
     completeLessonInDb(db, "u1", "test-module", "1.1", 1);
-    updateFromLessonCompletion(db, "u1", "test-module");
+    updateFromLessonCompletion(db, "u1", "test-module", "1.1", 1, []);
 
     expect(db.getProfile("u1", "test-module")!.streak).toBe(4);
     db.close();
@@ -229,7 +204,7 @@ describe("streak math", () => {
     });
 
     completeLessonInDb(db, "u1", "test-module", "1.1", 1);
-    updateFromLessonCompletion(db, "u1", "test-module");
+    updateFromLessonCompletion(db, "u1", "test-module", "1.1", 1, []);
 
     expect(db.getProfile("u1", "test-module")!.streak).toBe(1);
     db.close();

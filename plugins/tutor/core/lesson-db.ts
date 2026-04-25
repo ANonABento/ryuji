@@ -1,7 +1,7 @@
 /**
  * Lesson progress persistence — SQLite-backed per-user lesson state.
  *
- * The caller provides the SQLite path; production keeps lessons separate from SRS.
+ * Uses the same DB file as SRS (srs.db) for simplicity.
  */
 
 import { Database } from "bun:sqlite";
@@ -20,61 +20,6 @@ export interface LessonProgressRow {
   exerciseResults: ExerciseResult[];
   startedAt: string | null;
   completedAt: string | null;
-}
-
-export interface SrsReminderSettings {
-  userId: string;
-  module: string;
-  enabled: boolean;
-  lastRemindedAt: number;
-}
-
-interface LessonProgressDBRow {
-  user_id: string;
-  module: string;
-  lesson_id: string;
-  status: LessonStatus;
-  score: number | null;
-  attempts: number;
-  current_exercise: number;
-  exercise_results: string | null;
-  started_at: string | null;
-  completed_at: string | null;
-}
-
-interface LearnerProfileDBRow {
-  user_id: string;
-  module: string;
-  level: string;
-  lessons_completed: number;
-  total_lessons: number;
-  avg_score: number;
-  strong_areas: string | null;
-  weak_areas: string | null;
-  srs_total: number;
-  srs_learned: number;
-  srs_due: number;
-  total_study_mins: number;
-  streak: number;
-  last_active: string;
-  preferred_exercise_type: string;
-  updated_at: string;
-}
-
-interface SrsReminderSettingsDBRow {
-  user_id: string;
-  module: string;
-  enabled: number;
-  last_reminded_at: number | null;
-}
-
-interface CountDBRow {
-  c: number;
-}
-
-interface StatusCountDBRow {
-  status: LessonStatus;
-  c: number;
 }
 
 export class LessonDB {
@@ -124,15 +69,6 @@ export class LessonDB {
         updated_at TEXT DEFAULT (datetime('now')),
         PRIMARY KEY (user_id, module)
       );
-
-      CREATE TABLE IF NOT EXISTS srs_reminder_settings (
-        user_id TEXT NOT NULL,
-        module TEXT NOT NULL,
-        enabled INTEGER DEFAULT 1,
-        last_reminded_at INTEGER DEFAULT 0,
-        updated_at TEXT DEFAULT (datetime('now')),
-        PRIMARY KEY (user_id, module)
-      );
     `);
   }
 
@@ -140,7 +76,7 @@ export class LessonDB {
   getProgress(userId: string, module: string, lessonId: string): LessonProgressRow | null {
     const row = this.db
       .query("SELECT * FROM lesson_progress WHERE user_id = ? AND module = ? AND lesson_id = ?")
-      .get(userId, module, lessonId) as LessonProgressDBRow | null;
+      .get(userId, module, lessonId) as any;
     return row ? this.rowToProgress(row) : null;
   }
 
@@ -148,7 +84,7 @@ export class LessonDB {
   getAllProgress(userId: string, module: string): LessonProgressRow[] {
     const rows = this.db
       .query("SELECT * FROM lesson_progress WHERE user_id = ? AND module = ? ORDER BY lesson_id")
-      .all(userId, module) as LessonProgressDBRow[];
+      .all(userId, module) as any[];
     return rows.map(this.rowToProgress);
   }
 
@@ -221,7 +157,7 @@ export class LessonDB {
       .query(
         "SELECT COUNT(*) as c FROM lesson_progress WHERE user_id = ? AND module = ? AND status = 'completed'"
       )
-      .get(userId, module) as CountDBRow | null;
+      .get(userId, module) as any;
     return row?.c ?? 0;
   }
 
@@ -233,7 +169,7 @@ export class LessonDB {
          WHERE user_id = ? AND module = ?
          GROUP BY status`
       )
-      .all(userId, module) as StatusCountDBRow[];
+      .all(userId, module) as any[];
 
     const counts: Record<string, number> = {};
     let total = 0;
@@ -252,7 +188,7 @@ export class LessonDB {
   getProfile(userId: string, module: string): LearnerProfile | null {
     const row = this.db
       .query("SELECT * FROM learner_profiles WHERE user_id = ? AND module = ?")
-      .get(userId, module) as LearnerProfileDBRow | null;
+      .get(userId, module) as any;
     return row ? this.rowToProfile(row) : null;
   }
 
@@ -301,56 +237,6 @@ export class LessonDB {
       );
   }
 
-  /** Read SRS reminder settings, defaulting to enabled with no cooldown. */
-  getSrsReminderSettings(userId: string, module: string): SrsReminderSettings {
-    const row = this.db
-      .query(
-        `SELECT user_id, module, enabled, last_reminded_at
-         FROM srs_reminder_settings
-         WHERE user_id = ? AND module = ?`
-      )
-      .get(userId, module) as SrsReminderSettingsDBRow | null;
-
-    if (!row) {
-      return { userId, module, enabled: true, lastRemindedAt: 0 };
-    }
-
-    return {
-      userId: row.user_id,
-      module: row.module,
-      enabled: row.enabled !== 0,
-      lastRemindedAt: row.last_reminded_at ?? 0,
-    };
-  }
-
-  /** Enable or disable SRS reminders for a user/module pair. */
-  setSrsRemindersEnabled(userId: string, module: string, enabled: boolean): void {
-    this.db
-      .query(
-        `INSERT INTO srs_reminder_settings
-           (user_id, module, enabled, last_reminded_at, updated_at)
-         VALUES (?, ?, ?, 0, ?)
-         ON CONFLICT(user_id, module) DO UPDATE SET
-           enabled = excluded.enabled,
-           updated_at = excluded.updated_at`
-      )
-      .run(userId, module, enabled ? 1 : 0, nowUTC());
-  }
-
-  /** Persist the latest sent reminder time without changing opt-out state. */
-  recordSrsReminderSent(userId: string, module: string, remindedAt: number = Date.now()): void {
-    this.db
-      .query(
-        `INSERT INTO srs_reminder_settings
-           (user_id, module, enabled, last_reminded_at, updated_at)
-         VALUES (?, ?, 1, ?, ?)
-         ON CONFLICT(user_id, module) DO UPDATE SET
-           last_reminded_at = excluded.last_reminded_at,
-           updated_at = excluded.updated_at`
-      )
-      .run(userId, module, remindedAt, nowUTC());
-  }
-
   close() {
     try {
       this.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
@@ -358,7 +244,7 @@ export class LessonDB {
     this.db.close();
   }
 
-  private rowToProfile(row: LearnerProfileDBRow): LearnerProfile {
+  private rowToProfile(row: any): LearnerProfile {
     return {
       userId: row.user_id,
       module: row.module,
@@ -379,7 +265,7 @@ export class LessonDB {
     };
   }
 
-  private rowToProgress(row: LessonProgressDBRow): LessonProgressRow {
+  private rowToProgress(row: any): LessonProgressRow {
     return {
       userId: row.user_id,
       module: row.module,
