@@ -122,6 +122,9 @@ describe("lesson button rendering", () => {
 
   test("buildAnswerCustomId preserves the stable lesson answer shape", () => {
     expect(buildAnswerCustomId("3.1", 4, "abc123")).toBe("lesson:answer:3.1:4:abc123");
+    expect(buildAnswerCustomId("3.1", 4, "abc123", 2)).toBe(
+      "lesson:answer:3.1:4:abc123:2"
+    );
   });
 
   test("all non-button exercise types are handled as typed answers", () => {
@@ -185,6 +188,9 @@ describe("lesson button rendering", () => {
     const storedOptions = [...session.answerOptionsByExercise.get("0:0")!.values()];
     expect(storedOptions).toContain("え");
     expect(storedOptions).not.toContain("く");
+    expect(
+      buttonComponents(session, exercise).every((component) => component.custom_id.endsWith(":0"))
+    ).toBe(true);
 
     session.chartProgressByExercise.get(0)!.filledAnswers[0] = "え";
     session.chartProgressByExercise.get(0)!.currentBlankIndex = 1;
@@ -192,5 +198,8 @@ describe("lesson button rendering", () => {
     const nextPrompt = getSessionExercisePrompt(session, 0, exercise);
     expect(nextPrompt).toContain("Fill blank 2/2");
     expect(nextPrompt).toContain("え");
+    expect(
+      buttonComponents(session, exercise).every((component) => component.custom_id.endsWith(":1"))
+    ).toBe(true);
   });
 });

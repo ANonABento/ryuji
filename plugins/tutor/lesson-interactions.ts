@@ -41,7 +41,8 @@ import { renderChartPrompt } from "./core/chart.ts";
 // --- Active lesson sessions (in-memory, keyed by userId) ---
 
 type AnswerOptionsByToken = Map<string, string>;
-type AnswerOptionsByExercise = Map<number | string, AnswerOptionsByToken>;
+type AnswerOptionsKey = number | `${number}:${number}`;
+type AnswerOptionsByExercise = Map<AnswerOptionsKey, AnswerOptionsByToken>;
 
 export interface ChartProgress {
   currentBlankIndex: number;
@@ -116,9 +117,11 @@ function buildExerciseEmbed(
 export function buildAnswerCustomId(
   lessonId: string,
   exerciseIndex: number,
-  optionToken: string
+  optionToken: string,
+  chartBlankIndex?: number
 ): string {
-  return `lesson:answer:${lessonId}:${exerciseIndex}:${optionToken}`;
+  const base = `lesson:answer:${lessonId}:${exerciseIndex}:${optionToken}`;
+  return chartBlankIndex === undefined ? base : `${base}:${chartBlankIndex}`;
 }
 
 function shuffle<T>(items: T[]): T[] {
@@ -161,7 +164,7 @@ function parsePracticeMode(value: string | undefined): LessonPracticeMode | null
   return null;
 }
 
-function answerOptionsKey(exerciseIndex: number, chartBlankIndex?: number): number | string {
+function answerOptionsKey(exerciseIndex: number, chartBlankIndex?: number): AnswerOptionsKey {
   return chartBlankIndex === undefined ? exerciseIndex : `${exerciseIndex}:${chartBlankIndex}`;
 }
 
@@ -274,7 +277,7 @@ export function buildExerciseButtons(
     for (const [token, option] of answersByToken) {
       row.addComponents(
         new ButtonBuilder()
-          .setCustomId(buildAnswerCustomId(lessonId, exerciseIndex, token))
+          .setCustomId(buildAnswerCustomId(lessonId, exerciseIndex, token, chartBlankIndex))
           .setLabel(buttonLabel(option))
           .setStyle(ButtonStyle.Secondary)
       );
@@ -346,6 +349,17 @@ export function buildLessonCompletionComponents(
   ];
 }
 
+function buildContinueComponents(lessonId: string): ActionRowBuilder<ButtonBuilder>[] {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`lesson:continue:${lessonId}`)
+        .setLabel("Continue →")
+        .setStyle(ButtonStyle.Primary)
+    ),
+  ];
+}
+
 const MODE_LABELS: Record<LessonPracticeMode, string> = {
   mixed: "Mixed",
   recognition: "Multiple Choice",
@@ -378,6 +392,17 @@ function selectSessionMode(
   session.answerOptionsByExercise.clear();
   session.chartProgressByExercise.clear();
   return session;
+}
+
+function hasSelectedPracticeMode(session: ActiveLessonSession): boolean {
+  return session.selectedMode !== null;
+}
+
+async function replyPracticeModeAlreadySelected(interaction: ButtonInteraction): Promise<void> {
+  await interaction.reply({
+    content: "Practice mode is already selected. Use `/lesson` to continue.",
+    flags: MessageFlags.Ephemeral,
+  });
 }
 
 function buildProgressBar(ratio: number, length: number): string {
@@ -430,8 +455,8 @@ async function sendNextExercise(
   );
   const buttons = buildExerciseButtons(exercise, lessonId, exerciseIndex, session);
 
-  const isTypingExercise = buttons.length === 0;
-  if (isTypingExercise) {
+  const expectsTypedAnswer = buttons.length === 0;
+  if (expectsTypedAnswer) {
     embed.setFooter({
       text: `Type your answer below${exercise.hint ? ` · 💡 ${exercise.hint}` : ""}`,
     });
@@ -604,6 +629,10 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
       });
       return;
     }
+    if (hasSelectedPracticeMode(session)) {
+      await replyPracticeModeAlreadySelected(interaction);
+      return;
+    }
     selectSessionMode(session, "mixed");
     await sendNextExercise(interaction, session, true);
     return;
@@ -618,6 +647,10 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
         content: "Session expired or no longer active. Use `/lesson` to continue.",
         flags: MessageFlags.Ephemeral,
       });
+      return;
+    }
+    if (hasSelectedPracticeMode(session)) {
+      await replyPracticeModeAlreadySelected(interaction);
       return;
     }
 
@@ -640,8 +673,14 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
     const lessonId = parts[2];
     const exerciseIndex = parseExerciseIndex(parts[3]);
     const answerToken = parts[4];
+    const buttonBlankIndex = parts[5] === undefined ? null : parseExerciseIndex(parts[5]);
 
-    if (!lessonId || exerciseIndex === null || answerToken === undefined) {
+    if (
+      !lessonId ||
+      exerciseIndex === null ||
+      answerToken === undefined ||
+      (parts[5] !== undefined && buttonBlankIndex === null)
+    ) {
       await interaction.reply({
         content: "That lesson button is invalid. Use `/lesson` to continue.",
         flags: MessageFlags.Ephemeral,
@@ -680,6 +719,24 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
       isChartExercise(exercise)
         ? getChartProgress(session, exerciseIndex, exercise).currentBlankIndex
         : undefined;
+    if (chartBlankIndex === undefined && buttonBlankIndex !== null) {
+      await interaction.reply({
+        content: "That lesson button is invalid. Use `/lesson` to continue.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    if (
+      chartBlankIndex !== undefined &&
+      buttonBlankIndex !== null &&
+      buttonBlankIndex !== chartBlankIndex
+    ) {
+      await interaction.reply({
+        content: "That chart blank is no longer active. Use `/lesson` to continue.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
     const userAnswer = session.answerOptionsByExercise
       .get(answerOptionsKey(exerciseIndex, chartBlankIndex))
       ?.get(answerToken);
@@ -718,7 +775,9 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
         index: exerciseIndex,
         exerciseType: exercise.type,
         correct: allCorrect,
-        userAnswer: progress.filledAnswers.filter(Boolean).join(", "),
+        userAnswer: progress.filledAnswers
+          .filter((answer): answer is string => answer !== null)
+          .join(", "),
       });
 
       const progressRow = db.getProgress(userId, session.module, lessonId);
@@ -736,14 +795,10 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
         exerciseSet.length
       );
 
-      const continueButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`lesson:continue:${lessonId}`)
-          .setLabel("Continue →")
-          .setStyle(ButtonStyle.Primary)
-      );
-
-      await interaction.update({ embeds: [resultEmbed], components: [continueButton] });
+      await interaction.update({
+        embeds: [resultEmbed],
+        components: buildContinueComponents(lessonId),
+      });
       return;
     }
 
@@ -773,14 +828,10 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
       exerciseSet.length
     );
 
-    const continueButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`lesson:continue:${lessonId}`)
-        .setLabel("Continue →")
-        .setStyle(ButtonStyle.Primary)
-    );
-
-    await interaction.update({ embeds: [resultEmbed], components: [continueButton] });
+    await interaction.update({
+      embeds: [resultEmbed],
+      components: buildContinueComponents(lessonId),
+    });
     return;
   }
 
