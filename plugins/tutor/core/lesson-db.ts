@@ -1,7 +1,7 @@
 /**
  * Lesson progress persistence — SQLite-backed per-user lesson state.
  *
- * Uses the same DB file as SRS (srs.db) for simplicity.
+ * The caller provides the SQLite path; production keeps lessons separate from SRS.
  */
 
 import { Database } from "bun:sqlite";
