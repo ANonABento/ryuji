@@ -8,7 +8,11 @@ import {
   buildExerciseButtons,
   type ActiveLessonSession,
 } from "../../../plugins/tutor/lesson-interactions.ts";
-import type { Exercise, Lesson } from "../../../plugins/tutor/core/lesson-types.ts";
+import {
+  isTypingExercise,
+  type Exercise,
+  type Lesson,
+} from "../../../plugins/tutor/core/lesson-types.ts";
 
 type ButtonComponentJson = {
   custom_id: string;
@@ -116,5 +120,13 @@ describe("lesson button rendering", () => {
 
   test("buildAnswerCustomId preserves the stable lesson answer shape", () => {
     expect(buildAnswerCustomId("3.1", 4, "abc123")).toBe("lesson:answer:3.1:4:abc123");
+  });
+
+  test("all typed lesson exercise types are routed through chat answers", () => {
+    expect(isTypingExercise("production")).toBe(true);
+    expect(isTypingExercise("cloze")).toBe(true);
+    expect(isTypingExercise("error_correction")).toBe(true);
+    expect(isTypingExercise("sentence_build")).toBe(true);
+    expect(isTypingExercise("multiple_choice")).toBe(false);
   });
 });

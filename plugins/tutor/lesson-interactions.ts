@@ -26,8 +26,14 @@ import {
   completeLesson,
   getProgressData,
 } from "./core/lesson-engine.ts";
-import { type Exercise, type Lesson, isButtonExercise } from "./core/lesson-types.ts";
+import {
+  type Exercise,
+  type Lesson,
+  isButtonExercise,
+  isTypingExercise,
+} from "./core/lesson-types.ts";
 import { updateFromLessonCompletion } from "./core/learner-profile.ts";
+import { shuffle } from "./core/random.ts";
 
 // --- Active lesson sessions (in-memory, keyed by userId) ---
 
@@ -99,15 +105,6 @@ export function buildAnswerCustomId(
   optionToken: string
 ): string {
   return `lesson:answer:${lessonId}:${exerciseIndex}:${optionToken}`;
-}
-
-function shuffle<T>(items: T[]): T[] {
-  const shuffled = [...items];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
 }
 
 export function buildButtonOptions(exercise: Exercise): string[] {
@@ -635,8 +632,7 @@ export function handleTypedAnswer(
   const exercise = session.lesson.exercises[session.exerciseIndex];
   if (!exercise) return null;
 
-  // Only handle typing exercises
-  if (exercise.type !== "production" && exercise.type !== "cloze") return null;
+  if (!isTypingExercise(exercise.type)) return null;
 
   const db = getLessonDB();
   if (!db) return null;
@@ -659,7 +655,7 @@ export function hasActiveTypingExercise(userId: string): boolean {
   if (!session) return false;
   const exercise = session.lesson.exercises[session.exerciseIndex];
   if (!exercise) return false;
-  return exercise.type === "production" || exercise.type === "cloze";
+  return isTypingExercise(exercise.type);
 }
 
 /** Get active session for a user */

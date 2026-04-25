@@ -1,7 +1,8 @@
 import type { Exercise } from "../../../core/lesson-types.ts";
+import { pick, pickN } from "../../../core/random.ts";
 
 export function recognition(char: string, reading: string, pool: string[]): Exercise {
-  const distractors = pool.filter((r) => r !== reading).sort(() => Math.random() - 0.5).slice(0, 3);
+  const distractors = pickN(pool.filter((r) => r !== reading), 3);
   return {
     type: "recognition",
     prompt: `What sound does **${char}** make?`,
@@ -52,7 +53,7 @@ export function chartReview(knownChars: [string, string][]): Exercise {
   const gridSize = Math.min(knownChars.length, 10);
   const selected = knownChars.slice(0, gridSize);
 
-  const blankIdx = Math.floor(Math.random() * gridSize);
+  const blankIdx = selected.indexOf(pick(selected));
 
   const cols = 5;
   const rows = Math.ceil(gridSize / cols);
@@ -80,11 +81,10 @@ export function chartReview(knownChars: [string, string][]): Exercise {
     grid.push(row);
   }
 
-  const distractorPool = selected
-    .map(([char]) => char)
-    .filter((c) => c !== blankChar)
-    .sort(() => Math.random() - 0.5)
-    .slice(0, 3);
+  const distractorPool = pickN(
+    selected.map(([char]) => char).filter((c) => c !== blankChar),
+    3
+  );
 
   const gridText = renderChartGrid(grid, rowLabels, colLabels);
 

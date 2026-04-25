@@ -145,3 +145,13 @@ export function isButtonExercise(type: Exercise["type"]): boolean {
     type === "matching"
   );
 }
+
+/** Returns true for exercise types answered by typing a response in chat */
+export function isTypingExercise(type: Exercise["type"]): boolean {
+  return (
+    type === "production" ||
+    type === "cloze" ||
+    type === "error_correction" ||
+    type === "sentence_build"
+  );
+}

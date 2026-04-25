@@ -7,6 +7,7 @@
  */
 
 import type { ContentItem, ContentSet, Exercise, ExerciseMode } from "./lesson-types.ts";
+import { shuffle } from "./random.ts";
 
 export type { ContentItem, ContentSet, ExerciseMode } from "./lesson-types.ts";
 
@@ -50,9 +51,7 @@ export function generateAllExercises(content: ContentSet): Exercise[] {
 
 function generateRecognition(items: ContentItem[]): Exercise[] {
   return items.map((item) => {
-    const distractors = items
-      .filter((i) => i.meaning !== item.meaning)
-      .sort(() => Math.random() - 0.5)
+    const distractors = shuffle(items.filter((i) => i.meaning !== item.meaning))
       .slice(0, 3)
       .map((i) => i.meaning);
 
