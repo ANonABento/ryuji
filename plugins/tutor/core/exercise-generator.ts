@@ -49,7 +49,11 @@ export function generateExercises(
   }
 }
 
-const ALL_MODES: ExerciseMode[] = ["recognition", "production", "matching"];
+const DEFAULT_EXERCISE_MODES: readonly ExerciseMode[] = [
+  "recognition",
+  "production",
+  "matching",
+];
 
 function uniqueMeaningsExcept(items: ContentItem[], answer: string): string[] {
   return [...new Set(items.map((item) => item.meaning))].filter(
@@ -57,9 +61,18 @@ function uniqueMeaningsExcept(items: ContentItem[], answer: string): string[] {
   );
 }
 
+function shuffle<T>(items: readonly T[]): T[] {
+  const shuffled = [...items];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
 /** Generate all available exercises from a content set (one per mode) */
 export function generateAllExercises(content: ContentSet): Exercise[] {
-  const modes = content.modes ?? ALL_MODES;
+  const modes = content.modes ?? DEFAULT_EXERCISE_MODES;
   const exercises: Exercise[] = [];
   for (const mode of modes) {
     exercises.push(...generateExercises(content, mode));
@@ -76,9 +89,9 @@ function generateRecognition(
   const exercises: Exercise[] = [];
 
   for (const item of items) {
-    const distractors = uniqueMeaningsExcept(distractorPool, item.meaning)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 3);
+    const distractors = shuffle(
+      uniqueMeaningsExcept(distractorPool, item.meaning)
+    ).slice(0, 3);
 
     if (distractors.length === 0) continue;
 

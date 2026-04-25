@@ -1,7 +1,16 @@
-import type { Exercise } from "../../../core/lesson-types.ts";
+import type { Exercise, LessonSRSItem } from "../../../core/lesson-types.ts";
+
+function shuffle<T>(items: readonly T[]): T[] {
+  const shuffled = [...items];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
 
 export function recognition(char: string, reading: string, pool: string[]): Exercise {
-  const distractors = pool.filter((r) => r !== reading).sort(() => Math.random() - 0.5).slice(0, 3);
+  const distractors = shuffle(pool.filter((r) => r !== reading)).slice(0, 3);
   return {
     type: "recognition",
     prompt: `What sound does **${char}** make?`,
@@ -17,6 +26,18 @@ export function production(char: string, reading: string, kanaType: "hiragana" |
     answer: char,
     accept: [reading],
   };
+}
+
+export function kanaSrsItems(
+  pairs: [string, string][],
+  tags: "hiragana" | "katakana"
+): LessonSRSItem[] {
+  return pairs.map(([char, reading]) => ({
+    front: char,
+    back: reading,
+    reading,
+    tags,
+  }));
 }
 
 export function renderChartGrid(
@@ -80,11 +101,9 @@ export function chartReview(knownChars: [string, string][]): Exercise {
     grid.push(row);
   }
 
-  const distractorPool = selected
-    .map(([char]) => char)
-    .filter((c) => c !== blankChar)
-    .sort(() => Math.random() - 0.5)
-    .slice(0, 3);
+  const distractorPool = shuffle(
+    selected.map(([char]) => char).filter((c) => c !== blankChar)
+  ).slice(0, 3);
 
   const gridText = renderChartGrid(grid, rowLabels, colLabels);
 

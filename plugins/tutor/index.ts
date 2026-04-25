@@ -20,6 +20,7 @@ import { listModules } from "./modules/index.ts";
 import { japaneseLessons, japaneseUnits } from "./modules/japanese/lessons/index.ts";
 
 import {
+  buildExerciseEmbed,
   buildExerciseButtons,
   buildLessonCompletionComponents,
   buildResultEmbed,
@@ -29,7 +30,6 @@ import {
   handleTypedAnswer,
 } from "./lesson-interactions.ts";
 import { getActiveModule } from "./core/session.ts";
-import { EmbedBuilder } from "discord.js";
 import { updateFromLessonCompletion } from "./core/learner-profile.ts";
 
 // SRS reminder state (cleaned up in destroy)
@@ -147,10 +147,11 @@ const tutorPlugin: Plugin = {
 
     // Show next exercise
     const nextExercise = session.lesson.exercises[session.exerciseIndex];
-    const exerciseEmbed = new EmbedBuilder()
-      .setColor(0xfee75c)
-      .setTitle(`Exercise ${session.exerciseIndex + 1}/${session.lesson.exercises.length}`)
-      .setDescription(nextExercise.prompt);
+    const exerciseEmbed = buildExerciseEmbed(
+      session.lesson,
+      session.exerciseIndex,
+      nextExercise
+    );
 
     const components = buildExerciseButtons(
       nextExercise,

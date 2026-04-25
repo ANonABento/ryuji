@@ -7,17 +7,17 @@
  * Lessons 2.7-2.8 use loanword practice via the exercise generator.
  */
 
-import type { Lesson, Exercise, IntroItem, LessonSRSItem } from "../../../core/lesson-types.ts";
+import type { Lesson } from "../../../core/lesson-types.ts";
 import { generateExercises, type ContentSet } from "../../../core/exercise-generator.ts";
-import { recognition, production, chartReview } from "./kana-helpers.ts";
+import {
+  recognition,
+  production,
+  chartReview,
+  kanaSrsItems,
+} from "./kana-helpers.ts";
 
-function srsItems(pairs: [string, string][]): LessonSRSItem[] {
-  return pairs.map(([char, reading]) => ({
-    front: char,
-    back: reading,
-    reading,
-    tags: "katakana",
-  }));
+function srsItems(pairs: [string, string][]): ReturnType<typeof kanaSrsItems> {
+  return kanaSrsItems(pairs, "katakana");
 }
 
 // --- Reading pools ---
