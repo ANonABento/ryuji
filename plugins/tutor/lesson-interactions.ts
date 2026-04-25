@@ -28,8 +28,7 @@ import {
   getLesson,
   getUnits,
 } from "./core/lesson-engine.ts";
-import type { Exercise, Lesson } from "./core/lesson-types.ts";
-import { isButtonExercise } from "./core/lesson-types.ts";
+import { type Exercise, type Lesson, isButtonExercise } from "./core/lesson-types.ts";
 import { updateFromLessonCompletion } from "./core/learner-profile.ts";
 
 // --- Active lesson sessions (in-memory, keyed by userId) ---
