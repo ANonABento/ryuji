@@ -1,7 +1,7 @@
 /**
  * Lesson progress persistence — SQLite-backed per-user lesson state.
  *
- * Uses the same DB file as SRS (srs.db) for simplicity.
+ * The caller provides the SQLite path; production keeps lessons separate from SRS.
  */
 
 import { Database } from "bun:sqlite";
@@ -9,7 +9,27 @@ import { nowUTC } from "@choomfie/shared";
 import type { ExerciseResult, LessonStatus } from "./lesson-types.ts";
 import type { LearnerProfile } from "./learner-profile.ts";
 
-type LessonProgressDbRow = {
+export interface LessonProgressRow {
+  userId: string;
+  module: string;
+  lessonId: string;
+  status: LessonStatus;
+  score: number | null;
+  attempts: number;
+  currentExercise: number;
+  exerciseResults: ExerciseResult[];
+  startedAt: string | null;
+  completedAt: string | null;
+}
+
+export interface SrsReminderSettings {
+  userId: string;
+  module: string;
+  enabled: boolean;
+  lastRemindedAt: number;
+}
+
+interface LessonProgressDBRow {
   user_id: string;
   module: string;
   lesson_id: string;
@@ -20,9 +40,9 @@ type LessonProgressDbRow = {
   exercise_results: string | null;
   started_at: string | null;
   completed_at: string | null;
-};
+}
 
-type LearnerProfileDbRow = {
+interface LearnerProfileDBRow {
   user_id: string;
   module: string;
   level: string;
@@ -39,27 +59,22 @@ type LearnerProfileDbRow = {
   last_active: string;
   preferred_exercise_type: string;
   updated_at: string;
-};
-
-type CountRow = { c: number };
-type StatusCountRow = { status: string; c: number };
-
-function parseJsonArray<T>(value: string | null | undefined): T[] {
-  if (!value) return [];
-  return JSON.parse(value) as T[];
 }
 
-export interface LessonProgressRow {
-  userId: string;
+interface SrsReminderSettingsDBRow {
+  user_id: string;
   module: string;
-  lessonId: string;
+  enabled: number;
+  last_reminded_at: number | null;
+}
+
+interface CountDBRow {
+  c: number;
+}
+
+interface StatusCountDBRow {
   status: LessonStatus;
-  score: number | null;
-  attempts: number;
-  currentExercise: number;
-  exerciseResults: ExerciseResult[];
-  startedAt: string | null;
-  completedAt: string | null;
+  c: number;
 }
 
 export class LessonDB {
@@ -109,6 +124,15 @@ export class LessonDB {
         updated_at TEXT DEFAULT (datetime('now')),
         PRIMARY KEY (user_id, module)
       );
+
+      CREATE TABLE IF NOT EXISTS srs_reminder_settings (
+        user_id TEXT NOT NULL,
+        module TEXT NOT NULL,
+        enabled INTEGER DEFAULT 1,
+        last_reminded_at INTEGER DEFAULT 0,
+        updated_at TEXT DEFAULT (datetime('now')),
+        PRIMARY KEY (user_id, module)
+      );
     `);
   }
 
@@ -116,7 +140,7 @@ export class LessonDB {
   getProgress(userId: string, module: string, lessonId: string): LessonProgressRow | null {
     const row = this.db
       .query("SELECT * FROM lesson_progress WHERE user_id = ? AND module = ? AND lesson_id = ?")
-      .get(userId, module, lessonId) as LessonProgressDbRow | null;
+      .get(userId, module, lessonId) as LessonProgressDBRow | null;
     return row ? this.rowToProgress(row) : null;
   }
 
@@ -124,7 +148,7 @@ export class LessonDB {
   getAllProgress(userId: string, module: string): LessonProgressRow[] {
     const rows = this.db
       .query("SELECT * FROM lesson_progress WHERE user_id = ? AND module = ? ORDER BY lesson_id")
-      .all(userId, module) as LessonProgressDbRow[];
+      .all(userId, module) as LessonProgressDBRow[];
     return rows.map(this.rowToProgress);
   }
 
@@ -197,7 +221,7 @@ export class LessonDB {
       .query(
         "SELECT COUNT(*) as c FROM lesson_progress WHERE user_id = ? AND module = ? AND status = 'completed'"
       )
-      .get(userId, module) as CountRow | null;
+      .get(userId, module) as CountDBRow | null;
     return row?.c ?? 0;
   }
 
@@ -209,7 +233,7 @@ export class LessonDB {
          WHERE user_id = ? AND module = ?
          GROUP BY status`
       )
-      .all(userId, module) as StatusCountRow[];
+      .all(userId, module) as StatusCountDBRow[];
 
     const counts: Record<string, number> = {};
     let total = 0;
@@ -228,7 +252,7 @@ export class LessonDB {
   getProfile(userId: string, module: string): LearnerProfile | null {
     const row = this.db
       .query("SELECT * FROM learner_profiles WHERE user_id = ? AND module = ?")
-      .get(userId, module) as LearnerProfileDbRow | null;
+      .get(userId, module) as LearnerProfileDBRow | null;
     return row ? this.rowToProfile(row) : null;
   }
 
@@ -277,6 +301,56 @@ export class LessonDB {
       );
   }
 
+  /** Read SRS reminder settings, defaulting to enabled with no cooldown. */
+  getSrsReminderSettings(userId: string, module: string): SrsReminderSettings {
+    const row = this.db
+      .query(
+        `SELECT user_id, module, enabled, last_reminded_at
+         FROM srs_reminder_settings
+         WHERE user_id = ? AND module = ?`
+      )
+      .get(userId, module) as SrsReminderSettingsDBRow | null;
+
+    if (!row) {
+      return { userId, module, enabled: true, lastRemindedAt: 0 };
+    }
+
+    return {
+      userId: row.user_id,
+      module: row.module,
+      enabled: row.enabled !== 0,
+      lastRemindedAt: row.last_reminded_at ?? 0,
+    };
+  }
+
+  /** Enable or disable SRS reminders for a user/module pair. */
+  setSrsRemindersEnabled(userId: string, module: string, enabled: boolean): void {
+    this.db
+      .query(
+        `INSERT INTO srs_reminder_settings
+           (user_id, module, enabled, last_reminded_at, updated_at)
+         VALUES (?, ?, ?, 0, ?)
+         ON CONFLICT(user_id, module) DO UPDATE SET
+           enabled = excluded.enabled,
+           updated_at = excluded.updated_at`
+      )
+      .run(userId, module, enabled ? 1 : 0, nowUTC());
+  }
+
+  /** Persist the latest sent reminder time without changing opt-out state. */
+  recordSrsReminderSent(userId: string, module: string, remindedAt: number = Date.now()): void {
+    this.db
+      .query(
+        `INSERT INTO srs_reminder_settings
+           (user_id, module, enabled, last_reminded_at, updated_at)
+         VALUES (?, ?, 1, ?, ?)
+         ON CONFLICT(user_id, module) DO UPDATE SET
+           last_reminded_at = excluded.last_reminded_at,
+           updated_at = excluded.updated_at`
+      )
+      .run(userId, module, remindedAt, nowUTC());
+  }
+
   close() {
     try {
       this.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
@@ -284,7 +358,7 @@ export class LessonDB {
     this.db.close();
   }
 
-  private rowToProfile(row: LearnerProfileDbRow): LearnerProfile {
+  private rowToProfile(row: LearnerProfileDBRow): LearnerProfile {
     return {
       userId: row.user_id,
       module: row.module,
@@ -292,8 +366,8 @@ export class LessonDB {
       lessonsCompleted: row.lessons_completed,
       totalLessons: row.total_lessons,
       avgScore: row.avg_score,
-      strongAreas: parseJsonArray<string>(row.strong_areas),
-      weakAreas: parseJsonArray<string>(row.weak_areas),
+      strongAreas: JSON.parse(row.strong_areas || "[]"),
+      weakAreas: JSON.parse(row.weak_areas || "[]"),
       srsTotal: row.srs_total,
       srsLearned: row.srs_learned,
       srsDue: row.srs_due,
@@ -305,16 +379,16 @@ export class LessonDB {
     };
   }
 
-  private rowToProgress(row: LessonProgressDbRow): LessonProgressRow {
+  private rowToProgress(row: LessonProgressDBRow): LessonProgressRow {
     return {
       userId: row.user_id,
       module: row.module,
       lessonId: row.lesson_id,
-      status: row.status,
+      status: row.status as LessonStatus,
       score: row.score,
       attempts: row.attempts,
       currentExercise: row.current_exercise,
-      exerciseResults: parseJsonArray<ExerciseResult>(row.exercise_results),
+      exerciseResults: JSON.parse(row.exercise_results || "[]"),
       startedAt: row.started_at,
       completedAt: row.completed_at,
     };

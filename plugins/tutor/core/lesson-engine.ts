@@ -6,7 +6,14 @@
  */
 
 import type { LessonDB } from "./lesson-db.ts";
-import type { Lesson, Exercise, ExerciseResult, Unit, LessonStatus } from "./lesson-types.ts";
+import {
+  getExerciseAnswer,
+  type Lesson,
+  type Exercise,
+  type ExerciseResult,
+  type Unit,
+  type LessonStatus,
+} from "./lesson-types.ts";
 import { getSRS } from "./srs-instance.ts";
 
 const MASTERY_THRESHOLD = 0.8; // 80% to pass
@@ -111,9 +118,14 @@ export function startLesson(
 }
 
 /** Score a single exercise answer */
-export function scoreExercise(exercise: Exercise, userAnswer: string): ExerciseResult & { feedback: string } {
+export function scoreExercise(
+  exercise: Exercise,
+  userAnswer: string,
+  exerciseIndex: number = 0
+): ExerciseResult & { feedback: string } {
   const normalized = userAnswer.trim().toLowerCase();
-  const expected = exercise.answer.trim().toLowerCase();
+  const expectedAnswer = getExerciseAnswer(exercise);
+  const expected = expectedAnswer.trim().toLowerCase();
 
   // Check main answer + alternatives
   const allAccepted = [expected, ...(exercise.accept ?? []).map((a) => a.trim().toLowerCase())];
@@ -125,10 +137,10 @@ export function scoreExercise(exercise: Exercise, userAnswer: string): ExerciseR
   } else if (exercise.explanation) {
     feedback = `❌ ${exercise.explanation}`;
   } else {
-    feedback = `❌ The answer is **${exercise.answer}**`;
+    feedback = `❌ The answer is **${expectedAnswer}**`;
   }
 
-  return { index: 0, correct, userAnswer, feedback };
+  return { index: exerciseIndex, correct, userAnswer, feedback };
 }
 
 /** Complete a lesson — calculate score, unlock next lessons, add SRS items */

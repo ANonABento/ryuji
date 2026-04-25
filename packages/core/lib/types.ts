@@ -7,19 +7,31 @@
  */
 
 import type { Client } from "discord.js";
-import type { McpTransport, PluginContext } from "@choomfie/shared";
+import type { PluginContext, ToolResult } from "@choomfie/shared";
 import type { MemoryStore } from "./memory.ts";
 import type { ConfigManager } from "./config.ts";
 import type { ReminderScheduler } from "./reminders.ts";
 
 // Re-export shared types so existing core code keeps working
-export type { Plugin, ToolResult, ToolDef } from "@choomfie/shared";
+export type { Plugin, ToolResult } from "@choomfie/shared";
 export { text, err } from "@choomfie/shared";
+
+export interface ToolDef {
+  definition: {
+    name: string;
+    description: string;
+    inputSchema: object;
+  };
+  handler: (
+    args: Record<string, unknown>,
+    ctx: AppContext
+  ) => Promise<ToolResult>;
+}
 
 export interface AppContext extends PluginContext {
   discord: Client;
-  /** MCP Server (supervisor) or McpProxy (worker). */
-  mcp: McpTransport;
+  /** MCP Server (supervisor) or McpProxy (worker). Using any to avoid union type issues. */
+  mcp: any;
   memory: MemoryStore;
   config: ConfigManager;
   plugins: import("@choomfie/shared").Plugin[];

@@ -4,7 +4,7 @@
  */
 
 import type { ToolDef } from "@choomfie/shared";
-import { text, err } from "@choomfie/shared";
+import { text, err, errorMessage } from "@choomfie/shared";
 import { getActiveModule, getModuleLevel, setLevel } from "../core/session.ts";
 import { getModule } from "../modules/index.ts";
 import { getLessonDB } from "../core/lesson-db-instance.ts";
@@ -34,7 +34,7 @@ export const tutorTools: ToolDef[] = [
       }
       const level = getModuleLevel(userId, moduleName);
       const activeSession = getActiveSession(userId);
-      const promptCtx = activeSession?.lesson.furiganaLevel
+      const promptCtx = activeSession?.module === moduleName && activeSession.lesson.furiganaLevel
         ? { furiganaLevel: activeSession.lesson.furiganaLevel }
         : undefined;
       let prompt = mod.buildTutorPrompt(level, promptCtx);
@@ -102,8 +102,8 @@ export const tutorTools: ToolDef[] = [
           .join("\n\n");
 
         return text(formatted);
-      } catch (error: unknown) {
-        return err(`Lookup error: ${error instanceof Error ? error.message : String(error)}`);
+      } catch (e: unknown) {
+        return err(`Lookup error: ${errorMessage(e)}`);
       }
     },
   },
