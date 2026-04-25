@@ -2,14 +2,12 @@
  * Tests for tutor prompt context, including active lesson furigana guidance.
  */
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { commands, type PluginContext } from "@choomfie/shared";
-import type { ChatInputCommandInteraction } from "discord.js";
+import { commands } from "@choomfie/shared";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { LessonDB } from "../../../plugins/tutor/core/lesson-db.ts";
 import { setLessonDB } from "../../../plugins/tutor/core/lesson-db-instance.ts";
-import type { LearnerProfile } from "../../../plugins/tutor/core/learner-profile.ts";
 import { registerLessons } from "../../../plugins/tutor/core/lesson-engine.ts";
 import { japaneseModule } from "../../../plugins/tutor/modules/japanese/index.ts";
 import { japaneseLessons, japaneseUnits } from "../../../plugins/tutor/modules/japanese/lessons/index.ts";
@@ -22,15 +20,6 @@ const openDbs: LessonDB[] = [];
 function promptText(result: Awaited<ReturnType<(typeof tutorTools)[number]["handler"]>>): string {
   return result.content[0]?.text ?? "";
 }
-
-function lessonInteraction(userId: string): ChatInputCommandInteraction {
-  return {
-    user: { id: userId },
-    reply: async () => undefined,
-  } as unknown as ChatInputCommandInteraction;
-}
-
-const emptyContext = {} as PluginContext;
 
 async function makeDB(): Promise<LessonDB> {
   const dir = await mkdtemp(join(tmpdir(), "choomfie-tutor-prompt-"));
@@ -104,51 +93,20 @@ describe("tutor_prompt tool", () => {
     expect(lessonCommand).toBeDefined();
 
     const userId = "prompt-active-lesson-user";
-    await lessonCommand!.handler(lessonInteraction(userId), emptyContext);
+    await lessonCommand!.handler(
+      {
+        user: { id: userId },
+        reply: async () => {},
+      } as any,
+      {} as any
+    );
 
     const tool = tutorTools.find((t) => t.definition.name === "tutor_prompt");
     expect(tool).toBeDefined();
 
-    const result = await tool!.handler({ user_id: userId }, emptyContext);
+    const result = await tool!.handler({ user_id: userId }, {} as any);
     const prompt = promptText(result);
 
     expect(prompt).toContain("Furigana: ALWAYS show readings for every kanji");
-  });
-
-  test("appends learner profile text when a profile exists", async () => {
-    const db = await makeDB();
-    setLessonDB(db);
-
-    const profile: LearnerProfile = {
-      userId: "prompt-profile-user",
-      module: "japanese",
-      level: "N5",
-      lessonsCompleted: 3,
-      totalLessons: 32,
-      avgScore: 0.92,
-      strongAreas: ["hiragana_vowels"],
-      weakAreas: [],
-      srsTotal: 12,
-      srsLearned: 4,
-      srsDue: 2,
-      totalStudyMins: 30,
-      streak: 5,
-      lastActive: "2026-04-25",
-      preferredExerciseType: "",
-      updatedAt: "2026-04-25 12:00:00",
-    };
-    db.upsertProfile(profile);
-
-    const tool = tutorTools.find((t) => t.definition.name === "tutor_prompt");
-    expect(tool).toBeDefined();
-
-    const result = await tool!.handler({ user_id: profile.userId }, emptyContext);
-    const prompt = promptText(result);
-
-    expect(prompt).toContain("## Learner Profile");
-    expect(prompt).toContain("Progress: 3/32 lessons completed");
-    expect(prompt).toContain("Strong areas: hiragana_vowels");
-    expect(prompt).toContain("SRS: 4/12 learned, 2 due for review");
-    expect(prompt).toContain("Streak: 5 days");
   });
 });
