@@ -191,28 +191,15 @@ export class SRSManager {
     deck?: string
   ): { total: number; due: number; learned: number } {
     const now = nowUTC();
-    const where = deck ? "user_id = ? AND deck = ?" : "user_id = ?";
+    const filters = deck ? ["user_id = ?", "deck = ?"] : ["user_id = ?"];
     const params = deck ? [userId, deck] : [userId];
 
-    const total = (
-      this.db.query(`SELECT COUNT(*) as c FROM srs_cards WHERE ${where}`).get(...params) as CountDBRow
-    ).c;
-
-    const due = (
-      this.db
-        .query(
-          `SELECT COUNT(*) as c FROM srs_cards WHERE ${where} AND next_review <= ?`
-        )
-        .get(...params, now) as CountDBRow
-    ).c;
-
-    const learned = (
-      this.db
-        .query(
-          `SELECT COUNT(*) as c FROM srs_cards WHERE ${where} AND card_state != ?`
-        )
-        .get(...params, this.emptyCardState) as CountDBRow
-    ).c;
+    const total = this.countCards(filters, params);
+    const due = this.countCards([...filters, "next_review <= ?"], [...params, now]);
+    const learned = this.countCards(
+      [...filters, "card_state != ?"],
+      [...params, this.emptyCardState]
+    );
 
     return { total, due, learned };
   }
@@ -232,14 +219,15 @@ export class SRSManager {
   }
 
   hasDeck(userId: string, deck: string): boolean {
-    const count = (
-      this.db
-        .query(
-          "SELECT COUNT(*) as c FROM srs_cards WHERE user_id = ? AND deck = ?"
-        )
-        .get(userId, deck) as CountDBRow
-    ).c;
-    return count > 0;
+    return this.countCards(["user_id = ?", "deck = ?"], [userId, deck]) > 0;
+  }
+
+  private countCards(filters: string[], params: string[]): number {
+    const where = filters.join(" AND ");
+    const row = this.db
+      .query(`SELECT COUNT(*) as c FROM srs_cards WHERE ${where}`)
+      .get(...params) as CountDBRow | null;
+    return row?.c ?? 0;
   }
 
   private rowToCard(row: SRSCardDBRow): SRSCard {

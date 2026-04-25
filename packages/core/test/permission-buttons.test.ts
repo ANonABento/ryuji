@@ -1,9 +1,10 @@
 import { describe, expect, test, beforeAll } from "bun:test";
-import { ButtonStyle, MessageFlags } from "discord.js";
-import { buttonHandlers } from "@choomfie/shared";
+import { ButtonStyle, EmbedBuilder, MessageFlags } from "discord.js";
+import { buttonHandlers, type ButtonHandler } from "@choomfie/shared";
 import {
   buildPermissionMessage,
   buildPermissionTextFallback,
+  type PermissionRequestParams,
 } from "../lib/handlers/permission-buttons.ts";
 
 beforeAll(async () => {
@@ -11,16 +12,70 @@ beforeAll(async () => {
   await import("../lib/handlers/permission-buttons.ts");
 });
 
-type Spy = ((...args: any[]) => any) & { calls: any[][] };
-function spy(): Spy {
-  const fn: any = (...args: any[]) => {
+type Spy<Args extends unknown[] = unknown[]> = ((...args: Args) => void) & {
+  calls: Args[];
+};
+
+function spy<Args extends unknown[] = unknown[]>(): Spy<Args> {
+  const fn = ((...args: Args) => {
     fn.calls.push(args);
-  };
+  }) as Spy<Args>;
   fn.calls = [];
   return fn;
 }
 
-const baseParams = {
+type PermissionButtonJson = {
+  custom_id: string;
+  style: ButtonStyle;
+  label: string;
+  emoji?: { name?: string };
+};
+
+type PermissionRowJson = {
+  components: PermissionButtonJson[];
+};
+
+type PermissionEmbedJson = {
+  fields: Array<{ name: string; value: string }>;
+};
+
+type JsonEncodable<T> = {
+  toJSON(): T;
+};
+
+type PermissionReplyPayload = {
+  content: string;
+  flags?: MessageFlags;
+};
+
+type PermissionUpdatePayload = {
+  embeds?: unknown[];
+  components?: unknown[];
+};
+
+type PermissionNotification = {
+  method: string;
+  params: {
+    request_id: string;
+    behavior: "allow" | "deny";
+  };
+};
+
+function permissionRow(params: PermissionRequestParams): PermissionRowJson {
+  const msg = buildPermissionMessage(params);
+  const row = msg.components?.[0] as JsonEncodable<PermissionRowJson> | undefined;
+  if (!row) throw new Error("Expected permission action row");
+  return row.toJSON();
+}
+
+function permissionEmbed(params: PermissionRequestParams): PermissionEmbedJson {
+  const msg = buildPermissionMessage(params);
+  const embed = msg.embeds?.[0] as JsonEncodable<PermissionEmbedJson> | undefined;
+  if (!embed) throw new Error("Expected permission embed");
+  return embed.toJSON();
+}
+
+const baseParams: PermissionRequestParams = {
   request_id: "abcde",
   tool_name: "Bash",
   description: "Run command",
@@ -32,13 +87,12 @@ describe("buildPermissionMessage", () => {
     const msg = buildPermissionMessage(baseParams);
     expect(msg.embeds).toHaveLength(1);
     expect(msg.components).toHaveLength(1);
-    const row = (msg.components![0] as any).toJSON();
+    const row = permissionRow(baseParams);
     expect(row.components).toHaveLength(2);
   });
 
   test("Approve button: customId, style, label, emoji", () => {
-    const msg = buildPermissionMessage(baseParams);
-    const row = (msg.components![0] as any).toJSON();
+    const row = permissionRow(baseParams);
     const approve = row.components[0];
     expect(approve.custom_id).toBe("permission:allow:abcde");
     expect(approve.style).toBe(ButtonStyle.Success);
@@ -47,8 +101,7 @@ describe("buildPermissionMessage", () => {
   });
 
   test("Deny button: customId, style, label, emoji", () => {
-    const msg = buildPermissionMessage(baseParams);
-    const row = (msg.components![0] as any).toJSON();
+    const row = permissionRow(baseParams);
     const deny = row.components[1];
     expect(deny.custom_id).toBe("permission:deny:abcde");
     expect(deny.style).toBe(ButtonStyle.Danger);
@@ -58,12 +111,11 @@ describe("buildPermissionMessage", () => {
 
   test("input_preview is truncated to 1000 chars in embed", () => {
     const big = "x".repeat(2000);
-    const msg = buildPermissionMessage({ ...baseParams, input_preview: big });
-    const embed = (msg.embeds![0] as any).toJSON();
-    const previewField = embed.fields.find((f: any) => f.name === "Preview");
+    const embed = permissionEmbed({ ...baseParams, input_preview: big });
+    const previewField = embed.fields.find((f) => f.name === "Preview");
     // Field has fences ```...``` so length is 1000 + ~8 (fences + newlines)
-    expect(previewField.value.length).toBeLessThanOrEqual(1024);
-    expect(previewField.value).toContain("xxxx");
+    expect(previewField?.value.length).toBeLessThanOrEqual(1024);
+    expect(previewField?.value).toContain("xxxx");
   });
 });
 
@@ -97,21 +149,34 @@ describe("permission button handler", () => {
   function makeFakes(userId = "owner-id") {
     const interaction = {
       user: { id: userId },
-      message: { embeds: [{ data: { title: "Permission Request" } } as any] },
-      reply: spy(),
-      update: spy(),
-    } as any;
+      message: { embeds: [new EmbedBuilder().setTitle("Permission Request")] },
+      reply: spy<[PermissionReplyPayload]>(),
+      update: spy<[PermissionUpdatePayload]>(),
+    };
     const ctx = {
       ownerUserId: "owner-id",
-      mcp: { notification: spy() },
-    } as any;
+      mcp: { notification: spy<[PermissionNotification]>() },
+    };
     return { interaction, ctx };
+  }
+
+  async function callHandler(
+    handler: ButtonHandler,
+    interaction: ReturnType<typeof makeFakes>["interaction"],
+    parts: string[],
+    ctx: ReturnType<typeof makeFakes>["ctx"]
+  ): Promise<void> {
+    await handler(
+      interaction as unknown as Parameters<ButtonHandler>[0],
+      parts,
+      ctx as unknown as Parameters<ButtonHandler>[2]
+    );
   }
 
   test("owner click 'allow' fires notification and updates message", async () => {
     const handler = buttonHandlers.get("permission")!;
     const { interaction, ctx } = makeFakes();
-    await handler(interaction, ["permission", "allow", "abcde"], ctx);
+    await callHandler(handler, interaction, ["permission", "allow", "abcde"], ctx);
 
     expect(ctx.mcp.notification.calls).toHaveLength(1);
     const [arg] = ctx.mcp.notification.calls[0];
@@ -128,7 +193,7 @@ describe("permission button handler", () => {
   test("owner click 'deny' fires notification with deny behavior", async () => {
     const handler = buttonHandlers.get("permission")!;
     const { interaction, ctx } = makeFakes();
-    await handler(interaction, ["permission", "deny", "abcde"], ctx);
+    await callHandler(handler, interaction, ["permission", "deny", "abcde"], ctx);
 
     expect(ctx.mcp.notification.calls[0][0].params).toEqual({
       request_id: "abcde",
@@ -140,7 +205,7 @@ describe("permission button handler", () => {
   test("non-owner click is rejected, no notification fired", async () => {
     const handler = buttonHandlers.get("permission")!;
     const { interaction, ctx } = makeFakes("intruder-id");
-    await handler(interaction, ["permission", "allow", "abcde"], ctx);
+    await callHandler(handler, interaction, ["permission", "allow", "abcde"], ctx);
 
     expect(ctx.mcp.notification.calls).toHaveLength(0);
     expect(interaction.update.calls).toHaveLength(0);
@@ -153,7 +218,7 @@ describe("permission button handler", () => {
   test("missing requestId rejected with 'Invalid permission button.'", async () => {
     const handler = buttonHandlers.get("permission")!;
     const { interaction, ctx } = makeFakes();
-    await handler(interaction, ["permission", "allow"], ctx);
+    await callHandler(handler, interaction, ["permission", "allow"], ctx);
 
     expect(ctx.mcp.notification.calls).toHaveLength(0);
     expect(interaction.reply.calls).toHaveLength(1);
@@ -163,7 +228,7 @@ describe("permission button handler", () => {
   test("unknown action ('foo') rejected — does NOT silently default to deny", async () => {
     const handler = buttonHandlers.get("permission")!;
     const { interaction, ctx } = makeFakes();
-    await handler(interaction, ["permission", "foo", "abcde"], ctx);
+    await callHandler(handler, interaction, ["permission", "foo", "abcde"], ctx);
 
     expect(ctx.mcp.notification.calls).toHaveLength(0);
     expect(interaction.update.calls).toHaveLength(0);
@@ -173,7 +238,7 @@ describe("permission button handler", () => {
   test("requestId is lowercased before firing notification", async () => {
     const handler = buttonHandlers.get("permission")!;
     const { interaction, ctx } = makeFakes();
-    await handler(interaction, ["permission", "allow", "ABCDE"], ctx);
+    await callHandler(handler, interaction, ["permission", "allow", "ABCDE"], ctx);
 
     expect(ctx.mcp.notification.calls[0][0].params.request_id).toBe("abcde");
   });

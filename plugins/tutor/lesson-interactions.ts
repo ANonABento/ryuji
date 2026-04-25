@@ -81,7 +81,7 @@ function buildIntroEmbed(lesson: Lesson): EmbedBuilder {
   return embed;
 }
 
-function buildExerciseEmbed(
+export function buildExerciseEmbed(
   lesson: Lesson,
   exerciseIndex: number,
   exercise: Exercise
@@ -280,7 +280,13 @@ async function sendNextExercise(
     // Update learner profile
     updateFromLessonCompletion(db, userId, module);
 
-    const summary = buildSummaryEmbed(lesson, result.score, result.passed, result.totalCorrect, result.totalExercises);
+    const summary = buildSummaryEmbed(
+      lesson,
+      result.score,
+      result.passed,
+      result.totalCorrect,
+      result.totalExercises
+    );
     const components = buildLessonCompletionComponents(result.passed, lessonId);
 
     if (editMessage) {
