@@ -46,14 +46,14 @@ export function generateExercises(
       return generateProduction(items);
     case "matching":
       return generateMatching(items);
-    default:
-      return generateRecognition(items);
   }
 }
 
+const ALL_MODES: ExerciseMode[] = ["recognition", "production", "matching"];
+
 /** Generate all available exercises from a content set (one per mode) */
 export function generateAllExercises(content: ContentSet): Exercise[] {
-  const modes = content.modes ?? ["recognition", "production", "matching"];
+  const modes = content.modes ?? ALL_MODES;
   const exercises: Exercise[] = [];
   for (const mode of modes) {
     exercises.push(...generateExercises(content, mode));
