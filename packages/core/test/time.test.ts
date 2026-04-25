@@ -6,6 +6,7 @@ import {
 } from "../lib/time.ts";
 
 test("isValidTimeZone accepts IANA zones and rejects invalid names", () => {
+  expect(isValidTimeZone("UTC")).toBe(true);
   expect(isValidTimeZone("America/New_York")).toBe(true);
   expect(isValidTimeZone("Europe/London")).toBe(true);
   expect(isValidTimeZone("Mars/Base")).toBe(false);
@@ -50,6 +51,17 @@ test("tomorrow at 9am uses supplied timezone instead of process timezone", () =>
   });
 
   expect(dateToSQLite(parsed!)).toBe("2026-04-26 13:00:00");
+});
+
+test("wall-clock expressions without timezone use UTC fallback", () => {
+  const now = new Date("2026-04-25T12:00:00Z");
+
+  expect(dateToSQLite(parseNaturalTime("tomorrow at 9am", { now })!)).toBe(
+    "2026-04-26 09:00:00"
+  );
+  expect(dateToSQLite(parseNaturalTime("2026-04-25 09:00")!)).toBe(
+    "2026-04-25 09:00:00"
+  );
 });
 
 test("nonexistent DST local times are rejected", () => {

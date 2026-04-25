@@ -2,6 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { computeSnoozeDueDate } from "../lib/handlers/reminder-buttons.ts";
 import { MemoryStore } from "../lib/memory.ts";
 import { getNextCronDate } from "../lib/reminders.ts";
 import { dateToSQLite, fromSQLiteDatetime } from "../lib/time.ts";
@@ -156,4 +157,22 @@ test("daily recurrence with timezone preserves local wall-clock time across DST"
   const next = getNextCronDate("daily", first, "America/New_York");
 
   expect(dateToSQLite(next!)).toBe("2026-03-08 13:00:00");
+});
+
+test("timezone Tomorrow button snooze uses click time local calendar day", () => {
+  const clickedAt = new Date("2026-03-07T17:00:00Z"); // noon in New York before DST starts
+  const next = computeSnoozeDueDate(
+    "tomorrow",
+    { timezone: "America/New_York" },
+    clickedAt
+  );
+
+  expect(dateToSQLite(next!)).toBe("2026-03-08 16:00:00");
+});
+
+test("Tomorrow button snooze without timezone keeps 24 hour fallback", () => {
+  const clickedAt = new Date("2026-03-07T17:00:00Z");
+  const next = computeSnoozeDueDate("tomorrow", { timezone: null }, clickedAt);
+
+  expect(dateToSQLite(next!)).toBe("2026-03-08 17:00:00");
 });

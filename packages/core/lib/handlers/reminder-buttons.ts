@@ -15,8 +15,8 @@ import {
   MS_PER_DAY,
   addZonedCalendarDays,
   dateToSQLite,
-  fromSQLiteDatetime,
 } from "../time.ts";
+import type { Reminder } from "../memory.ts";
 
 /** Snooze option: label shown to user + duration in ms */
 const SNOOZE_OPTIONS: Record<string, { label: string; ms: number }> = {
@@ -24,6 +24,19 @@ const SNOOZE_OPTIONS: Record<string, { label: string; ms: number }> = {
   "1h": { label: "1 hour", ms: MS_PER_HOUR },
   tomorrow: { label: "tomorrow", ms: MS_PER_DAY },
 };
+
+export function computeSnoozeDueDate(
+  duration: string,
+  reminder: Pick<Reminder, "timezone">,
+  now: Date = new Date()
+): Date | null {
+  const option = SNOOZE_OPTIONS[duration];
+  if (!option) return null;
+  if (duration === "tomorrow" && reminder.timezone) {
+    return addZonedCalendarDays(now, 1, reminder.timezone);
+  }
+  return new Date(now.getTime() + option.ms);
+}
 
 /** Build action row with Done/Snooze buttons for a reminder */
 export function buildReminderButtons(
@@ -97,10 +110,7 @@ registerButtonHandler("reminder", async (interaction, parts, ctx) => {
       return;
     }
 
-    const nextDue =
-      duration === "tomorrow" && reminder.timezone
-        ? addZonedCalendarDays(fromSQLiteDatetime(reminder.dueAt), 1, reminder.timezone)
-        : new Date(Date.now() + option.ms);
+    const nextDue = computeSnoozeDueDate(duration, reminder);
 
     if (!nextDue) {
       await interaction.reply({
