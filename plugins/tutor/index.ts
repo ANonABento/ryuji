@@ -9,6 +9,7 @@
  */
 
 import type { Plugin } from "@choomfie/shared";
+import { errorMessage } from "@choomfie/shared";
 import { SRSManager } from "./core/srs.ts";
 import { setSRS, getSRS } from "./core/srs-instance.ts";
 import { LessonDB } from "./core/lesson-db.ts";
@@ -188,8 +189,10 @@ const tutorPlugin: Plugin = {
         try {
           await mod.init();
           console.error(`Tutor: module "${mod.name}" initialized`);
-        } catch (e) {
-          console.error(`Tutor: module "${mod.name}" init failed (non-critical): ${e}`);
+        } catch (e: unknown) {
+          console.error(
+            `Tutor: module "${mod.name}" init failed (non-critical): ${errorMessage(e)}`
+          );
         }
       }
     }
@@ -246,8 +249,8 @@ const tutorPlugin: Plugin = {
     // Destroy all modules
     for (const mod of listModules()) {
       if (mod.destroy) {
-        try { await mod.destroy(); } catch (e) {
-          console.error(`Tutor: module destroy failed: ${e}`);
+        try { await mod.destroy(); } catch (e: unknown) {
+          console.error(`Tutor: module destroy failed: ${errorMessage(e)}`);
         }
       }
     }

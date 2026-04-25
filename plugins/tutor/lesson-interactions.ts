@@ -494,8 +494,7 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
       return;
     }
 
-    const result = scoreExercise(exercise, userAnswer);
-    result.index = exerciseIndex;
+    const result = scoreExercise(exercise, userAnswer, exerciseIndex);
 
     // Save to DB
     db.saveExerciseResult(userId, session.module, lessonId, exerciseIndex, {
@@ -642,8 +641,7 @@ export function handleTypedAnswer(
   const db = getLessonDB();
   if (!db) return null;
 
-  const result = scoreExercise(exercise, text);
-  result.index = session.exerciseIndex;
+  const result = scoreExercise(exercise, text, session.exerciseIndex);
 
   db.saveExerciseResult(userId, session.module, session.lessonId, session.exerciseIndex, {
     index: session.exerciseIndex,
