@@ -5,13 +5,8 @@
  * recognition + production exercises that mix new and previously learned chars.
  */
 
-import type { Lesson, Exercise } from "../../../core/lesson-types.ts";
-import {
-  recognition,
-  production,
-  chartReview,
-  kanaSrsItems,
-} from "./kana-helpers.ts";
+import type { Lesson, Exercise, IntroItem, LessonSRSItem } from "../../../core/lesson-types.ts";
+import { recognition, production, chartReview } from "./kana-helpers.ts";
 
 // --- Local helpers ---
 
@@ -34,8 +29,13 @@ function cloze(before: string, answer: string, after: string, hint: string): Exe
   };
 }
 
-function srsItems(pairs: [string, string][]): ReturnType<typeof kanaSrsItems> {
-  return kanaSrsItems(pairs, "hiragana");
+function srsItems(pairs: [string, string][]): LessonSRSItem[] {
+  return pairs.map(([char, reading]) => ({
+    front: char,
+    back: reading,
+    reading,
+    tags: "hiragana",
+  }));
 }
 
 // --- Lesson data ---
