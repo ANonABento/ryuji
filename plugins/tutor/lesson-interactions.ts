@@ -405,9 +405,9 @@ registerButtonHandler("lesson", async (interaction, parts, ctx) => {
       userAnswer,
     });
 
-    // Count correct so far
+    // Count correct so far (progress already includes the just-saved result)
     const progress = db.getProgress(userId, session.module, lessonId);
-    const correctSoFar = (progress?.exerciseResults.filter((r) => r.correct).length ?? 0) + (result.correct ? 1 : 0);
+    const correctSoFar = progress?.exerciseResults.filter((r) => r.correct).length ?? 0;
 
     // Move to next exercise
     session.exerciseIndex = exerciseIndex + 1;
