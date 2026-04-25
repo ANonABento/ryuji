@@ -3,7 +3,7 @@
  */
 import { describe, expect, test } from "bun:test";
 import { japaneseLessons, japaneseUnits } from "../../../plugins/tutor/modules/japanese/lessons/index.ts";
-import { isButtonExercise } from "../../../plugins/tutor/core/lesson-types.ts";
+import { isButtonExercise, isChartExercise } from "../../../plugins/tutor/core/lesson-types.ts";
 
 const EXPECTED_JAPANESE_UNIT_NAMES = [
   "Hiragana",
@@ -76,6 +76,7 @@ describe("Japanese lesson catalog", () => {
     const duplicateButtonOptions: string[] = [];
     const selfDistractors: string[] = [];
     const impossibleMastery: string[] = [];
+    const invalidCharts: string[] = [];
 
     for (const lesson of japaneseLessons) {
       if (lesson.exercises.length === 0) emptyLessons.push(lesson.id);
@@ -94,6 +95,20 @@ describe("Japanese lesson catalog", () => {
           if (new Set(options).size !== options.length) duplicateButtonOptions.push(ref);
           if ((exercise.distractors ?? []).includes(exercise.answer)) selfDistractors.push(ref);
         }
+        if (exercise.type === "chart") {
+          if (!isChartExercise(exercise)) {
+            invalidCharts.push(`${ref}: missing structured chart data`);
+          } else {
+            for (const blank of exercise.blanks) {
+              if (exercise.grid[blank.row]?.[blank.col] !== null) {
+                invalidCharts.push(`${ref}: blank ${blank.row},${blank.col} not null in grid`);
+              }
+              if (!blank.answer.trim()) {
+                invalidCharts.push(`${ref}: empty blank answer`);
+              }
+            }
+          }
+        }
       }
     }
 
@@ -103,6 +118,7 @@ describe("Japanese lesson catalog", () => {
     expect(duplicateButtonOptions).toEqual([]);
     expect(selfDistractors).toEqual([]);
     expect(impossibleMastery).toEqual([]);
+    expect(invalidCharts).toEqual([]);
   });
 
   test("all lessons are reachable from root lessons through prerequisites", () => {
