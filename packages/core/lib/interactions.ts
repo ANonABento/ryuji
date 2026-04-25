@@ -98,5 +98,6 @@ export async function handleInteraction(
 // Dynamic imports avoid circular initialization issues.
 // Handlers register themselves by calling registerButtonHandler/registerModalHandler/registerCommand.
 await import("./handlers/reminder-buttons.ts");
+await import("./handlers/permission-buttons.ts");
 await import("./handlers/modals.ts");
 await import("./commands.ts");
