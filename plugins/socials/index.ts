@@ -1,18 +1,22 @@
 /**
- * Socials plugin — YouTube + Reddit + LinkedIn integration.
+ * Socials plugin — YouTube + Reddit + LinkedIn + Twitter/X integration.
  *
  * Provider pattern with auto-fallback:
  *   YouTube: yt-dlp (primary) → YouTube Data API (fallback)
  *   Reddit: OAuth API client (primary) → JSON scraper (fallback)
  *   LinkedIn: OAuth 2.0 (standard 3-legged), Posts API (/rest/posts)
  *
- * Future: Twitter/X, Bluesky
+ * Future: Bluesky
  */
 
 import type { Plugin } from "@choomfie/shared";
-import { socialsTools } from "./tools.ts";
-import { destroyLinkedInClient, getLinkedInMonitor, getLinkedInScheduler } from "./linkedin-runtime.ts";
-import { destroyTwitterClient } from "./twitter-tools.ts";
+import {
+  socialsTools,
+  destroyLinkedInClient,
+  destroyTwitterClient,
+  getLinkedInMonitor,
+  getLinkedInScheduler,
+} from "./tools/index.ts";
 import {
   initRedditProvider,
   destroyRedditClient,
@@ -27,7 +31,7 @@ const socialsPlugin: Plugin = {
 
   instructions: [
     "## Social Platforms",
-    "You can search and browse YouTube and Reddit, post to Reddit and LinkedIn.",
+    "You can search and browse YouTube and Reddit, and post to Reddit, LinkedIn, and Twitter/X.",
     "",
     "**YouTube:**",
     "- `youtube_search` — search for videos",

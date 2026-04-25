@@ -1,7 +1,11 @@
 import type { Exercise } from "../../../core/lesson-types.ts";
+import { pickRandomItems } from "../../../core/exercise-utils.ts";
 
 export function recognition(char: string, reading: string, pool: string[]): Exercise {
-  const distractors = pool.filter((r) => r !== reading).sort(() => Math.random() - 0.5).slice(0, 3);
+  const distractors = pickRandomItems(
+    pool.filter((r) => r !== reading),
+    3,
+  );
   return {
     type: "recognition",
     prompt: `What sound does **${char}** make?`,
@@ -82,9 +86,7 @@ export function chartReview(knownChars: [string, string][]): Exercise {
 
   const distractorPool = selected
     .map(([char]) => char)
-    .filter((c) => c !== blankChar)
-    .sort(() => Math.random() - 0.5)
-    .slice(0, 3);
+    .filter((c) => c !== blankChar);
 
   const gridText = renderChartGrid(grid, rowLabels, colLabels);
 
@@ -92,6 +94,6 @@ export function chartReview(knownChars: [string, string][]): Exercise {
     type: "chart",
     prompt: `Which character goes in the blank? (reading: **${blankReading}**)\n${gridText}`,
     answer: blankChar,
-    distractors: distractorPool,
+    distractors: pickRandomItems(distractorPool, 3),
   };
 }
