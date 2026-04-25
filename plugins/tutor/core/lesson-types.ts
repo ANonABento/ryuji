@@ -57,6 +57,23 @@ export interface Exercise {
   chartBlankIndex?: number; // runtime expansion index for chart blank scoring
 }
 
+/** A single teachable item that can generate exercises */
+export interface ContentItem {
+  term: string; // e.g. "あ" or "食べる"
+  reading: string; // e.g. "a" or "たべる"
+  meaning: string; // e.g. "a (vowel)" or "to eat"
+}
+
+/** Exercise generation mode */
+export type ExerciseMode = "recognition" | "production" | "matching";
+
+/** A set of content that can generate exercises in multiple modes */
+export interface ContentSet {
+  items: ContentItem[];
+  /** Which modes to generate. Defaults to all. */
+  modes?: ExerciseMode[];
+}
+
 /** An item to introduce in the lesson intro */
 export interface IntroItem {
   char?: string; // for kana lessons

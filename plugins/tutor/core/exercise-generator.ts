@@ -6,24 +6,9 @@
  * One content set → multiple exercise modes → 3x variety.
  */
 
-import type { Exercise } from "./lesson-types.ts";
+import type { ContentItem, ContentSet, Exercise, ExerciseMode } from "./lesson-types.ts";
 
-/** A single teachable item */
-export interface ContentItem {
-  term: string;      // e.g. "あ" or "食べる"
-  reading: string;   // e.g. "a" or "たべる"
-  meaning: string;   // e.g. "a (vowel)" or "to eat"
-}
-
-/** Exercise generation mode */
-export type ExerciseMode = "recognition" | "production" | "matching";
-
-/** A set of content that can generate exercises in multiple modes */
-export interface ContentSet {
-  items: ContentItem[];
-  /** Which modes to generate. Defaults to all. */
-  modes?: ExerciseMode[];
-}
+export type { ContentItem, ContentSet, ExerciseMode } from "./lesson-types.ts";
 
 /**
  * Generate exercises from a content set in a given mode.
