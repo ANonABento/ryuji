@@ -6,7 +6,8 @@
  */
 
 import { Database } from "bun:sqlite";
-import type { LinkedInClient, LinkedInPostResult } from "./api.ts";
+import type { LinkedInPostResult } from "../types.ts";
+import type { LinkedInClient } from "./api.ts";
 import type { LinkedInMonitor } from "./monitor.ts";
 
 // --- Types ---
