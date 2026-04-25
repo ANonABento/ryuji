@@ -13,7 +13,7 @@ import { SRSManager } from "./core/srs.ts";
 import { setSRS, getSRS } from "./core/srs-instance.ts";
 import { LessonDB } from "./core/lesson-db.ts";
 import { setLessonDB, getLessonDB } from "./core/lesson-db-instance.ts";
-import { registerLessons } from "./core/lesson-engine.ts";
+import { registerLessons, completeLesson } from "./core/lesson-engine.ts";
 import { getAllTutorTools } from "./tools/index.ts";
 import { listModules } from "./modules/index.ts";
 import { japaneseLessons, japaneseUnits } from "./modules/japanese/lessons/index.ts";
@@ -25,13 +25,13 @@ import {
   ButtonBuilder,
   ButtonStyle,
 } from "discord.js";
-import { completeLesson } from "./core/lesson-engine.ts";
 import { updateFromLessonCompletion } from "./core/learner-profile.ts";
 import { isButtonExercise } from "./core/lesson-types.ts";
 
-// SRS reminder timer handles (cleaned up in destroy)
+// SRS reminder state (cleaned up in destroy)
 let srsReminderTimeout: ReturnType<typeof setTimeout> | null = null;
 let srsReminderInterval: ReturnType<typeof setInterval> | null = null;
+const lastSrsReminder = new Map<string, number>();
 
 const SRS_REMINDER_INTERVAL_MS = 4 * 60 * 60 * 1000;
 const SRS_MIN_DUE = 5;
@@ -220,9 +220,6 @@ const tutorPlugin: Plugin = {
     }
 
     // SRS study reminders — check every 4 hours
-    // Track last reminder per user to avoid spam (in-memory, resets on restart which is fine)
-    const lastSrsReminder = new Map<string, number>();
-
     const checkSrsReminders = async () => {
       const srs = getSRS();
       if (!srs) return;

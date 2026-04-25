@@ -111,7 +111,6 @@ export function destroyLinkedInClient(): void {
   linkedInClient = null;
 }
 
-
 export const socialsTools: ToolDef[] = [
   // --- YouTube ---
   {
@@ -1348,11 +1347,11 @@ export const socialsTools: ToolDef[] = [
         required: ["text"],
       },
     },
-    handler: async (args: any, ctx: PluginContext) => {
+    handler: async (args: Record<string, unknown>, ctx: PluginContext) => {
       try {
         const client = getTwitterClient();
         const result = await withRetry(
-          () => client.postTweet(args.text),
+          () => client.postTweet(args.text as string),
           { label: "twitter_post", maxAttempts: 2 },
         );
         return text(`Tweet posted!\nURL: ${result.url}\nID: ${result.id}`);
@@ -1375,11 +1374,11 @@ export const socialsTools: ToolDef[] = [
         required: ["text", "image"],
       },
     },
-    handler: async (args: any, ctx: PluginContext) => {
+    handler: async (args: Record<string, unknown>, ctx: PluginContext) => {
       try {
         const client = getTwitterClient();
         const result = await withRetry(
-          () => client.postTweetWithMedia(args.text, args.image),
+          () => client.postTweetWithMedia(args.text as string, args.image as string),
           { label: "twitter_post_image", maxAttempts: 2 },
         );
         return text(`Tweet with image posted!\nURL: ${result.url}\nID: ${result.id}`);
@@ -1405,10 +1404,10 @@ export const socialsTools: ToolDef[] = [
         required: ["tweets"],
       },
     },
-    handler: async (args: any, ctx: PluginContext) => {
+    handler: async (args: Record<string, unknown>, ctx: PluginContext) => {
       try {
         const client = getTwitterClient();
-        const results = await client.postThread(args.tweets);
+        const results = await client.postThread(args.tweets as string[]);
         const summary = results
           .map((r, i) => `${i + 1}. ${r.url}`)
           .join("\n");
