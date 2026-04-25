@@ -6,6 +6,7 @@ import type { ToolDef } from "@choomfie/shared";
 import { text, err } from "@choomfie/shared";
 import { getSRS } from "../core/srs-instance.ts";
 import { getActiveModule } from "../core/session.ts";
+import { getModule } from "../modules/index.ts";
 import { getLessonDB } from "../core/lesson-db-instance.ts";
 import { updateFromSrsReview } from "../core/learner-profile.ts";
 
@@ -44,10 +45,8 @@ export const srsTools: ToolDef[] = [
             ? vocabData.default
             : vocabData;
           srs.importDeck(userId, DEFAULT_DECK, cards);
-        } catch (error: unknown) {
-          return err(
-            `Failed to import N5 deck: ${error instanceof Error ? error.message : String(error)}`
-          );
+        } catch (e: any) {
+          return err(`Failed to import N5 deck: ${e.message}`);
         }
       }
 
@@ -118,8 +117,8 @@ export const srsTools: ToolDef[] = [
         return text(
           `Rated **${result.card.front}** as **${args.rating}**. Next review in ${nextStr}.`
         );
-      } catch (error: unknown) {
-        return err(`SRS error: ${error instanceof Error ? error.message : String(error)}`);
+      } catch (e: any) {
+        return err(`SRS error: ${e.message}`);
       }
     },
   },

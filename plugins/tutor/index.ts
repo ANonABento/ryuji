@@ -20,11 +20,7 @@ import { japaneseLessons, japaneseUnits } from "./modules/japanese/lessons/index
 
 // Side-effect import: registers /lesson, /progress commands + button handlers
 import "./lesson-interactions.ts";
-import {
-  clearActiveSession,
-  hasActiveTypingExercise,
-  handleTypedAnswer,
-} from "./lesson-interactions.ts";
+import { hasActiveTypingExercise, handleTypedAnswer } from "./lesson-interactions.ts";
 import {
   EmbedBuilder,
   ActionRowBuilder,
@@ -33,19 +29,10 @@ import {
 } from "discord.js";
 import { completeLesson } from "./core/lesson-engine.ts";
 import { updateFromLessonCompletion } from "./core/learner-profile.ts";
-import { isButtonExercise, isTypingExercise } from "./core/lesson-types.ts";
-import {
-  countCorrectResults,
-  getShuffledExerciseChoices,
-} from "./core/exercise-utils.ts";
 
 // SRS reminder timer handles (cleaned up in destroy)
 let srsReminderTimeout: ReturnType<typeof setTimeout> | null = null;
 let srsReminderInterval: ReturnType<typeof setInterval> | null = null;
-
-const SRS_REMINDER_INTERVAL_MS = 4 * 60 * 60 * 1000;
-const SRS_MIN_DUE = 5;
-const SRS_REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 const tutorPlugin: Plugin = {
   name: "tutor",
@@ -116,7 +103,7 @@ const tutorPlugin: Plugin = {
     // Get correct count from DB
     const db = getLessonDB();
     const progress = db?.getProgress(userId, session.module, session.lessonId);
-    const correctSoFar = countCorrectResults(progress?.exerciseResults);
+    const correctSoFar = progress?.exerciseResults.filter((r) => r.correct).length ?? 0;
 
     const resultEmbed = new EmbedBuilder()
       .setColor(exerciseResult.correct ? 0x57f287 : 0xed4245)
@@ -126,10 +113,15 @@ const tutorPlugin: Plugin = {
     // Check if lesson is done
     if (session.exerciseIndex >= session.lesson.exercises.length) {
       const completion = completeLesson(db!, userId, session.module, session.lessonId);
-      clearActiveSession(userId);
 
       // Update learner profile
-      updateFromLessonCompletion(db!, userId, session.module);
+      const completionProgress = db!.getProgress(userId, session.module, session.lessonId);
+      if (completionProgress) {
+        updateFromLessonCompletion(
+          db!, userId, session.module, session.lessonId,
+          completion.score, completionProgress.exerciseResults
+        );
+      }
 
       const pct = Math.round(completion.score * 100);
       const passed = completion.passed;
@@ -180,17 +172,18 @@ const tutorPlugin: Plugin = {
       .setDescription(nextExercise.prompt);
 
     // Build buttons for MC exercises, or typing prompt
-    const isTyping = isTypingExercise(nextExercise.type);
+    const isTyping = nextExercise.type === "production" || nextExercise.type === "cloze";
     const components: ActionRowBuilder<ButtonBuilder>[] = [];
 
-    if (!isTyping && isButtonExercise(nextExercise.type)) {
-      const choices = getShuffledExerciseChoices(nextExercise);
+    if (!isTyping && (nextExercise.type === "recognition" || nextExercise.type === "multiple_choice" || nextExercise.type === "chart" || nextExercise.type === "matching")) {
+      const options = [nextExercise.answer, ...(nextExercise.distractors ?? [])];
+      const shuffled = options.sort(() => Math.random() - 0.5);
       const row = new ActionRowBuilder<ButtonBuilder>();
-      for (let i = 0; i < Math.min(choices.length, 5); i++) {
+      for (let i = 0; i < Math.min(shuffled.length, 5); i++) {
         row.addComponents(
           new ButtonBuilder()
-            .setCustomId(`lesson:answer:${session.lessonId}:${session.exerciseIndex}:${choices[i]}`)
-            .setLabel(choices[i])
+            .setCustomId(`lesson:answer:${session.lessonId}:${session.exerciseIndex}:${shuffled[i]}`)
+            .setLabel(shuffled[i])
             .setStyle(ButtonStyle.Secondary)
         );
       }
@@ -232,8 +225,13 @@ const tutorPlugin: Plugin = {
     }
 
     // SRS study reminders — check every 4 hours
+    const SRS_REMINDER_INTERVAL = 4 * 60 * 60 * 1000; // 4 hours
+    const SRS_MIN_DUE = 5; // minimum due cards to trigger reminder
+
     // Track last reminder per user to avoid spam (in-memory, resets on restart which is fine)
     const lastSrsReminder = new Map<string, number>();
+
+    const SRS_REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
     const checkSrsReminders = async () => {
       const srs = getSRS();
@@ -251,7 +249,7 @@ const tutorPlugin: Plugin = {
         try {
           const user = await ctx.discord.users.fetch(userId);
           await user.send(
-            `📚 You have **${count} SRS cards** due for review! Keep your streak going.\nUse \`/srs_review\` or ask me to start a review session.`
+            `\u{1F4DA} You have **${count} SRS cards** due for review! Keep your streak going.\nUse \`/srs_review\` or ask me to start a review session.`
           );
           lastSrsReminder.set(userId, Date.now());
           console.error(`Tutor: sent SRS reminder to ${userId} (${count} due cards)`);
@@ -263,7 +261,7 @@ const tutorPlugin: Plugin = {
 
     // Run initial check after 1 minute (let Discord connect first), then every 4 hours
     srsReminderTimeout = setTimeout(checkSrsReminders, 60_000);
-    srsReminderInterval = setInterval(checkSrsReminders, SRS_REMINDER_INTERVAL_MS);
+    srsReminderInterval = setInterval(checkSrsReminders, SRS_REMINDER_INTERVAL);
   },
 
   async destroy() {
