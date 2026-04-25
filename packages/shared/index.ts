@@ -8,6 +8,7 @@
 // Types + helpers
 export type { Plugin, ToolDef, ToolResult } from "./types.ts";
 export { text, err } from "./types.ts";
+export { errorMessage } from "./errors.ts";
 
 // Plugin context
 export type { PluginContext, PluginConfig } from "./plugin-context.ts";

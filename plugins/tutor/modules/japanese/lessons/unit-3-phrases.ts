@@ -127,9 +127,9 @@ export const phraseLessons: Lesson[] = [
         "おやすみなさい means 'good night' — used when someone is going to sleep.",
       ),
       cloze(
-        "おはよう___ございます",
-        " ",
-        "The polite form adds ございます",
+        "おはよう___",
+        "ございます",
+        "Add the polite ending",
         "The casual おはよう becomes polite by adding ございます.",
       ),
     ],

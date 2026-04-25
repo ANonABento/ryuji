@@ -9,22 +9,6 @@ import { FSRS, createEmptyCard, Rating, type Card } from "ts-fsrs";
 import { Database } from "bun:sqlite";
 import { nowUTC, toSQLiteDatetime } from "@choomfie/shared";
 
-type SRSCardDbRow = {
-  id: number;
-  user_id: string;
-  front: string;
-  back: string;
-  reading: string;
-  deck: string;
-  tags: string;
-  card_state: string;
-  next_review: string;
-  created_at: string;
-};
-
-type CountRow = { c: number };
-type DueCountRow = { user_id: string; count: number };
-
 export interface SRSCard {
   id: number;
   userId: string;
@@ -42,6 +26,28 @@ export interface ReviewResult {
   card: SRSCard;
   nextReview: Date;
   interval: number; // days
+}
+
+interface SRSCardDBRow {
+  id: number;
+  user_id: string;
+  front: string;
+  back: string;
+  reading: string;
+  deck: string;
+  tags: string;
+  card_state: string;
+  next_review: string;
+  created_at: string;
+}
+
+interface CountDBRow {
+  c: number;
+}
+
+interface DueCountDBRow {
+  user_id: string;
+  count: number;
 }
 
 export class SRSManager {
@@ -132,7 +138,7 @@ export class SRSManager {
       : `SELECT * FROM srs_cards WHERE user_id = ? AND next_review <= ? ORDER BY next_review ASC LIMIT ?`;
 
     const params = deck ? [userId, deck, now, limit] : [userId, now, limit];
-    const rows = this.db.query(query).all(...params) as SRSCardDbRow[];
+    const rows = this.db.query(query).all(...params) as SRSCardDBRow[];
     return rows.map(this.rowToCard);
   }
 
@@ -143,7 +149,7 @@ export class SRSManager {
   ): ReviewResult {
     const row = this.db
       .query("SELECT * FROM srs_cards WHERE id = ?")
-      .get(cardId) as SRSCardDbRow | null;
+      .get(cardId) as SRSCardDBRow | null;
 
     if (!row) throw new Error(`Card #${cardId} not found`);
     if (row.user_id !== userId) {
@@ -185,28 +191,15 @@ export class SRSManager {
     deck?: string
   ): { total: number; due: number; learned: number } {
     const now = nowUTC();
-    const where = deck ? "user_id = ? AND deck = ?" : "user_id = ?";
+    const filters = deck ? ["user_id = ?", "deck = ?"] : ["user_id = ?"];
     const params = deck ? [userId, deck] : [userId];
 
-    const total = (
-      this.db.query(`SELECT COUNT(*) as c FROM srs_cards WHERE ${where}`).get(...params) as CountRow
-    ).c;
-
-    const due = (
-      this.db
-        .query(
-          `SELECT COUNT(*) as c FROM srs_cards WHERE ${where} AND next_review <= ?`
-        )
-        .get(...params, now) as CountRow
-    ).c;
-
-    const learned = (
-      this.db
-        .query(
-          `SELECT COUNT(*) as c FROM srs_cards WHERE ${where} AND card_state != ?`
-        )
-        .get(...params, this.emptyCardState) as CountRow
-    ).c;
+    const total = this.countCards(filters, params);
+    const due = this.countCards([...filters, "next_review <= ?"], [...params, now]);
+    const learned = this.countCards(
+      [...filters, "card_state != ?"],
+      [...params, this.emptyCardState]
+    );
 
     return { total, due, learned };
   }
@@ -216,7 +209,7 @@ export class SRSManager {
     const now = nowUTC();
     const rows = this.db.query(
       `SELECT user_id, COUNT(*) as count FROM srs_cards WHERE next_review <= ? GROUP BY user_id`
-    ).all(now) as DueCountRow[];
+    ).all(now) as DueCountDBRow[];
 
     const result = new Map<string, number>();
     for (const row of rows) {
@@ -226,17 +219,18 @@ export class SRSManager {
   }
 
   hasDeck(userId: string, deck: string): boolean {
-    const count = (
-      this.db
-        .query(
-          "SELECT COUNT(*) as c FROM srs_cards WHERE user_id = ? AND deck = ?"
-        )
-        .get(userId, deck) as CountRow
-    ).c;
-    return count > 0;
+    return this.countCards(["user_id = ?", "deck = ?"], [userId, deck]) > 0;
   }
 
-  private rowToCard(row: SRSCardDbRow): SRSCard {
+  private countCards(filters: string[], params: string[]): number {
+    const where = filters.join(" AND ");
+    const row = this.db
+      .query(`SELECT COUNT(*) as c FROM srs_cards WHERE ${where}`)
+      .get(...params) as CountDBRow | null;
+    return row?.c ?? 0;
+  }
+
+  private rowToCard(row: SRSCardDBRow): SRSCard {
     return {
       id: row.id,
       userId: row.user_id,

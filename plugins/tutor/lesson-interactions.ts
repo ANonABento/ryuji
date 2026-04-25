@@ -26,25 +26,29 @@ import {
   completeLesson,
   getProgressData,
 } from "./core/lesson-engine.ts";
-import type { Exercise, Lesson } from "./core/lesson-types.ts";
-import { isButtonExercise, isTypingExercise } from "./core/lesson-types.ts";
 import {
-  countCorrectResults,
-  getShuffledExerciseChoices,
-} from "./core/exercise-utils.ts";
+  getExerciseAnswer,
+  type Exercise,
+  type Lesson,
+  isButtonExercise,
+} from "./core/lesson-types.ts";
 import { updateFromLessonCompletion } from "./core/learner-profile.ts";
 
 // --- Active lesson sessions (in-memory, keyed by userId) ---
 
-interface ActiveSession {
+type AnswerOptionsByToken = Map<string, string>;
+type AnswerOptionsByExercise = Map<number, AnswerOptionsByToken>;
+
+export interface ActiveLessonSession {
   userId: string;
   module: string;
   lessonId: string;
   exerciseIndex: number;
   lesson: Lesson;
+  answerOptionsByExercise: AnswerOptionsByExercise;
 }
 
-const activeSessions = new Map<string, ActiveSession>();
+const activeSessions = new Map<string, ActiveLessonSession>();
 
 // --- Helpers ---
 
@@ -77,7 +81,7 @@ function buildIntroEmbed(lesson: Lesson): EmbedBuilder {
   return embed;
 }
 
-function buildExerciseEmbed(
+export function buildExerciseEmbed(
   lesson: Lesson,
   exerciseIndex: number,
   exercise: Exercise
@@ -94,19 +98,92 @@ function buildExerciseEmbed(
   return embed;
 }
 
-function buildExerciseButtons(
+export function buildAnswerCustomId(
+  lessonId: string,
+  exerciseIndex: number,
+  optionToken: string
+): string {
+  return `lesson:answer:${lessonId}:${exerciseIndex}:${optionToken}`;
+}
+
+function shuffle<T>(items: T[]): T[] {
+  const shuffled = [...items];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+export function buildButtonOptions(exercise: Exercise): string[] {
+  if (!isButtonExercise(exercise.type)) return [];
+  const answer = getExerciseAnswer(exercise);
+  const distractors = [...new Set(exercise.distractors ?? [])].filter(
+    (option) => option !== answer
+  );
+  const selectedDistractors = shuffle(distractors).slice(0, 4);
+  return shuffle([answer, ...selectedDistractors]);
+}
+
+function buttonLabel(answer: string): string {
+  return answer.length > 80 ? `${answer.slice(0, 77)}...` : answer;
+}
+
+function parseExerciseIndex(value: string | undefined): number | null {
+  if (!value || !/^\d+$/.test(value)) return null;
+  const index = Number(value);
+  return Number.isInteger(index) && index >= 0 ? index : null;
+}
+
+function setActiveLessonSession(
+  userId: string,
+  module: string,
+  lessonId: string,
+  lesson: Lesson,
+  exerciseIndex: number
+): ActiveLessonSession {
+  const session: ActiveLessonSession = {
+    userId,
+    module,
+    lessonId,
+    exerciseIndex,
+    lesson,
+    answerOptionsByExercise: new Map(),
+  };
+  activeSessions.set(userId, session);
+  return session;
+}
+
+function getOrCreateAnswerOptions(
+  exercise: Exercise,
+  exerciseIndex: number,
+  session: ActiveLessonSession
+): AnswerOptionsByToken {
+  const existing = session.answerOptionsByExercise.get(exerciseIndex);
+  if (existing) return existing;
+
+  const answersByToken: AnswerOptionsByToken = new Map();
+  buildButtonOptions(exercise).forEach((option, index) => {
+    answersByToken.set(String(index), option);
+  });
+  session.answerOptionsByExercise.set(exerciseIndex, answersByToken);
+  return answersByToken;
+}
+
+export function buildExerciseButtons(
   exercise: Exercise,
   lessonId: string,
-  exerciseIndex: number
+  exerciseIndex: number,
+  session: ActiveLessonSession
 ): ActionRowBuilder<ButtonBuilder>[] {
   if (isButtonExercise(exercise.type)) {
+    const answersByToken = getOrCreateAnswerOptions(exercise, exerciseIndex, session);
     const row = new ActionRowBuilder<ButtonBuilder>();
-    const choices = getShuffledExerciseChoices(exercise);
-    for (let i = 0; i < Math.min(choices.length, 5); i++) {
+    for (const [token, option] of answersByToken) {
       row.addComponents(
         new ButtonBuilder()
-          .setCustomId(`lesson:answer:${lessonId}:${exerciseIndex}:${choices[i]}`)
-          .setLabel(choices[i])
+          .setCustomId(buildAnswerCustomId(lessonId, exerciseIndex, token))
+          .setLabel(buttonLabel(option))
           .setStyle(ButtonStyle.Secondary)
       );
     }
@@ -114,10 +191,11 @@ function buildExerciseButtons(
   }
 
   // Production/cloze — no buttons, user types answer
+  session.answerOptionsByExercise.delete(exerciseIndex);
   return [];
 }
 
-function buildResultEmbed(
+export function buildResultEmbed(
   correct: boolean,
   feedback: string,
   correctSoFar: number,
@@ -129,7 +207,7 @@ function buildResultEmbed(
     .setFooter({ text: `Score: ${correctSoFar}/${total}` });
 }
 
-function buildSummaryEmbed(
+export function buildSummaryEmbed(
   lesson: Lesson,
   score: number,
   passed: boolean,
@@ -158,6 +236,24 @@ function buildSummaryEmbed(
   return embed;
 }
 
+export function buildLessonCompletionComponents(
+  passed: boolean,
+  lessonId: string
+): ActionRowBuilder<ButtonBuilder>[] {
+  const customId = passed ? "lesson:next" : `lesson:retry:${lessonId}`;
+  const label = passed ? "Next Lesson →" : "Try Again";
+  const style = passed ? ButtonStyle.Success : ButtonStyle.Primary;
+
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(customId)
+        .setLabel(label)
+        .setStyle(style)
+    ),
+  ];
+}
+
 function buildProgressBar(ratio: number, length: number): string {
   const filled = Math.round(ratio * length);
   const empty = length - filled;
@@ -168,7 +264,7 @@ function buildProgressBar(ratio: number, length: number): string {
 
 async function sendNextExercise(
   interaction: ButtonInteraction,
-  session: ActiveSession,
+  session: ActiveLessonSession,
   editMessage: boolean = false
 ) {
   const db = getLessonDB();
@@ -179,33 +275,19 @@ async function sendNextExercise(
   // All exercises done?
   if (exerciseIndex >= lesson.exercises.length) {
     const result = completeLesson(db, userId, module, lessonId);
-    activeSessions.delete(userId);
+    clearActiveSession(userId);
 
     // Update learner profile
     updateFromLessonCompletion(db, userId, module);
 
-    const summary = buildSummaryEmbed(lesson, result.score, result.passed, result.totalCorrect, result.totalExercises);
-
-    const components: ActionRowBuilder<ButtonBuilder>[] = [];
-    if (result.passed) {
-      components.push(
-        new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId("lesson:next")
-            .setLabel("Next Lesson →")
-            .setStyle(ButtonStyle.Success)
-        )
-      );
-    } else {
-      components.push(
-        new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`lesson:retry:${lessonId}`)
-            .setLabel("Try Again")
-            .setStyle(ButtonStyle.Primary)
-        )
-      );
-    }
+    const summary = buildSummaryEmbed(
+      lesson,
+      result.score,
+      result.passed,
+      result.totalCorrect,
+      result.totalExercises
+    );
+    const components = buildLessonCompletionComponents(result.passed, lessonId);
 
     if (editMessage) {
       await interaction.update({ embeds: [summary], components });
@@ -217,7 +299,7 @@ async function sendNextExercise(
 
   const exercise = lesson.exercises[exerciseIndex];
   const embed = buildExerciseEmbed(lesson, exerciseIndex, exercise);
-  const buttons = buildExerciseButtons(exercise, lessonId, exerciseIndex);
+  const buttons = buildExerciseButtons(exercise, lessonId, exerciseIndex, session);
 
   const isTypingExercise = buttons.length === 0;
   if (isTypingExercise) {
@@ -240,7 +322,7 @@ registerCommand("lesson", {
     .setName("lesson")
     .setDescription("Start or continue a Japanese lesson")
     .toJSON(),
-  handler: async (interaction, ctx) => {
+  handler: async (interaction, _ctx) => {
     const db = getLessonDB();
     if (!db) {
       await interaction.reply({
@@ -259,10 +341,15 @@ registerCommand("lesson", {
       // Resume
       const exercise = existing.lesson.exercises[existing.exerciseIndex];
       if (!exercise) {
-        activeSessions.delete(userId);
+        clearActiveSession(userId);
       } else {
         const embed = buildExerciseEmbed(existing.lesson, existing.exerciseIndex, exercise);
-        const buttons = buildExerciseButtons(exercise, existing.lessonId, existing.exerciseIndex);
+        const buttons = buildExerciseButtons(
+          exercise,
+          existing.lessonId,
+          existing.exerciseIndex,
+          existing
+        );
         await interaction.reply({ embeds: [embed], components: buttons });
         return;
       }
@@ -287,14 +374,7 @@ registerCommand("lesson", {
     }
 
     // Create active session
-    const session: ActiveSession = {
-      userId,
-      module,
-      lessonId: next.id,
-      exerciseIndex: result.resumeAt,
-      lesson: result.lesson,
-    };
-    activeSessions.set(userId, session);
+    setActiveLessonSession(userId, module, next.id, result.lesson, result.resumeAt);
 
     // Show intro
     const intro = buildIntroEmbed(result.lesson);
@@ -364,10 +444,11 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
 
   if (action === "start") {
     // Start exercises from intro screen
+    const lessonId = parts[2];
     const session = activeSessions.get(userId);
-    if (!session) {
+    if (!lessonId || !session || session.lessonId !== lessonId) {
       await interaction.reply({
-        content: "Session expired. Use `/lesson` to start again.",
+        content: "Session expired or no longer active. Use `/lesson` to continue.",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -379,8 +460,16 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
   if (action === "answer") {
     // Button answer for recognition/MC exercises
     const lessonId = parts[2];
-    const exerciseIndex = parseInt(parts[3], 10);
-    const userAnswer = parts[4];
+    const exerciseIndex = parseExerciseIndex(parts[3]);
+    const answerToken = parts[4];
+
+    if (!lessonId || exerciseIndex === null || answerToken === undefined) {
+      await interaction.reply({
+        content: "That lesson button is invalid. Use `/lesson` to continue.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
 
     const session = activeSessions.get(userId);
     if (!session || session.lessonId !== lessonId) {
@@ -391,11 +480,33 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
       return;
     }
 
-    const exercise = session.lesson.exercises[exerciseIndex];
-    if (!exercise) return;
+    if (session.exerciseIndex !== exerciseIndex) {
+      await interaction.reply({
+        content: "That exercise is no longer active. Use `/lesson` to continue.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
 
-    const result = scoreExercise(exercise, userAnswer);
-    result.index = exerciseIndex;
+    const exercise = session.lesson.exercises[exerciseIndex];
+    if (!exercise) {
+      await interaction.reply({
+        content: "That exercise is no longer available. Use `/lesson` to continue.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const userAnswer = session.answerOptionsByExercise.get(exerciseIndex)?.get(answerToken);
+    if (userAnswer === undefined) {
+      await interaction.reply({
+        content: "That answer option expired. Use `/lesson` to continue.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const result = scoreExercise(exercise, userAnswer, exerciseIndex);
 
     // Save to DB
     db.saveExerciseResult(userId, session.module, lessonId, exerciseIndex, {
@@ -404,12 +515,13 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
       userAnswer,
     });
 
-    // Count correct so far
+    // Count correct so far (progress already includes the just-saved result)
     const progress = db.getProgress(userId, session.module, lessonId);
-    const correctSoFar = countCorrectResults(progress?.exerciseResults);
+    const correctSoFar = progress?.exerciseResults.filter((r) => r.correct).length ?? 0;
 
     // Move to next exercise
     session.exerciseIndex = exerciseIndex + 1;
+    session.answerOptionsByExercise.delete(exerciseIndex);
 
     // Show result briefly then move on
     const resultEmbed = buildResultEmbed(
@@ -431,10 +543,11 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
   }
 
   if (action === "continue") {
+    const lessonId = parts[2];
     const session = activeSessions.get(userId);
-    if (!session) {
+    if (!lessonId || !session || session.lessonId !== lessonId) {
       await interaction.reply({
-        content: "Session expired. Use `/lesson` to start again.",
+        content: "Session expired or no longer active. Use `/lesson` to continue.",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -461,16 +574,15 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
     }
 
     const result = startLesson(db, userId, module, next.id);
-    if (!result) return;
+    if (!result) {
+      await interaction.reply({
+        content: "Could not start the next lesson. Use `/lesson` to continue.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
 
-    const session: ActiveSession = {
-      userId,
-      module,
-      lessonId: next.id,
-      exerciseIndex: result.resumeAt,
-      lesson: result.lesson,
-    };
-    activeSessions.set(userId, session);
+    setActiveLessonSession(userId, module, next.id, result.lesson, result.resumeAt);
 
     const intro = buildIntroEmbed(result.lesson);
     const startButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -487,18 +599,24 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
   if (action === "retry") {
     const lessonId = parts[2];
     const module = getActiveModule(userId);
+    if (!lessonId) {
+      await interaction.reply({
+        content: "That lesson retry button is invalid. Use `/lesson` to continue.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
 
     const result = startLesson(db, userId, module, lessonId);
-    if (!result) return;
+    if (!result) {
+      await interaction.reply({
+        content: "That lesson is not available to retry. Use `/lesson` to continue.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
 
-    const session: ActiveSession = {
-      userId,
-      module,
-      lessonId,
-      exerciseIndex: 0,
-      lesson: result.lesson,
-    };
-    activeSessions.set(userId, session);
+    setActiveLessonSession(userId, module, lessonId, result.lesson, 0);
 
     const intro = buildIntroEmbed(result.lesson);
     const startButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -522,7 +640,7 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
 export function handleTypedAnswer(
   userId: string,
   text: string
-): { result: ReturnType<typeof scoreExercise>; session: ActiveSession } | null {
+): { result: ReturnType<typeof scoreExercise>; session: ActiveLessonSession } | null {
   const session = activeSessions.get(userId);
   if (!session) return null;
 
@@ -530,13 +648,12 @@ export function handleTypedAnswer(
   if (!exercise) return null;
 
   // Only handle typing exercises
-  if (!isTypingExercise(exercise.type)) return null;
+  if (exercise.type !== "production" && exercise.type !== "cloze") return null;
 
   const db = getLessonDB();
   if (!db) return null;
 
-  const result = scoreExercise(exercise, text);
-  result.index = session.exerciseIndex;
+  const result = scoreExercise(exercise, text, session.exerciseIndex);
 
   db.saveExerciseResult(userId, session.module, session.lessonId, session.exerciseIndex, {
     index: session.exerciseIndex,
@@ -554,15 +671,15 @@ export function hasActiveTypingExercise(userId: string): boolean {
   if (!session) return false;
   const exercise = session.lesson.exercises[session.exerciseIndex];
   if (!exercise) return false;
-  return isTypingExercise(exercise.type);
+  return exercise.type === "production" || exercise.type === "cloze";
 }
 
 /** Get active session for a user */
-function getActiveSession(userId: string): ActiveSession | undefined {
+export function getActiveSession(userId: string): ActiveLessonSession | undefined {
   return activeSessions.get(userId);
 }
 
-/** Clear any active session for a user */
+/** Clear active session for a user */
 export function clearActiveSession(userId: string): void {
   activeSessions.delete(userId);
 }
