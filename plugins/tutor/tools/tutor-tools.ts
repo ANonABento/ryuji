@@ -4,16 +4,12 @@
  */
 
 import type { ToolDef } from "@choomfie/shared";
-import { text, err } from "@choomfie/shared";
+import { text, err, errorMessage } from "@choomfie/shared";
 import { getActiveModule, getModuleLevel, setLevel } from "../core/session.ts";
 import { getModule } from "../modules/index.ts";
 import { getLessonDB } from "../core/lesson-db-instance.ts";
 import { formatForPrompt } from "../core/learner-profile.ts";
 import { getActiveSession } from "../lesson-interactions.ts";
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 export const tutorTools: ToolDef[] = [
   {
