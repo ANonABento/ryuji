@@ -33,12 +33,13 @@ import { updateFromLessonCompletion } from "./core/learner-profile.ts";
 
 // --- Active lesson sessions (in-memory, keyed by userId) ---
 
-interface ActiveSession {
+export interface ActiveSession {
   userId: string;
   module: string;
   lessonId: string;
   exerciseIndex: number;
   lesson: Lesson;
+  answerOptions: Map<number, Map<string, string>>;
 }
 
 const activeSessions = new Map<string, ActiveSession>();
@@ -91,22 +92,66 @@ function buildExerciseEmbed(
   return embed;
 }
 
-function buildExerciseButtons(
+export function buildAnswerCustomId(
+  lessonId: string,
+  exerciseIndex: number,
+  optionToken: string
+): string {
+  return `lesson:answer:${lessonId}:${exerciseIndex}:${optionToken}`;
+}
+
+function shuffle<T>(items: T[]): T[] {
+  const shuffled = [...items];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+export function buildButtonOptions(exercise: Exercise): string[] {
+  if (!isButtonExercise(exercise.type)) return [];
+  const distractors = [...new Set(exercise.distractors ?? [])].filter(
+    (option) => option !== exercise.answer
+  );
+  const selectedDistractors = shuffle(distractors).slice(0, 4);
+  return shuffle([exercise.answer, ...selectedDistractors]);
+}
+
+function buttonLabel(answer: string): string {
+  return answer.length > 80 ? `${answer.slice(0, 77)}...` : answer;
+}
+
+function getOrCreateAnswerOptions(
+  exercise: Exercise,
+  exerciseIndex: number,
+  session: ActiveSession
+): Map<string, string> {
+  const existing = session.answerOptions.get(exerciseIndex);
+  if (existing) return existing;
+
+  const answersByToken = new Map<string, string>();
+  buildButtonOptions(exercise).forEach((option, index) => {
+    answersByToken.set(String(index), option);
+  });
+  session.answerOptions.set(exerciseIndex, answersByToken);
+  return answersByToken;
+}
+
+export function buildExerciseButtons(
   exercise: Exercise,
   lessonId: string,
-  exerciseIndex: number
+  exerciseIndex: number,
+  session: ActiveSession
 ): ActionRowBuilder<ButtonBuilder>[] {
   if (isButtonExercise(exercise.type)) {
-    // Shuffle answer + distractors
-    const options = [exercise.answer, ...(exercise.distractors ?? [])];
-    const shuffled = options.sort(() => Math.random() - 0.5);
-
+    const answersByToken = getOrCreateAnswerOptions(exercise, exerciseIndex, session);
     const row = new ActionRowBuilder<ButtonBuilder>();
-    for (let i = 0; i < Math.min(shuffled.length, 5); i++) {
+    for (const [token, option] of answersByToken) {
       row.addComponents(
         new ButtonBuilder()
-          .setCustomId(`lesson:answer:${lessonId}:${exerciseIndex}:${shuffled[i]}`)
-          .setLabel(shuffled[i])
+          .setCustomId(buildAnswerCustomId(lessonId, exerciseIndex, token))
+          .setLabel(buttonLabel(option))
           .setStyle(ButtonStyle.Secondary)
       );
     }
@@ -114,6 +159,7 @@ function buildExerciseButtons(
   }
 
   // Production/cloze — no buttons, user types answer
+  session.answerOptions.delete(exerciseIndex);
   return [];
 }
 
@@ -217,7 +263,7 @@ async function sendNextExercise(
 
   const exercise = lesson.exercises[exerciseIndex];
   const embed = buildExerciseEmbed(lesson, exerciseIndex, exercise);
-  const buttons = buildExerciseButtons(exercise, lessonId, exerciseIndex);
+  const buttons = buildExerciseButtons(exercise, lessonId, exerciseIndex, session);
 
   const isTypingExercise = buttons.length === 0;
   if (isTypingExercise) {
@@ -262,7 +308,12 @@ registerCommand("lesson", {
         activeSessions.delete(userId);
       } else {
         const embed = buildExerciseEmbed(existing.lesson, existing.exerciseIndex, exercise);
-        const buttons = buildExerciseButtons(exercise, existing.lessonId, existing.exerciseIndex);
+        const buttons = buildExerciseButtons(
+          exercise,
+          existing.lessonId,
+          existing.exerciseIndex,
+          existing
+        );
         await interaction.reply({ embeds: [embed], components: buttons });
         return;
       }
@@ -293,6 +344,7 @@ registerCommand("lesson", {
       lessonId: next.id,
       exerciseIndex: result.resumeAt,
       lesson: result.lesson,
+      answerOptions: new Map(),
     };
     activeSessions.set(userId, session);
 
@@ -380,7 +432,7 @@ registerButtonHandler("lesson", async (interaction, parts, ctx) => {
     // Button answer for recognition/MC exercises
     const lessonId = parts[2];
     const exerciseIndex = parseInt(parts[3], 10);
-    const userAnswer = parts[4];
+    const answerToken = parts[4];
 
     const session = activeSessions.get(userId);
     if (!session || session.lessonId !== lessonId) {
@@ -391,8 +443,25 @@ registerButtonHandler("lesson", async (interaction, parts, ctx) => {
       return;
     }
 
+    if (session.exerciseIndex !== exerciseIndex) {
+      await interaction.reply({
+        content: "That exercise is no longer active. Use `/lesson` to continue.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
     const exercise = session.lesson.exercises[exerciseIndex];
     if (!exercise) return;
+
+    const userAnswer = session.answerOptions.get(exerciseIndex)?.get(answerToken);
+    if (userAnswer === undefined) {
+      await interaction.reply({
+        content: "That answer option expired. Use `/lesson` to continue.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
 
     const result = scoreExercise(exercise, userAnswer);
     result.index = exerciseIndex;
@@ -410,6 +479,7 @@ registerButtonHandler("lesson", async (interaction, parts, ctx) => {
 
     // Move to next exercise
     session.exerciseIndex = exerciseIndex + 1;
+    session.answerOptions.delete(exerciseIndex);
 
     // Show result briefly then move on
     const resultEmbed = buildResultEmbed(
@@ -469,6 +539,7 @@ registerButtonHandler("lesson", async (interaction, parts, ctx) => {
       lessonId: next.id,
       exerciseIndex: result.resumeAt,
       lesson: result.lesson,
+      answerOptions: new Map(),
     };
     activeSessions.set(userId, session);
 
@@ -497,6 +568,7 @@ registerButtonHandler("lesson", async (interaction, parts, ctx) => {
       lessonId,
       exerciseIndex: 0,
       lesson: result.lesson,
+      answerOptions: new Map(),
     };
     activeSessions.set(userId, session);
 
@@ -560,4 +632,9 @@ export function hasActiveTypingExercise(userId: string): boolean {
 /** Get active session for a user */
 export function getActiveSession(userId: string): ActiveSession | undefined {
   return activeSessions.get(userId);
+}
+
+/** Clear active session for a user */
+export function clearActiveSession(userId: string): void {
+  activeSessions.delete(userId);
 }
