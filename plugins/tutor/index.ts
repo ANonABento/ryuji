@@ -20,18 +20,16 @@ import { listModules } from "./modules/index.ts";
 import { japaneseLessons, japaneseUnits } from "./modules/japanese/lessons/index.ts";
 
 import {
+  buildExerciseEmbed,
   buildExerciseButtons,
   buildLessonCompletionComponents,
   buildResultEmbed,
   buildSummaryEmbed,
   clearActiveSession,
-  getSessionExercisePrompt,
-  getSessionExerciseSet,
   hasActiveTypingExercise,
   handleTypedAnswer,
 } from "./lesson-interactions.ts";
 import { getActiveModule } from "./core/session.ts";
-import { EmbedBuilder } from "discord.js";
 import { updateFromLessonCompletion } from "./core/learner-profile.ts";
 
 // SRS reminder state (cleaned up in destroy)
@@ -99,7 +97,7 @@ const tutorPlugin: Plugin = {
   ],
 
   async onMessage(message, ctx) {
-    // Handle typed answers for non-button lesson exercises.
+    // Handle typed answers for production/cloze exercises
     if (message.author.bot) return;
     const userId = message.author.id;
 
@@ -120,15 +118,12 @@ const tutorPlugin: Plugin = {
       exerciseResult.correct,
       exerciseResult.feedback,
       correctSoFar,
-      getSessionExerciseSet(session).length
+      session.lesson.exercises.length
     );
 
     // Check if lesson is done
-    const exerciseSet = getSessionExerciseSet(session);
-    if (session.exerciseIndex >= exerciseSet.length) {
-      const completion = completeLesson(db, userId, session.module, session.lessonId, {
-        totalExercises: exerciseSet.length,
-      });
+    if (session.exerciseIndex >= session.lesson.exercises.length) {
+      const completion = completeLesson(db, userId, session.module, session.lessonId);
 
       // Update learner profile
       updateFromLessonCompletion(db, userId, session.module);
@@ -151,11 +146,12 @@ const tutorPlugin: Plugin = {
     }
 
     // Show next exercise
-    const nextExercise = exerciseSet[session.exerciseIndex];
-    const exerciseEmbed = new EmbedBuilder()
-      .setColor(0xfee75c)
-      .setTitle(`Exercise ${session.exerciseIndex + 1}/${exerciseSet.length}`)
-      .setDescription(getSessionExercisePrompt(session, session.exerciseIndex, nextExercise));
+    const nextExercise = session.lesson.exercises[session.exerciseIndex];
+    const exerciseEmbed = buildExerciseEmbed(
+      session.lesson,
+      session.exerciseIndex,
+      nextExercise
+    );
 
     const components = buildExerciseButtons(
       nextExercise,

@@ -2,56 +2,23 @@
  * Lesson system types — structured, mastery-gated progression.
  */
 
-export type ExerciseMode = "recognition" | "production" | "matching";
-export type LessonPracticeMode = ExerciseMode | "mixed";
-
-/** A single teachable item that can generate exercises in multiple modes */
-export interface ContentItem {
-  term: string;
-  reading: string;
-  meaning: string;
-}
-
-/** A set of content that can generate exercises in multiple modes */
-export interface ContentSet {
-  items: ContentItem[];
-  modes?: ExerciseMode[];
-}
-
-export interface ChartBlank {
-  row: number;
-  col: number;
-  answer: string;
-  reading?: string;
-}
-
-export type ExerciseType =
-  | "recognition" // see JP → pick meaning (buttons)
-  | "production" // see meaning → type JP
-  | "cloze" // fill the blank
-  | "multiple_choice" // general MC (buttons)
-  | "error_correction" // find the mistake
-  | "sentence_build" // arrange words
-  | "chart" // fill in partial kana grid
-  | "matching"; // match term to meaning (buttons)
-
 /** A single exercise within a lesson */
 export interface Exercise {
-  type: ExerciseType;
+  type:
+    | "recognition" // see JP → pick meaning (buttons)
+    | "production" // see meaning → type JP
+    | "cloze" // fill the blank
+    | "multiple_choice" // general MC (buttons)
+    | "error_correction" // find the mistake
+    | "sentence_build" // arrange words
+    | "chart" // fill in partial kana grid
+    | "matching"; // match term to meaning (buttons)
   prompt: string;
   answer: string;
   distractors?: string[]; // for MC/recognition (button labels)
   accept?: string[]; // alternative accepted answers
   hint?: string;
   explanation?: string; // shown after answering (grammar lessons)
-}
-
-export interface ChartExercise extends Exercise {
-  type: "chart";
-  grid: (string | null)[][];
-  blanks: ChartBlank[];
-  rowLabels?: string[];
-  colLabels?: string[];
 }
 
 /** An item to introduce in the lesson intro */
@@ -106,7 +73,6 @@ export interface Unit {
 /** Per-exercise result (stored as JSON array in DB) */
 export interface ExerciseResult {
   index: number;
-  exerciseType?: ExerciseType;
   correct: boolean;
   userAnswer?: string;
 }
@@ -121,14 +87,5 @@ export function isButtonExercise(type: Exercise["type"]): boolean {
     type === "multiple_choice" ||
     type === "chart" ||
     type === "matching"
-  );
-}
-
-/** Returns true when a chart exercise has structured multi-blank metadata. */
-export function isChartExercise(exercise: Exercise): exercise is ChartExercise {
-  return (
-    exercise.type === "chart" &&
-    Array.isArray((exercise as Partial<ChartExercise>).grid) &&
-    Array.isArray((exercise as Partial<ChartExercise>).blanks)
   );
 }
