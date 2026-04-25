@@ -6,9 +6,14 @@ import {
   buildAnswerCustomId,
   buildButtonOptions,
   buildExerciseButtons,
-  type ActiveSession,
+  type ActiveLessonSession,
 } from "../../../plugins/tutor/lesson-interactions.ts";
 import type { Exercise, Lesson } from "../../../plugins/tutor/core/lesson-types.ts";
+
+type ButtonComponentJson = {
+  custom_id: string;
+  label: string;
+};
 
 const lesson: Lesson = {
   id: "test.1",
@@ -20,15 +25,20 @@ const lesson: Lesson = {
   exercises: [],
 };
 
-function makeSession(): ActiveSession {
+function makeSession(): ActiveLessonSession {
   return {
     userId: "u1",
     module: "japanese",
     lessonId: lesson.id,
     exerciseIndex: 0,
     lesson,
-    answerOptions: new Map(),
+    answerOptionsByExercise: new Map(),
   };
+}
+
+function buttonComponents(session: ActiveLessonSession, exercise: Exercise): ButtonComponentJson[] {
+  const rows = buildExerciseButtons(exercise, session.lessonId, session.exerciseIndex, session);
+  return rows[0].toJSON().components as ButtonComponentJson[];
 }
 
 describe("lesson button rendering", () => {
@@ -56,8 +66,7 @@ describe("lesson button rendering", () => {
     };
     const session = makeSession();
 
-    const rows = buildExerciseButtons(exercise, lesson.id, 0, session);
-    const components = (rows[0] as any).toJSON().components;
+    const components = buttonComponents(session, exercise);
 
     expect(components).toHaveLength(2);
     for (const component of components) {
@@ -66,7 +75,7 @@ describe("lesson button rendering", () => {
       expect(component.custom_id).not.toContain(exercise.distractors![0]);
     }
 
-    const storedOptions = [...session.answerOptions.get(0)!.values()];
+    const storedOptions = [...session.answerOptionsByExercise.get(0)!.values()];
     expect(storedOptions).toContain(exercise.answer);
     expect(storedOptions).toContain(exercise.distractors![0]);
   });
@@ -81,11 +90,10 @@ describe("lesson button rendering", () => {
     };
     const session = makeSession();
 
-    const rows = buildExerciseButtons(exercise, lesson.id, 0, session);
-    const components = (rows[0] as any).toJSON().components;
+    const components = buttonComponents(session, exercise);
 
-    expect(components.every((component: any) => component.label.length <= 80)).toBe(true);
-    expect([...session.answerOptions.get(0)!.values()]).toContain(longAnswer);
+    expect(components.every((component) => component.label.length <= 80)).toBe(true);
+    expect([...session.answerOptionsByExercise.get(0)!.values()]).toContain(longAnswer);
   });
 
   test("rerendering the same exercise keeps token-to-answer mapping stable", () => {
@@ -98,10 +106,10 @@ describe("lesson button rendering", () => {
     const session = makeSession();
 
     buildExerciseButtons(exercise, lesson.id, 0, session);
-    const firstMapping = [...session.answerOptions.get(0)!];
+    const firstMapping = [...session.answerOptionsByExercise.get(0)!];
 
     buildExerciseButtons(exercise, lesson.id, 0, session);
-    const secondMapping = [...session.answerOptions.get(0)!];
+    const secondMapping = [...session.answerOptionsByExercise.get(0)!];
 
     expect(secondMapping).toEqual(firstMapping);
   });

@@ -4,8 +4,12 @@
 
 import type { ToolDef } from "@choomfie/shared";
 import { text, err } from "@choomfie/shared";
-import { getSession, setModule, getActiveModule } from "../core/session.ts";
+import { getSession, setModule } from "../core/session.ts";
 import { getModule, listModules } from "../modules/index.ts";
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 export const moduleTools: ToolDef[] = [
   {
@@ -55,8 +59,8 @@ export const moduleTools: ToolDef[] = [
         return text(
           `Switched to ${mod.icon || "📚"} **${mod.displayName}**. Level: ${level}`
         );
-      } catch (e: any) {
-        return err(e.message);
+      } catch (e: unknown) {
+        return err(errorMessage(e));
       }
     },
   },
