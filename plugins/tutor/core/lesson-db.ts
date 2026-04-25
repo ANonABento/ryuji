@@ -7,6 +7,7 @@
 import { Database } from "bun:sqlite";
 import { nowUTC } from "@choomfie/shared";
 import type { ExerciseResult, LessonStatus } from "./lesson-types.ts";
+import type { LearnerProfile } from "./learner-profile.ts";
 
 export interface LessonProgressRow {
   userId: string;
@@ -48,6 +49,26 @@ export class LessonDB {
 
       CREATE INDEX IF NOT EXISTS idx_lesson_user_module
         ON lesson_progress(user_id, module);
+
+      CREATE TABLE IF NOT EXISTS learner_profiles (
+        user_id TEXT NOT NULL,
+        module TEXT NOT NULL,
+        level TEXT DEFAULT 'N5',
+        lessons_completed INTEGER DEFAULT 0,
+        total_lessons INTEGER DEFAULT 0,
+        avg_score REAL DEFAULT 0,
+        strong_areas TEXT DEFAULT '[]',
+        weak_areas TEXT DEFAULT '[]',
+        srs_total INTEGER DEFAULT 0,
+        srs_learned INTEGER DEFAULT 0,
+        srs_due INTEGER DEFAULT 0,
+        total_study_mins INTEGER DEFAULT 0,
+        streak INTEGER DEFAULT 0,
+        last_active TEXT DEFAULT '',
+        preferred_exercise_type TEXT DEFAULT '',
+        updated_at TEXT DEFAULT (datetime('now')),
+        PRIMARY KEY (user_id, module)
+      );
     `);
   }
 
@@ -163,11 +184,85 @@ export class LessonDB {
     };
   }
 
+  /** Get learner profile for a user+module */
+  getProfile(userId: string, module: string): LearnerProfile | null {
+    const row = this.db
+      .query("SELECT * FROM learner_profiles WHERE user_id = ? AND module = ?")
+      .get(userId, module) as any;
+    return row ? this.rowToProfile(row) : null;
+  }
+
+  /** Insert or update a learner profile */
+  upsertProfile(profile: LearnerProfile): void {
+    this.db
+      .query(
+        `INSERT INTO learner_profiles
+           (user_id, module, level, lessons_completed, total_lessons, avg_score,
+            strong_areas, weak_areas, srs_total, srs_learned, srs_due,
+            total_study_mins, streak, last_active, preferred_exercise_type, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(user_id, module) DO UPDATE SET
+           level = excluded.level,
+           lessons_completed = excluded.lessons_completed,
+           total_lessons = excluded.total_lessons,
+           avg_score = excluded.avg_score,
+           strong_areas = excluded.strong_areas,
+           weak_areas = excluded.weak_areas,
+           srs_total = excluded.srs_total,
+           srs_learned = excluded.srs_learned,
+           srs_due = excluded.srs_due,
+           total_study_mins = excluded.total_study_mins,
+           streak = excluded.streak,
+           last_active = excluded.last_active,
+           preferred_exercise_type = excluded.preferred_exercise_type,
+           updated_at = excluded.updated_at`
+      )
+      .run(
+        profile.userId,
+        profile.module,
+        profile.level,
+        profile.lessonsCompleted,
+        profile.totalLessons,
+        profile.avgScore,
+        JSON.stringify(profile.strongAreas),
+        JSON.stringify(profile.weakAreas),
+        profile.srsTotal,
+        profile.srsLearned,
+        profile.srsDue,
+        profile.totalStudyMins,
+        profile.streak,
+        profile.lastActive,
+        profile.preferredExerciseType,
+        profile.updatedAt
+      );
+  }
+
   close() {
     try {
       this.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
     } catch {}
     this.db.close();
+  }
+
+  private rowToProfile(row: any): LearnerProfile {
+    return {
+      userId: row.user_id,
+      module: row.module,
+      level: row.level,
+      lessonsCompleted: row.lessons_completed,
+      totalLessons: row.total_lessons,
+      avgScore: row.avg_score,
+      strongAreas: JSON.parse(row.strong_areas || "[]"),
+      weakAreas: JSON.parse(row.weak_areas || "[]"),
+      srsTotal: row.srs_total,
+      srsLearned: row.srs_learned,
+      srsDue: row.srs_due,
+      totalStudyMins: row.total_study_mins,
+      streak: row.streak,
+      lastActive: row.last_active,
+      preferredExerciseType: row.preferred_exercise_type,
+      updatedAt: row.updated_at,
+    };
   }
 
   private rowToProgress(row: any): LessonProgressRow {

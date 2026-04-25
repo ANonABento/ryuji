@@ -5,8 +5,11 @@
 
 import type { ToolDef } from "@choomfie/shared";
 import { text, err } from "@choomfie/shared";
-import { getSession, getActiveModule, getModuleLevel, setLevel } from "../core/session.ts";
+import { getActiveModule, getModuleLevel, setLevel } from "../core/session.ts";
 import { getModule } from "../modules/index.ts";
+import { getLessonDB } from "../core/lesson-db-instance.ts";
+import { getProfile, formatForPrompt } from "../core/learner-profile.ts";
+import { getActiveSession } from "../lesson-interactions.ts";
 
 export const tutorTools: ToolDef[] = [
   {
@@ -30,7 +33,22 @@ export const tutorTools: ToolDef[] = [
         return err(`Module "${mod.displayName}" does not have a tutor prompt`);
       }
       const level = getModuleLevel(userId, moduleName);
-      return text(mod.buildTutorPrompt(level));
+      const activeSession = getActiveSession(userId);
+      const promptCtx = activeSession?.lesson.furiganaLevel
+        ? { furiganaLevel: activeSession.lesson.furiganaLevel }
+        : undefined;
+      let prompt = mod.buildTutorPrompt(level, promptCtx);
+
+      // Append learner profile if available
+      const db = getLessonDB();
+      if (db) {
+        const profile = getProfile(db, userId, moduleName);
+        if (profile) {
+          prompt += "\n\n" + formatForPrompt(profile);
+        }
+      }
+
+      return text(prompt);
     },
   },
   {

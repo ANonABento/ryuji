@@ -1,0 +1,99 @@
+# Lesson Authoring Guide
+
+## Conventions
+
+### Vocab-First Flow
+
+Within each unit, structure lessons so vocabulary sub-lessons come before grammar sub-lessons. Use the prerequisite system to enforce this order:
+
+```
+Unit 3 example:
+  3.1 Vocab: Greetings         → prereqs: [unit 2 complete]
+  3.2 Vocab: People & Time     → prereqs: ["3.1"]
+  3.3 Grammar: XはYです         → prereqs: ["3.1", "3.2"]  ← vocab gates grammar
+  3.4 Grammar: Question か      → prereqs: ["3.3"]
+```
+
+### Furigana Levels
+
+Set `furiganaLevel` on each lesson to control reading aids:
+
+| Level | When | Example |
+|-------|------|---------|
+| `"full"` | Kana lessons, early vocab | 食[た]べる |
+| `"partial"` | Grammar lessons, mid-level | 食べる (common kanji bare) |
+| `"none"` | Advanced, review | 食べる (no aids) |
+
+### Exercise Types
+
+| Type | UX | Best For |
+|------|-----|----------|
+| `recognition` | Buttons (MC) | Kana ID, vocab meaning |
+| `production` | User types | Spelling, writing |
+| `cloze` | User types | Grammar patterns |
+| `multiple_choice` | Buttons | Grammar, culture |
+| `chart` | Buttons + grid | Kana chart review |
+| `matching` | Buttons | Term-meaning pair matching |
+
+### Content Sets
+
+Define content sets instead of hand-writing individual exercises. The exercise generator creates exercises automatically:
+
+```typescript
+import { generateExercises, type ContentSet } from "../../../core/exercise-generator.ts";
+
+const greetingsContent: ContentSet = {
+  items: [
+    { term: "おはよう", reading: "ohayou", meaning: "good morning" },
+    { term: "こんにちは", reading: "konnichiwa", meaning: "hello" },
+    { term: "こんばんは", reading: "konbanwa", meaning: "good evening" },
+    { term: "さようなら", reading: "sayounara", meaning: "goodbye" },
+  ],
+  modes: ["recognition", "production", "matching"],
+};
+
+// Generate specific mode:
+const recogExercises = generateExercises(greetingsContent, "recognition");
+// Or all modes at once:
+const allExercises = generateAllExercises(greetingsContent);
+```
+
+**Modes available:**
+| Mode | UX | What it generates |
+|------|-----|-------------------|
+| `recognition` | Buttons | See term → pick meaning |
+| `production` | User types | See meaning → type term |
+| `matching` | Buttons | Match term to meaning (sequential pairs) |
+
+4 items × 3 modes = 12 exercises from one content set.
+
+You can mix content set exercises with hand-written ones in the same lesson:
+
+```typescript
+exercises: [
+  ...generateExercises(vocabContent, "recognition"),  // auto-generated
+  cloze("わたし___学生です", "は", "", "particle"),     // hand-written
+  ...generateExercises(vocabContent, "production"),    // auto-generated
+],
+```
+
+### SRS Items
+
+Every lesson should define `srsItems` — these are auto-added to the user's review deck on lesson completion:
+
+```typescript
+srsItems: [
+  { front: "あ", back: "a", reading: "a", tags: "hiragana" },
+]
+```
+
+### Exercise Count
+
+Target 10-12 exercises per lesson. Mix types:
+- 60% recognition/MC (fast, builds confidence)
+- 30% production (harder, builds recall)
+- 10% review/chart (reinforcement)
+
+### Mastery Threshold
+
+80% to pass. Design exercises so a student who understood the intro should score ~90%. If too many students fail, the exercises are too hard — add easier warm-up exercises at the start.

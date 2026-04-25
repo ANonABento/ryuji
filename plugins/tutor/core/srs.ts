@@ -195,6 +195,20 @@ export class SRSManager {
     return { total, due, learned };
   }
 
+  /** Get due card counts for all users who have cards */
+  getDueCountByUser(): Map<string, number> {
+    const now = nowUTC();
+    const rows = this.db.query(
+      `SELECT user_id, COUNT(*) as count FROM srs_cards WHERE next_review <= ? GROUP BY user_id`
+    ).all(now) as Array<{ user_id: string; count: number }>;
+
+    const result = new Map<string, number>();
+    for (const row of rows) {
+      result.set(row.user_id, row.count);
+    }
+    return result;
+  }
+
   hasDeck(userId: string, deck: string): boolean {
     const count = (
       this.db
