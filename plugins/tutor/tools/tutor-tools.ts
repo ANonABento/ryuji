@@ -11,6 +11,10 @@ import { getLessonDB } from "../core/lesson-db-instance.ts";
 import { formatForPrompt } from "../core/learner-profile.ts";
 import { getActiveSession } from "../lesson-interactions.ts";
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export const tutorTools: ToolDef[] = [
   {
     definition: {
@@ -102,8 +106,8 @@ export const tutorTools: ToolDef[] = [
           .join("\n\n");
 
         return text(formatted);
-      } catch (e: any) {
-        return err(`Lookup error: ${e.message}`);
+      } catch (e: unknown) {
+        return err(`Lookup error: ${errorMessage(e)}`);
       }
     },
   },

@@ -25,24 +25,25 @@ import {
   scoreExercise,
   completeLesson,
   getProgressData,
-  getLesson,
-  getUnits,
 } from "./core/lesson-engine.ts";
 import { type Exercise, type Lesson, isButtonExercise } from "./core/lesson-types.ts";
 import { updateFromLessonCompletion } from "./core/learner-profile.ts";
 
 // --- Active lesson sessions (in-memory, keyed by userId) ---
 
-export interface ActiveSession {
+type AnswerOptionsByToken = Map<string, string>;
+type AnswerOptionsByExercise = Map<number, AnswerOptionsByToken>;
+
+export interface ActiveLessonSession {
   userId: string;
   module: string;
   lessonId: string;
   exerciseIndex: number;
   lesson: Lesson;
-  answerOptions: Map<number, Map<string, string>>;
+  answerOptionsByExercise: AnswerOptionsByExercise;
 }
 
-const activeSessions = new Map<string, ActiveSession>();
+const activeSessions = new Map<string, ActiveLessonSession>();
 
 // --- Helpers ---
 
@@ -122,19 +123,44 @@ function buttonLabel(answer: string): string {
   return answer.length > 80 ? `${answer.slice(0, 77)}...` : answer;
 }
 
+function parseExerciseIndex(value: string | undefined): number | null {
+  if (!value || !/^\d+$/.test(value)) return null;
+  const index = Number(value);
+  return Number.isInteger(index) && index >= 0 ? index : null;
+}
+
+function setActiveLessonSession(
+  userId: string,
+  module: string,
+  lessonId: string,
+  lesson: Lesson,
+  exerciseIndex: number
+): ActiveLessonSession {
+  const session: ActiveLessonSession = {
+    userId,
+    module,
+    lessonId,
+    exerciseIndex,
+    lesson,
+    answerOptionsByExercise: new Map(),
+  };
+  activeSessions.set(userId, session);
+  return session;
+}
+
 function getOrCreateAnswerOptions(
   exercise: Exercise,
   exerciseIndex: number,
-  session: ActiveSession
-): Map<string, string> {
-  const existing = session.answerOptions.get(exerciseIndex);
+  session: ActiveLessonSession
+): AnswerOptionsByToken {
+  const existing = session.answerOptionsByExercise.get(exerciseIndex);
   if (existing) return existing;
 
-  const answersByToken = new Map<string, string>();
+  const answersByToken: AnswerOptionsByToken = new Map();
   buildButtonOptions(exercise).forEach((option, index) => {
     answersByToken.set(String(index), option);
   });
-  session.answerOptions.set(exerciseIndex, answersByToken);
+  session.answerOptionsByExercise.set(exerciseIndex, answersByToken);
   return answersByToken;
 }
 
@@ -142,7 +168,7 @@ export function buildExerciseButtons(
   exercise: Exercise,
   lessonId: string,
   exerciseIndex: number,
-  session: ActiveSession
+  session: ActiveLessonSession
 ): ActionRowBuilder<ButtonBuilder>[] {
   if (isButtonExercise(exercise.type)) {
     const answersByToken = getOrCreateAnswerOptions(exercise, exerciseIndex, session);
@@ -159,7 +185,7 @@ export function buildExerciseButtons(
   }
 
   // Production/cloze — no buttons, user types answer
-  session.answerOptions.delete(exerciseIndex);
+  session.answerOptionsByExercise.delete(exerciseIndex);
   return [];
 }
 
@@ -214,7 +240,7 @@ function buildProgressBar(ratio: number, length: number): string {
 
 async function sendNextExercise(
   interaction: ButtonInteraction,
-  session: ActiveSession,
+  session: ActiveLessonSession,
   editMessage: boolean = false
 ) {
   const db = getLessonDB();
@@ -225,7 +251,7 @@ async function sendNextExercise(
   // All exercises done?
   if (exerciseIndex >= lesson.exercises.length) {
     const result = completeLesson(db, userId, module, lessonId);
-    activeSessions.delete(userId);
+    clearActiveSession(userId);
 
     // Update learner profile
     updateFromLessonCompletion(db, userId, module);
@@ -305,7 +331,7 @@ registerCommand("lesson", {
       // Resume
       const exercise = existing.lesson.exercises[existing.exerciseIndex];
       if (!exercise) {
-        activeSessions.delete(userId);
+        clearActiveSession(userId);
       } else {
         const embed = buildExerciseEmbed(existing.lesson, existing.exerciseIndex, exercise);
         const buttons = buildExerciseButtons(
@@ -338,15 +364,7 @@ registerCommand("lesson", {
     }
 
     // Create active session
-    const session: ActiveSession = {
-      userId,
-      module,
-      lessonId: next.id,
-      exerciseIndex: result.resumeAt,
-      lesson: result.lesson,
-      answerOptions: new Map(),
-    };
-    activeSessions.set(userId, session);
+    setActiveLessonSession(userId, module, next.id, result.lesson, result.resumeAt);
 
     // Show intro
     const intro = buildIntroEmbed(result.lesson);
@@ -416,10 +434,11 @@ registerButtonHandler("lesson", async (interaction, parts, ctx) => {
 
   if (action === "start") {
     // Start exercises from intro screen
+    const lessonId = parts[2];
     const session = activeSessions.get(userId);
-    if (!session) {
+    if (!lessonId || !session || session.lessonId !== lessonId) {
       await interaction.reply({
-        content: "Session expired. Use `/lesson` to start again.",
+        content: "Session expired or no longer active. Use `/lesson` to continue.",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -431,8 +450,16 @@ registerButtonHandler("lesson", async (interaction, parts, ctx) => {
   if (action === "answer") {
     // Button answer for recognition/MC exercises
     const lessonId = parts[2];
-    const exerciseIndex = parseInt(parts[3], 10);
+    const exerciseIndex = parseExerciseIndex(parts[3]);
     const answerToken = parts[4];
+
+    if (!lessonId || exerciseIndex === null || answerToken === undefined) {
+      await interaction.reply({
+        content: "That lesson button is invalid. Use `/lesson` to continue.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
 
     const session = activeSessions.get(userId);
     if (!session || session.lessonId !== lessonId) {
@@ -452,9 +479,15 @@ registerButtonHandler("lesson", async (interaction, parts, ctx) => {
     }
 
     const exercise = session.lesson.exercises[exerciseIndex];
-    if (!exercise) return;
+    if (!exercise) {
+      await interaction.reply({
+        content: "That exercise is no longer available. Use `/lesson` to continue.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
 
-    const userAnswer = session.answerOptions.get(exerciseIndex)?.get(answerToken);
+    const userAnswer = session.answerOptionsByExercise.get(exerciseIndex)?.get(answerToken);
     if (userAnswer === undefined) {
       await interaction.reply({
         content: "That answer option expired. Use `/lesson` to continue.",
@@ -479,7 +512,7 @@ registerButtonHandler("lesson", async (interaction, parts, ctx) => {
 
     // Move to next exercise
     session.exerciseIndex = exerciseIndex + 1;
-    session.answerOptions.delete(exerciseIndex);
+    session.answerOptionsByExercise.delete(exerciseIndex);
 
     // Show result briefly then move on
     const resultEmbed = buildResultEmbed(
@@ -501,10 +534,11 @@ registerButtonHandler("lesson", async (interaction, parts, ctx) => {
   }
 
   if (action === "continue") {
+    const lessonId = parts[2];
     const session = activeSessions.get(userId);
-    if (!session) {
+    if (!lessonId || !session || session.lessonId !== lessonId) {
       await interaction.reply({
-        content: "Session expired. Use `/lesson` to start again.",
+        content: "Session expired or no longer active. Use `/lesson` to continue.",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -531,17 +565,15 @@ registerButtonHandler("lesson", async (interaction, parts, ctx) => {
     }
 
     const result = startLesson(db, userId, module, next.id);
-    if (!result) return;
+    if (!result) {
+      await interaction.reply({
+        content: "Could not start the next lesson. Use `/lesson` to continue.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
 
-    const session: ActiveSession = {
-      userId,
-      module,
-      lessonId: next.id,
-      exerciseIndex: result.resumeAt,
-      lesson: result.lesson,
-      answerOptions: new Map(),
-    };
-    activeSessions.set(userId, session);
+    setActiveLessonSession(userId, module, next.id, result.lesson, result.resumeAt);
 
     const intro = buildIntroEmbed(result.lesson);
     const startButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -558,19 +590,24 @@ registerButtonHandler("lesson", async (interaction, parts, ctx) => {
   if (action === "retry") {
     const lessonId = parts[2];
     const module = getActiveModule(userId);
+    if (!lessonId) {
+      await interaction.reply({
+        content: "That lesson retry button is invalid. Use `/lesson` to continue.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
 
     const result = startLesson(db, userId, module, lessonId);
-    if (!result) return;
+    if (!result) {
+      await interaction.reply({
+        content: "That lesson is not available to retry. Use `/lesson` to continue.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
 
-    const session: ActiveSession = {
-      userId,
-      module,
-      lessonId,
-      exerciseIndex: 0,
-      lesson: result.lesson,
-      answerOptions: new Map(),
-    };
-    activeSessions.set(userId, session);
+    setActiveLessonSession(userId, module, lessonId, result.lesson, 0);
 
     const intro = buildIntroEmbed(result.lesson);
     const startButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -594,7 +631,7 @@ registerButtonHandler("lesson", async (interaction, parts, ctx) => {
 export function handleTypedAnswer(
   userId: string,
   text: string
-): { result: ReturnType<typeof scoreExercise>; session: ActiveSession } | null {
+): { result: ReturnType<typeof scoreExercise>; session: ActiveLessonSession } | null {
   const session = activeSessions.get(userId);
   if (!session) return null;
 
@@ -630,7 +667,7 @@ export function hasActiveTypingExercise(userId: string): boolean {
 }
 
 /** Get active session for a user */
-export function getActiveSession(userId: string): ActiveSession | undefined {
+export function getActiveSession(userId: string): ActiveLessonSession | undefined {
   return activeSessions.get(userId);
 }
 
