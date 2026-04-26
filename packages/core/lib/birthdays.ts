@@ -216,17 +216,7 @@ export class BirthdayScheduler {
     const todaysBirthdays = this.ctx.memory
       .getTodaysBirthdays(todayKey)
       .filter((birthday) => birthday.lastRemindedOn !== reminderKey);
-    const upcoming = getUpcomingBirthdayOccurrences(
-      this.ctx.memory.listBirthdays(),
-      7,
-      now
-    ).filter(
-      (occurrence) =>
-        !occurrence.isToday &&
-        occurrence.birthday.lastRemindedOn !== reminderKey
-    );
-
-    if (todaysBirthdays.length === 0 && upcoming.length === 0) return;
+    if (todaysBirthdays.length === 0) return;
 
     let owner: User;
     try {
@@ -244,22 +234,11 @@ export class BirthdayScheduler {
             .join("\n")
       );
     }
-    if (upcoming.length > 0) {
-      sections.push(
-        "**Upcoming next 7 days:**\n" +
-          upcoming.map(formatBirthdayOccurrence).join("\n")
-      );
-    }
-
     try {
       await owner.send(`**Birthday reminder**\n\n${sections.join("\n\n")}`);
       this.ctx.messageStats.sent++;
-      const notifiedIds = new Set([
-        ...todaysBirthdays.map((birthday) => birthday.id),
-        ...upcoming.map((occurrence) => occurrence.birthday.id),
-      ]);
-      for (const id of notifiedIds) {
-        this.ctx.memory.markBirthdayReminded(id, reminderKey);
+      for (const birthday of todaysBirthdays) {
+        this.ctx.memory.markBirthdayReminded(birthday.id, reminderKey);
       }
     } catch {
       // DMs disabled or Discord unavailable; try again on next startup/midnight.
