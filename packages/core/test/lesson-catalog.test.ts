@@ -263,4 +263,17 @@ describe("Chinese lesson catalog", () => {
     expect(srsTerms).toHaveLength(150);
     expect(new Set(srsTerms)).toEqual(expectedTerms);
   });
+
+  test("generated Chinese production prompts ask for hanzi, not Japanese", () => {
+    const productionPrompts = chineseLessons
+      .flatMap((lesson) => lesson.exercises)
+      .filter((exercise) => exercise.type === "production")
+      .map((exercise) => exercise.prompt);
+
+    expect(productionPrompts.length).toBeGreaterThan(0);
+    for (const prompt of productionPrompts) {
+      expect(prompt).toContain("Type the hanzi");
+      expect(prompt).not.toContain("Type the Japanese");
+    }
+  });
 });

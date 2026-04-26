@@ -20,6 +20,8 @@ export interface ContentSet {
   items: ContentItem[];
   /** Which modes to generate. Defaults to all. */
   modes?: ExerciseMode[];
+  /** User-facing label for production prompts. Defaults to Japanese for existing lessons. */
+  productionLabel?: string;
 }
 
 export interface ChartBlank {
@@ -72,6 +74,8 @@ export interface ContentSet {
   items: ContentItem[];
   /** Which modes to generate. Defaults to all. */
   modes?: ExerciseMode[];
+  /** User-facing label for production prompts. Defaults to Japanese for existing lessons. */
+  productionLabel?: string;
 }
 
 /** An item to introduce in the lesson intro */

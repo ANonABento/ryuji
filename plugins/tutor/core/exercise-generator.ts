@@ -29,7 +29,7 @@ export function generateExercises(
     case "recognition":
       return generateRecognition(items);
     case "production":
-      return generateProduction(items);
+      return generateProduction(items, content.productionLabel ?? "Japanese");
     case "matching":
       return generateMatching(items);
   }
@@ -66,10 +66,10 @@ function generateRecognition(items: ContentItem[]): Exercise[] {
 
 // --- Production: see meaning → type term ---
 
-function generateProduction(items: ContentItem[]): Exercise[] {
+function generateProduction(items: ContentItem[], productionLabel: string): Exercise[] {
   return items.map((item) => ({
     type: "production" as const,
-    prompt: `Type the Japanese for **"${item.meaning}"**`,
+    prompt: `Type the ${productionLabel} for **"${item.meaning}"**`,
     answer: item.term,
     accept: [item.reading], // accept reading as alternative
   }));

@@ -8,7 +8,7 @@ import { hsk1ByTerms, hsk1Vocab } from "../data/hsk1-vocab.ts";
 import { cloze, introItems, mc, vocabSRS } from "./helpers.ts";
 
 function content(terms: string[]): ContentSet {
-  return { items: hsk1ByTerms(terms) };
+  return { items: hsk1ByTerms(terms), productionLabel: "hanzi" };
 }
 
 function vocabularyLesson(
