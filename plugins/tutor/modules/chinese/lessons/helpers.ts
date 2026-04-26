@@ -1,4 +1,9 @@
-import type { ContentItem, Exercise, LessonSRSItem } from "../../../core/lesson-types.ts";
+import type {
+  ContentItem,
+  Exercise,
+  IntroItem,
+  LessonSRSItem,
+} from "../../../core/lesson-types.ts";
 
 export function vocabSRS(items: ContentItem[], tags: string): LessonSRSItem[] {
   return items.map((item) => ({
@@ -9,7 +14,7 @@ export function vocabSRS(items: ContentItem[], tags: string): LessonSRSItem[] {
   }));
 }
 
-export function introItems(items: ContentItem[]) {
+export function introItems(items: ContentItem[]): IntroItem[] {
   return items.map((item) => ({
     word: item.term,
     reading: item.reading,

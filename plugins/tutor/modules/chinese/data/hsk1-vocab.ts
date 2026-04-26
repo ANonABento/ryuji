@@ -153,9 +153,11 @@ export const hsk1Vocab: ContentItem[] = [
   { term: "做", reading: "zuo4", meaning: "to do; to make" },
 ];
 
+const hsk1VocabByTerm = new Map(hsk1Vocab.map((item) => [item.term, item]));
+
 export function hsk1ByTerms(terms: string[]): ContentItem[] {
   return terms.map((term) => {
-    const item = hsk1Vocab.find((candidate) => candidate.term === term);
+    const item = hsk1VocabByTerm.get(term);
     if (!item) throw new Error(`Missing HSK 1 vocabulary item: ${term}`);
     return item;
   });

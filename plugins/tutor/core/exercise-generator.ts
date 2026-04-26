@@ -11,6 +11,8 @@ import { shuffle } from "./random.ts";
 
 export type { ContentItem, ContentSet, ExerciseMode } from "./lesson-types.ts";
 
+const DEFAULT_PRODUCTION_LABEL = "Japanese";
+
 /**
  * Generate exercises from a content set in a given mode.
  *
@@ -29,7 +31,7 @@ export function generateExercises(
     case "recognition":
       return generateRecognition(items);
     case "production":
-      return generateProduction(items, content.productionLabel ?? "Japanese");
+      return generateProduction(items, content.productionLabel ?? DEFAULT_PRODUCTION_LABEL);
     case "matching":
       return generateMatching(items);
   }

@@ -54,6 +54,7 @@ const tonePairContent: ContentSet = {
 const numberContent = content(["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]);
 const peopleHanziContent = content(["人", "你", "我", "他", "她", "爸爸", "妈妈", "老师", "学生", "朋友"]);
 const placeHanziContent = content(["中国", "北京", "学校", "医院", "商店", "家", "里", "上", "下", "前面", "后面"]);
+const tonePatternContent = content(["学生", "朋友", "谢谢", "老师", "中国", "天气"]);
 
 export const chineseLessons: Lesson[] = [
   {
@@ -117,10 +118,10 @@ export const chineseLessons: Lesson[] = [
     prerequisites: ["1.2"],
     introduction: {
       text: "HSK 1 words often combine two syllables. Practice reading tone-number patterns aloud: xue2sheng is rising-neutral, peng2you is rising-neutral, and xie4xie is falling-neutral.",
-      items: introItems(content(["学生", "朋友", "谢谢", "老师", "中国", "天气"]).items),
+      items: introItems(tonePatternContent.items),
     },
     exercises: [
-      ...generateExercises(content(["学生", "朋友", "谢谢", "老师", "中国", "天气"]), "recognition"),
+      ...generateExercises(tonePatternContent, "recognition"),
       cloze("Type the pinyin for **学生**.", "xue2sheng", "Rising tone plus neutral tone.", undefined, ["xue2 sheng"]),
       cloze("Type the pinyin for **谢谢**.", "xie4xie", "Falling tone plus neutral tone.", undefined, ["xie4 xie"]),
       mc("Which word has the tone pattern 2-neutral?", "朋友 (peng2you)", ["中国 (Zhong1guo2)", "天气 (tian1qi4)", "老师 (lao3shi1)"]),
