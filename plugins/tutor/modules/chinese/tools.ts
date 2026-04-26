@@ -7,6 +7,23 @@ import { text, err } from "@choomfie/shared";
 import { convertHanzi, getHanziInfo } from "./hanzi.ts";
 import { isValidNumberedPinyin, normalizePinyin } from "./pinyin.ts";
 
+const PINYIN_STYLES = ["marks", "numbers"] as const;
+const HANZI_TARGETS = ["simplified", "traditional"] as const;
+
+function stringArg(args: Record<string, unknown>, name: string): string | null {
+  const value = args[name];
+  return typeof value === "string" ? value : null;
+}
+
+function enumArg<T extends readonly string[]>(
+  args: Record<string, unknown>,
+  name: string,
+  values: T
+): T[number] | null {
+  const value = stringArg(args, name);
+  return value && (values as readonly string[]).includes(value) ? (value as T[number]) : null;
+}
+
 export const chineseTools: ToolDef[] = [
   {
     definition: {
@@ -26,12 +43,16 @@ export const chineseTools: ToolDef[] = [
         required: ["text", "to"],
       },
     },
-    handler: async (args) => {
-      const input = args.text as string;
-      const to = args.to as "marks" | "numbers";
+    handler: async (args, _ctx) => {
+      const input = stringArg(args, "text");
+      const to = enumArg(args, "to", PINYIN_STYLES);
 
-      if (to !== "marks" && to !== "numbers") {
-        return err(`Unknown target: ${to}`);
+      if (!input) {
+        return err("Expected `text` to be a non-empty string.");
+      }
+
+      if (!to) {
+        return err(`Unknown target: ${String(args.to)}`);
       }
 
       if (to === "marks" && !isValidNumberedPinyin(input)) {
@@ -53,8 +74,13 @@ export const chineseTools: ToolDef[] = [
         required: ["character"],
       },
     },
-    handler: async (args) => {
-      const info = getHanziInfo(args.character as string);
+    handler: async (args, _ctx) => {
+      const character = stringArg(args, "character");
+      if (!character) {
+        return err("Expected `character` to be a non-empty string.");
+      }
+
+      const info = getHanziInfo(character);
       if (!info) {
         return text("No built-in stroke data for that character yet.");
       }
@@ -82,11 +108,16 @@ export const chineseTools: ToolDef[] = [
         required: ["text", "to"],
       },
     },
-    handler: async (args) => {
-      const input = args.text as string;
-      const to = args.to as "simplified" | "traditional";
-      if (to !== "simplified" && to !== "traditional") {
-        return err(`Unknown target: ${to}`);
+    handler: async (args, _ctx) => {
+      const input = stringArg(args, "text");
+      const to = enumArg(args, "to", HANZI_TARGETS);
+
+      if (!input) {
+        return err("Expected `text` to be a non-empty string.");
+      }
+
+      if (!to) {
+        return err(`Unknown target: ${String(args.to)}`);
       }
 
       return text(`${input} → **${convertHanzi(input, to)}**`);

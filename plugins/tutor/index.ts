@@ -256,7 +256,9 @@ const tutorPlugin: Plugin = {
     // Destroy all modules
     for (const mod of listModules()) {
       if (mod.destroy) {
-        try { await mod.destroy(); } catch (e: unknown) {
+        try {
+          await mod.destroy();
+        } catch (e: unknown) {
           console.error(`Tutor: module destroy failed: ${errorMessage(e)}`);
         }
       }

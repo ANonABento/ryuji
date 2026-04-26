@@ -4,6 +4,7 @@
 
 import type { QuizQuestion, TutorModule } from "../../core/types.ts";
 import { pick, pickN, shuffle } from "../../core/random.ts";
+import { errorMessage } from "@choomfie/shared";
 import { initCedict, lookupCedict } from "./dictionary.ts";
 import hsk1Vocab from "./data/hsk-1-vocab.json";
 import { chineseTools } from "./tools.ts";
@@ -15,7 +16,11 @@ interface ChineseVocabItem {
   measure?: string;
 }
 
-const HSK1_VOCAB = hsk1Vocab as ChineseVocabItem[];
+const CHINESE_LEVELS = ["HSK 1", "HSK 2", "HSK 3", "HSK 4", "HSK 5", "HSK 6"] as const;
+
+type ChineseLevel = (typeof CHINESE_LEVELS)[number];
+
+const HSK1_VOCAB: readonly ChineseVocabItem[] = hsk1Vocab;
 
 const TONE_ITEMS = [
   { char: "妈", reading: "mā", tone: "1st tone", meaning: "mother" },
@@ -27,7 +32,7 @@ const TONE_ITEMS = [
 
 const MEASURE_ITEMS = HSK1_VOCAB.filter((item) => item.measure);
 
-const LEVEL_GUIDES: Record<string, string> = {
+const LEVEL_GUIDES: Record<ChineseLevel, string> = {
   "HSK 1": `Student is a COMPLETE BEGINNER (HSK 1).
 - Use short English explanations first, then simple Mandarin examples
 - Always include pinyin with tone marks after new words: 你好 (nǐ hǎo)
@@ -62,6 +67,10 @@ const LEVEL_GUIDES: Record<string, string> = {
 - Correct subtle tone, rhythm, register, and discourse issues`,
 };
 
+function isChineseLevel(level: string): level is ChineseLevel {
+  return (CHINESE_LEVELS as readonly string[]).includes(level);
+}
+
 function makeMultipleChoice(
   question: string,
   answer: string,
@@ -86,7 +95,7 @@ export const chineseModule: TutorModule = {
   displayName: "Chinese (Mandarin)",
   description: "HSK-based Mandarin learning with pinyin, tones, Hanzi, and CC-CEDICT lookup",
   icon: "🇨🇳",
-  levels: ["HSK 1", "HSK 2", "HSK 3", "HSK 4", "HSK 5", "HSK 6"],
+  levels: [...CHINESE_LEVELS],
   defaultLevel: "HSK 1",
   quizTypes: ["vocab", "pinyin", "tone", "hanzi", "measure"],
   tools: chineseTools,
@@ -96,7 +105,9 @@ export const chineseModule: TutorModule = {
   },
 
   buildTutorPrompt(level: string): string {
-    return `You are a Mandarin Chinese tutor. ${LEVEL_GUIDES[level] || LEVEL_GUIDES["HSK 1"]}
+    const guide = isChineseLevel(level) ? LEVEL_GUIDES[level] : LEVEL_GUIDES["HSK 1"];
+
+    return `You are a Mandarin Chinese tutor. ${guide}
 
 When the student writes in Chinese or pinyin, respond with a JSON block:
 \`\`\`json
@@ -170,8 +181,10 @@ Be precise about tones; tone accuracy is part of meaning in Mandarin.`;
   async init() {
     try {
       await initCedict();
-    } catch (e) {
-      console.error(`Chinese module: CC-CEDICT init failed (non-critical): ${e}`);
+    } catch (e: unknown) {
+      console.error(
+        `Chinese module: CC-CEDICT init failed (non-critical): ${errorMessage(e)}`
+      );
     }
   },
 };

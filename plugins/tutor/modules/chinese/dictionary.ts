@@ -18,10 +18,23 @@ export interface CedictEntry {
   definitions: string[];
 }
 
+interface CedictCache {
+  entries: CedictEntry[];
+  lookup: Map<string, CedictEntry[]>;
+}
+
+interface PinyinQueryForms {
+  normalized: string;
+  numbered: string;
+  bare: string;
+  compactNormalized: string;
+  compactNumbered: string;
+  compactBare: string;
+}
+
 const BUNDLED_CEDICT_PATH = fileURLToPath(new URL("./data/cedict.txt", import.meta.url));
 
-let entriesCache: CedictEntry[] | null = null;
-let lookupCache: Map<string, CedictEntry[]> | null = null;
+let cedictCache: CedictCache | null = null;
 
 export function parseCedictLine(line: string): CedictEntry | null {
   const trimmed = line.trim();
@@ -63,15 +76,39 @@ function addLookup(map: Map<string, CedictEntry[]>, key: string, entry: CedictEn
   }
 }
 
+function compactPinyinKey(key: string): string {
+  return key.replace(/\s+/g, "");
+}
+
+function buildPinyinQueryForms(query: string): PinyinQueryForms {
+  const normalized = query.trim().toLowerCase();
+  const numbered = marksToNumbers(normalized).toLowerCase();
+  const bare = stripToneNumbers(numbered);
+
+  return {
+    normalized,
+    numbered,
+    bare,
+    compactNormalized: compactPinyinKey(normalized),
+    compactNumbered: compactPinyinKey(numbered),
+    compactBare: compactPinyinKey(bare),
+  };
+}
+
+function addPinyinLookup(map: Map<string, CedictEntry[]>, key: string, entry: CedictEntry) {
+  addLookup(map, key, entry);
+  addLookup(map, compactPinyinKey(key), entry);
+}
+
 function buildLookup(entries: CedictEntry[]): Map<string, CedictEntry[]> {
   const map = new Map<string, CedictEntry[]>();
 
   for (const entry of entries) {
     addLookup(map, entry.simplified, entry);
     addLookup(map, entry.traditional, entry);
-    addLookup(map, entry.pinyinNumbered, entry);
-    addLookup(map, entry.pinyinMarked, entry);
-    addLookup(map, stripToneNumbers(entry.pinyinNumbered), entry);
+    addPinyinLookup(map, entry.pinyinNumbered, entry);
+    addPinyinLookup(map, entry.pinyinMarked, entry);
+    addPinyinLookup(map, stripToneNumbers(entry.pinyinNumbered), entry);
   }
 
   return map;
@@ -114,30 +151,34 @@ async function readCedictText(): Promise<string> {
 export async function initCedict(): Promise<void> {
   const text = await readCedictText();
   const entries = parseCedict(text);
-  entriesCache = entries;
-  lookupCache = buildLookup(entries);
+  cedictCache = { entries, lookup: buildLookup(entries) };
 }
 
-async function ensureCedict(): Promise<{ entries: CedictEntry[]; lookup: Map<string, CedictEntry[]> }> {
-  if (!entriesCache || !lookupCache) {
+async function ensureCedict(): Promise<CedictCache> {
+  if (!cedictCache) {
     await initCedict();
   }
 
-  return { entries: entriesCache ?? [], lookup: lookupCache ?? new Map() };
+  if (!cedictCache) {
+    throw new Error("CC-CEDICT failed to initialize");
+  }
+
+  return cedictCache;
 }
 
 export async function lookupCedict(query: string): Promise<DictionaryEntry[]> {
-  const normalized = query.trim().toLowerCase();
-  if (!normalized) return [];
+  const queryForms = buildPinyinQueryForms(query);
+  if (!queryForms.normalized) return [];
 
   const { entries, lookup } = await ensureCedict();
-  const numberedQuery = marksToNumbers(normalized).toLowerCase();
-  const barePinyinQuery = stripToneNumbers(numberedQuery);
 
   const exact = [
-    ...(lookup.get(normalized) ?? []),
-    ...(lookup.get(numberedQuery) ?? []),
-    ...(lookup.get(barePinyinQuery) ?? []),
+    ...(lookup.get(queryForms.normalized) ?? []),
+    ...(lookup.get(queryForms.numbered) ?? []),
+    ...(lookup.get(queryForms.bare) ?? []),
+    ...(lookup.get(queryForms.compactNormalized) ?? []),
+    ...(lookup.get(queryForms.compactNumbered) ?? []),
+    ...(lookup.get(queryForms.compactBare) ?? []),
   ];
 
   if (exact.length > 0) {
@@ -147,12 +188,17 @@ export async function lookupCedict(query: string): Promise<DictionaryEntry[]> {
   const partial = entries.filter((entry) => {
     const definitions = entry.definitions.join("; ").toLowerCase();
     return (
-      entry.simplified.includes(query) ||
-      entry.traditional.includes(query) ||
-      entry.pinyinNumbered.toLowerCase().includes(numberedQuery) ||
-      entry.pinyinMarked.toLowerCase().includes(normalized) ||
-      stripToneNumbers(entry.pinyinNumbered).toLowerCase().includes(barePinyinQuery) ||
-      definitions.includes(normalized)
+      entry.simplified.includes(queryForms.normalized) ||
+      entry.traditional.includes(queryForms.normalized) ||
+      entry.pinyinNumbered.toLowerCase().includes(queryForms.numbered) ||
+      entry.pinyinMarked.toLowerCase().includes(queryForms.normalized) ||
+      stripToneNumbers(entry.pinyinNumbered).toLowerCase().includes(queryForms.bare) ||
+      compactPinyinKey(entry.pinyinNumbered.toLowerCase()).includes(queryForms.compactNumbered) ||
+      compactPinyinKey(entry.pinyinMarked.toLowerCase()).includes(queryForms.compactNormalized) ||
+      compactPinyinKey(stripToneNumbers(entry.pinyinNumbered).toLowerCase()).includes(
+        queryForms.compactBare
+      ) ||
+      definitions.includes(queryForms.normalized)
     );
   });
 
