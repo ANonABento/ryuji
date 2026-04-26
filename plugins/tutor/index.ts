@@ -19,6 +19,7 @@ import { getAllTutorTools } from "./tools/index.ts";
 import { listModules } from "./modules/index.ts";
 import { chineseLessons, chineseUnits } from "./modules/chinese/lessons/index.ts";
 import { japaneseLessons, japaneseUnits } from "./modules/japanese/lessons/index.ts";
+import { chineseLessons, chineseUnits } from "./modules/chinese/lessons/index.ts";
 
 import {
   buildExerciseButtons,
