@@ -5,6 +5,7 @@
 import type { ToolDef } from "../types.ts";
 import { err, text } from "../types.ts";
 import {
+  type BirthdayOccurrence,
   formatBirthdayOccurrence,
   getUpcomingBirthdayOccurrences,
   parseBirthdayInput,
@@ -25,7 +26,7 @@ function yearArg(value: unknown): number | null | undefined {
   return value;
 }
 
-function formatBirthdayList(items: ReturnType<typeof sortBirthdayOccurrences>): string {
+function formatBirthdayList(items: BirthdayOccurrence[]): string {
   return items.map(formatBirthdayOccurrence).join("\n");
 }
 
@@ -112,7 +113,7 @@ export const birthdayTools: ToolDef[] = [
   {
     definition: {
       name: "birthday_list",
-      description: "List all birthdays, sorted by next occurrence.",
+      description: "Owner only. List all birthdays, sorted by next occurrence.",
       inputSchema: {
         type: "object" as const,
         properties: {},
@@ -127,7 +128,8 @@ export const birthdayTools: ToolDef[] = [
   {
     definition: {
       name: "birthday_upcoming",
-      description: "Show birthdays coming up soon. Defaults to the next 30 days.",
+      description:
+        "Owner only. Show birthdays coming up soon. Defaults to the next 30 days.",
       inputSchema: {
         type: "object" as const,
         properties: {

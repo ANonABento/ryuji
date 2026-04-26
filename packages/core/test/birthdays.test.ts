@@ -11,7 +11,7 @@ import {
 import { MemoryStore } from "../lib/memory.ts";
 import { birthdayTools } from "../lib/tools/birthday-tools.ts";
 import { getAllTools } from "../lib/tools/index.ts";
-import type { AppContext } from "../lib/types.ts";
+import type { AppContext, ToolResult } from "../lib/types.ts";
 
 const tempDirs: string[] = [];
 
@@ -21,7 +21,7 @@ afterEach(async () => {
   );
 });
 
-async function makeMemory() {
+async function makeMemory(): Promise<MemoryStore> {
   const dir = await mkdtemp(join(tmpdir(), "choomfie-birthdays-"));
   tempDirs.push(dir);
   return new MemoryStore(join(dir, "choomfie.db"));
@@ -31,13 +31,13 @@ function fakeContext(memory: MemoryStore): AppContext {
   return { memory } as unknown as AppContext;
 }
 
-function tool(name: string) {
+function tool(name: string): (typeof birthdayTools)[number] {
   const found = birthdayTools.find((t) => t.definition.name === name);
   expect(found).toBeDefined();
   return found!;
 }
 
-function resultText(result: Awaited<ReturnType<(typeof birthdayTools)[number]["handler"]>>): string {
+function resultText(result: ToolResult): string {
   return result.content[0]?.text ?? "";
 }
 
@@ -187,10 +187,9 @@ test("BirthdayScheduler sends today's birthday reminder once and skips upcoming-
     },
   } as unknown as AppContext;
 
-  const scheduler = new BirthdayScheduler();
-  (scheduler as any).ctx = ctx;
-  await (scheduler as any).runDailyCheck(new Date(2026, 3, 25, 1, 0, 0));
-  await (scheduler as any).runDailyCheck(new Date(2026, 3, 25, 12, 0, 0));
+  const scheduler = new BirthdayScheduler(ctx);
+  await scheduler.runDailyCheck(new Date(2026, 3, 25, 1, 0, 0));
+  await scheduler.runDailyCheck(new Date(2026, 3, 25, 12, 0, 0));
 
   expect(sent).toHaveLength(1);
   expect(sent[0]).toContain("Today");

@@ -177,14 +177,18 @@ export class BirthdayScheduler {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private ctx: AppContext | null = null;
 
-  init(ctx: AppContext) {
+  constructor(ctx: AppContext | null = null) {
+    this.ctx = ctx;
+  }
+
+  init(ctx: AppContext): void {
     this.ctx = ctx;
     void this.runDailyCheck();
     this.scheduleNext();
     console.error("BirthdayScheduler: initialized");
   }
 
-  private scheduleNext() {
+  private scheduleNext(): void {
     this.clearTimer();
     this.setLongTimeout(nextLocalMidnight().getTime(), () => {
       void this.runDailyCheck();
@@ -192,7 +196,7 @@ export class BirthdayScheduler {
     });
   }
 
-  private setLongTimeout(targetMs: number, onElapsed: () => void) {
+  private setLongTimeout(targetMs: number, onElapsed: () => void): void {
     const remainingMs = targetMs - Date.now();
     const delayMs = Math.max(0, Math.min(remainingMs, MAX_TIMEOUT_MS));
 
@@ -208,7 +212,7 @@ export class BirthdayScheduler {
     }, delayMs);
   }
 
-  private async runDailyCheck(now = new Date()) {
+  async runDailyCheck(now = new Date()): Promise<void> {
     if (!this.ctx?.ownerUserId) return;
 
     const todayKey = todayBirthdayKey(now);
@@ -225,17 +229,11 @@ export class BirthdayScheduler {
       return;
     }
 
-    const sections: string[] = [];
-    if (todaysBirthdays.length > 0) {
-      sections.push(
-        "**Today:**\n" +
-          sortBirthdayOccurrences(todaysBirthdays, now)
-            .map(formatBirthdayOccurrence)
-            .join("\n")
-      );
-    }
+    const birthdayList = sortBirthdayOccurrences(todaysBirthdays, now)
+      .map(formatBirthdayOccurrence)
+      .join("\n");
     try {
-      await owner.send(`**Birthday reminder**\n\n${sections.join("\n\n")}`);
+      await owner.send(`**Birthday reminder**\n\n**Today:**\n${birthdayList}`);
       this.ctx.messageStats.sent++;
       for (const birthday of todaysBirthdays) {
         this.ctx.memory.markBirthdayReminded(birthday.id, reminderKey);
@@ -245,14 +243,14 @@ export class BirthdayScheduler {
     }
   }
 
-  clearTimer() {
+  clearTimer(): void {
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = null;
     }
   }
 
-  destroy() {
+  destroy(): void {
     this.clearTimer();
   }
 }
