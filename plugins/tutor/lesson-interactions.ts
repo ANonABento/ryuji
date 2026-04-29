@@ -29,9 +29,12 @@ import {
 import {
   type Exercise,
   type Lesson,
+  type PracticeMode,
   isButtonExercise,
   isTypingExercise,
 } from "./core/lesson-types.ts";
+import { generateAllExercises, generateExercises } from "./core/exercise-generator.ts";
+import { renderChartPrompt } from "./core/chart.ts";
 import { updateFromLessonCompletion } from "./core/learner-profile.ts";
 import { shuffle } from "./core/random.ts";
 
@@ -46,6 +49,9 @@ export interface ActiveLessonSession {
   lessonId: string;
   exerciseIndex: number;
   lesson: Lesson;
+  exercises?: Exercise[];
+  selectedMode?: PracticeMode;
+  awaitingModeSelection?: boolean;
   answerOptionsByExercise: AnswerOptionsByExercise;
 }
 
@@ -107,6 +113,77 @@ export function buildAnswerCustomId(
   return `lesson:answer:${lessonId}:${exerciseIndex}:${optionToken}`;
 }
 
+export function buildChartAnswerCustomId(
+  lessonId: string,
+  exerciseIndex: number,
+  chartBlankIndex: number,
+  optionToken: string
+): string {
+  return `lesson:chart:${lessonId}:${exerciseIndex}:${chartBlankIndex}:${optionToken}`;
+}
+
+export function expandExercisesForSession(exercises: Exercise[]): Exercise[] {
+  return exercises.flatMap((exercise) => {
+    if (exercise.type !== "chart" || !exercise.chart) return [exercise];
+
+    return exercise.chart.blanks.map((blank, chartBlankIndex) => ({
+      ...exercise,
+      prompt: renderChartPrompt(exercise.chart!, { currentBlankIndex: chartBlankIndex }),
+      answer: blank.answer,
+      accept: blank.reading ? [blank.reading, ...(exercise.accept ?? [])] : exercise.accept,
+      chartBlankIndex,
+    }));
+  });
+}
+
+export function lessonSupportsModePicker(lesson: Lesson): boolean {
+  return Boolean(lesson.contentSets?.length && lesson.selectableModes?.length);
+}
+
+function modeLabel(mode: PracticeMode): string {
+  return mode.charAt(0).toUpperCase() + mode.slice(1);
+}
+
+export function buildModePickerComponents(
+  lesson: Lesson
+): ActionRowBuilder<ButtonBuilder>[] {
+  if (!lessonSupportsModePicker(lesson)) return [];
+
+  const row = new ActionRowBuilder<ButtonBuilder>();
+  for (const mode of lesson.selectableModes ?? []) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`lesson:mode:${lesson.id}:${mode}`)
+        .setLabel(modeLabel(mode))
+        .setStyle(ButtonStyle.Secondary)
+    );
+  }
+  return [row];
+}
+
+function exercisesForMode(lesson: Lesson, mode: PracticeMode): Exercise[] {
+  const contentSets = lesson.contentSets ?? [];
+  const generated =
+    mode === "mixed"
+      ? contentSets.flatMap((contentSet) => generateAllExercises(contentSet))
+      : contentSets.flatMap((contentSet) => generateExercises(contentSet, mode));
+
+  return expandExercisesForSession(generated.length > 0 ? generated : lesson.exercises);
+}
+
+export function setSessionMode(
+  session: ActiveLessonSession,
+  mode: PracticeMode
+): void {
+  const exercises = exercisesForMode(session.lesson, mode);
+  session.selectedMode = mode;
+  session.awaitingModeSelection = false;
+  session.exerciseIndex = 0;
+  session.exercises = exercises;
+  session.lesson = { ...session.lesson, exercises };
+  session.answerOptionsByExercise.clear();
+}
+
 export function buildButtonOptions(exercise: Exercise): string[] {
   if (!isButtonExercise(exercise.type)) return [];
   const distractors = [...new Set(exercise.distractors ?? [])].filter(
@@ -133,12 +210,16 @@ function setActiveLessonSession(
   lesson: Lesson,
   exerciseIndex: number
 ): ActiveLessonSession {
+  const exercises = expandExercisesForSession(lesson.exercises);
+  const sessionLesson = { ...lesson, exercises };
   const session: ActiveLessonSession = {
     userId,
     module,
     lessonId,
     exerciseIndex,
-    lesson,
+    lesson: sessionLesson,
+    exercises,
+    awaitingModeSelection: lessonSupportsModePicker(lesson),
     answerOptionsByExercise: new Map(),
   };
   activeSessions.set(userId, session);
@@ -171,9 +252,13 @@ export function buildExerciseButtons(
     const answersByToken = getOrCreateAnswerOptions(exercise, exerciseIndex, session);
     const row = new ActionRowBuilder<ButtonBuilder>();
     for (const [token, option] of answersByToken) {
+      const customId =
+        exercise.type === "chart" && exercise.chartBlankIndex !== undefined
+          ? buildChartAnswerCustomId(lessonId, exerciseIndex, exercise.chartBlankIndex, token)
+          : buildAnswerCustomId(lessonId, exerciseIndex, token);
       row.addComponents(
         new ButtonBuilder()
-          .setCustomId(buildAnswerCustomId(lessonId, exerciseIndex, token))
+          .setCustomId(customId)
           .setLabel(buttonLabel(option))
           .setStyle(ButtonStyle.Secondary)
       );
@@ -264,7 +349,7 @@ async function sendNextExercise(
   const { lesson, exerciseIndex, userId, module, lessonId } = session;
 
   // All exercises done?
-  if (exerciseIndex >= lesson.exercises.length) {
+  if (exerciseIndex >= session.exercises.length) {
     const result = completeLesson(db, userId, module, lessonId);
     clearActiveSession(userId);
 
@@ -282,7 +367,7 @@ async function sendNextExercise(
     return;
   }
 
-  const exercise = lesson.exercises[exerciseIndex];
+  const exercise = session.exercises[exerciseIndex];
   const embed = buildExerciseEmbed(lesson, exerciseIndex, exercise);
   const buttons = buildExerciseButtons(exercise, lessonId, exerciseIndex, session);
 
@@ -324,7 +409,7 @@ registerCommand("lesson", {
     const existing = activeSessions.get(userId);
     if (existing) {
       // Resume
-      const exercise = existing.lesson.exercises[existing.exerciseIndex];
+      const exercise = existing.exercises[existing.exerciseIndex];
       if (!exercise) {
         clearActiveSession(userId);
       } else {
@@ -363,6 +448,7 @@ registerCommand("lesson", {
 
     // Show intro
     const intro = buildIntroEmbed(result.lesson);
+    const modePicker = buildModePickerComponents(result.lesson);
     const startButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`lesson:start:${next.id}`)
@@ -370,7 +456,10 @@ registerCommand("lesson", {
         .setStyle(ButtonStyle.Primary)
     );
 
-    await interaction.reply({ embeds: [intro], components: [startButton] });
+    await interaction.reply({
+      embeds: [intro],
+      components: modePicker.length > 0 ? modePicker : [startButton],
+    });
   },
 });
 
@@ -442,11 +531,34 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
     return;
   }
 
-  if (action === "answer") {
+  if (action === "mode") {
+    const lessonId = parts[2];
+    const mode = parts[3] as PracticeMode | undefined;
+    const session = activeSessions.get(userId);
+    if (
+      !lessonId ||
+      !mode ||
+      !session ||
+      session.lessonId !== lessonId ||
+      !session.lesson.selectableModes?.includes(mode)
+    ) {
+      await interaction.reply({
+        content: "That lesson mode is invalid. Use `/lesson` to continue.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    setSessionMode(session, mode);
+    await sendNextExercise(interaction, session, true);
+    return;
+  }
+
+  if (action === "answer" || action === "chart") {
     // Button answer for recognition/MC exercises
     const lessonId = parts[2];
     const exerciseIndex = parseExerciseIndex(parts[3]);
-    const answerToken = parts[4];
+    const answerToken = action === "chart" ? parts[5] : parts[4];
 
     if (!lessonId || exerciseIndex === null || answerToken === undefined) {
       await interaction.reply({
@@ -473,7 +585,7 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
       return;
     }
 
-    const exercise = session.lesson.exercises[exerciseIndex];
+    const exercise = session.exercises[exerciseIndex];
     if (!exercise) {
       await interaction.reply({
         content: "That exercise is no longer available. Use `/lesson` to continue.",
@@ -513,7 +625,7 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
       result.correct,
       result.feedback,
       correctSoFar,
-      session.lesson.exercises.length
+      session.exercises.length
     );
 
     const continueButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -570,6 +682,7 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
     setActiveLessonSession(userId, module, next.id, result.lesson, result.resumeAt);
 
     const intro = buildIntroEmbed(result.lesson);
+    const modePicker = buildModePickerComponents(result.lesson);
     const startButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`lesson:start:${next.id}`)
@@ -577,7 +690,10 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
         .setStyle(ButtonStyle.Primary)
     );
 
-    await interaction.update({ embeds: [intro], components: [startButton] });
+    await interaction.update({
+      embeds: [intro],
+      components: modePicker.length > 0 ? modePicker : [startButton],
+    });
     return;
   }
 
@@ -604,6 +720,7 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
     setActiveLessonSession(userId, module, lessonId, result.lesson, 0);
 
     const intro = buildIntroEmbed(result.lesson);
+    const modePicker = buildModePickerComponents(result.lesson);
     const startButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`lesson:start:${lessonId}`)
@@ -611,7 +728,10 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
         .setStyle(ButtonStyle.Primary)
     );
 
-    await interaction.update({ embeds: [intro], components: [startButton] });
+    await interaction.update({
+      embeds: [intro],
+      components: modePicker.length > 0 ? modePicker : [startButton],
+    });
     return;
   }
 });
@@ -629,7 +749,7 @@ export function handleTypedAnswer(
   const session = activeSessions.get(userId);
   if (!session) return null;
 
-  const exercise = session.lesson.exercises[session.exerciseIndex];
+  const exercise = session.exercises[session.exerciseIndex];
   if (!exercise) return null;
 
   if (!isTypingExercise(exercise.type)) return null;
@@ -653,7 +773,7 @@ export function handleTypedAnswer(
 export function hasActiveTypingExercise(userId: string): boolean {
   const session = activeSessions.get(userId);
   if (!session) return false;
-  const exercise = session.lesson.exercises[session.exerciseIndex];
+  const exercise = session.exercises[session.exerciseIndex];
   if (!exercise) return false;
   return isTypingExercise(exercise.type);
 }

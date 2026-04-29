@@ -40,11 +40,11 @@ export class TwitterClient {
       // Rettiwt LOGIN auth — pass credentials to constructor,
       // authenticates on first API call
       this.rettiwt = new Rettiwt({
-        authType: "LOGIN" as any,
+        authType: "LOGIN",
         email: config.email,
         userName: config.username,
         password: config.password,
-      });
+      } as any);
 
       // Test the session by fetching own profile
       const me = await this.rettiwt.user.details(config.username);
@@ -80,25 +80,26 @@ export class TwitterClient {
   async postTweet(tweetText: string): Promise<TweetResult> {
     const client = this.ensureClient();
 
-    const result = await client.tweet.post({ text: tweetText });
+    const id = await client.tweet.post({ text: tweetText });
 
     return {
-      id: result?.id ?? "unknown",
-      url: `https://x.com/${this.username}/status/${result?.id ?? "unknown"}`,
+      id,
+      url: `https://x.com/${this.username}/status/${id}`,
     };
   }
 
   async postTweetWithMedia(tweetText: string, mediaPath: string): Promise<TweetResult> {
     const client = this.ensureClient();
 
-    const result = await client.tweet.post({
+    const mediaId = await client.tweet.upload(mediaPath);
+    const id = await client.tweet.post({
       text: tweetText,
-      media: [{ path: mediaPath }],
+      media: [{ id: mediaId }],
     });
 
     return {
-      id: result?.id ?? "unknown",
-      url: `https://x.com/${this.username}/status/${result?.id ?? "unknown"}`,
+      id,
+      url: `https://x.com/${this.username}/status/${id}`,
     };
   }
 
@@ -109,10 +110,10 @@ export class TwitterClient {
     const results: TweetResult[] = [];
 
     // First tweet
-    const first = await client.tweet.post({ text: tweets[0] });
+    const firstId = await client.tweet.post({ text: tweets[0] });
     results.push({
-      id: first?.id ?? "unknown",
-      url: `https://x.com/${this.username}/status/${first?.id ?? "unknown"}`,
+      id: firstId,
+      url: `https://x.com/${this.username}/status/${firstId}`,
     });
 
     // Reply chain
@@ -120,14 +121,14 @@ export class TwitterClient {
       // Small delay to avoid rate limiting
       await new Promise((r) => setTimeout(r, 1500));
 
-      const reply = await client.tweet.post({
+      const replyId = await client.tweet.post({
         text: tweets[i],
         replyTo: results[i - 1].id,
       });
 
       results.push({
-        id: reply?.id ?? "unknown",
-        url: `https://x.com/${this.username}/status/${reply?.id ?? "unknown"}`,
+        id: replyId,
+        url: `https://x.com/${this.username}/status/${replyId}`,
       });
     }
 

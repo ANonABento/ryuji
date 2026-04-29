@@ -58,7 +58,7 @@ export const linkedinOpsTools: ToolDef[] = [
         const timeStr = args.time as string;
         let scheduledAt: string;
 
-        const { parseNaturalTime, dateToSQLite } = await import("../../lib/time.ts");
+        const { parseNaturalTime, dateToSQLite } = await import("@choomfie/shared");
         const parsed = parseNaturalTime(timeStr);
         if (parsed) {
           scheduledAt = dateToSQLite(parsed);

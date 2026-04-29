@@ -7,6 +7,10 @@
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
+import type {
+  SocialsConfig as PluginSocialsConfig,
+  SocialsPlatformConfig,
+} from "@choomfie/shared";
 
 export interface Persona {
   name: string;
@@ -19,25 +23,39 @@ export interface VoiceConfig {
   ttsSpeed?: number; // 0.5 to 2.0 (default 1.0)
 }
 
-export interface SocialsConfig {
-  youtube?: {
+export interface YouTubeConfig extends SocialsPlatformConfig {
     apiKey?: string;       // Optional — for YouTube Data API v3 reads (fallback to yt-dlp)
     clientId?: string;     // Optional — for OAuth (comments)
     clientSecret?: string; // Optional — for OAuth (comments)
-  };
-  linkedin?: {
+}
+
+export interface LinkedInConfig extends SocialsPlatformConfig {
     clientId: string;
     clientSecret: string;
-  };
-  reddit?: {
+}
+
+export interface RedditConfig extends SocialsPlatformConfig {
     clientId: string;
     clientSecret: string;
     username: string;
     password: string;
-  };
+}
+
+export interface TwitterConfig extends SocialsPlatformConfig {
+  username: string;
+  password: string;
+  email: string;
+}
+
+export interface SocialsConfig extends PluginSocialsConfig {
+  youtube?: YouTubeConfig;
+  linkedin?: LinkedInConfig;
+  reddit?: RedditConfig;
+  twitter?: TwitterConfig;
 }
 
 export interface Config {
+  [key: string]: unknown;
   activePersona: string;
   personas: Record<string, Persona>;
   rateLimitMs: number;

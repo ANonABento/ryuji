@@ -8,7 +8,7 @@ import { tutorTools } from "./tutor-tools.ts";
 import { moduleTools } from "./module-tools.ts";
 import { lessonTools } from "./lesson-tools.ts";
 import { randomWordTools } from "./random-word.ts";
-import { getAllModuleTools } from "../modules/index.ts";
+import { getModule } from "../modules/index.ts";
 
 export function getAllTutorTools(): ToolDef[] {
   return [
@@ -17,6 +17,6 @@ export function getAllTutorTools(): ToolDef[] {
     ...srsTools,
     ...lessonTools,
     ...randomWordTools,
-    ...getAllModuleTools(),
+    ...(getModule("japanese").tools ?? []),
   ];
 }

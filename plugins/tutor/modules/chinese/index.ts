@@ -5,9 +5,10 @@
 import type { DictionaryEntry, QuizQuestion, TutorModule, TutorPromptContext } from "../../core/types.ts";
 import { pick, pickN, shuffle } from "../../core/random.ts";
 import { hsk1Vocab } from "./data/hsk1-vocab.ts";
+import { chineseTools } from "./tools.ts";
 
 const LEVEL_GUIDES: Record<string, string> = {
-  HSK1: `Student is a COMPLETE BEGINNER (HSK 1).
+  "HSK 1": `Student is a COMPLETE BEGINNER (HSK 1).
 - Use only basic HSK 1 vocabulary and short sentence patterns
 - Always include pinyin with tone numbers for new hanzi: 你好 (ni3 hao3)
 - Explain tones explicitly when pronunciation matters
@@ -15,12 +16,12 @@ const LEVEL_GUIDES: Record<string, string> = {
 - Keep sentences SHORT and concrete
 - If they answer in pinyin, accept it while gently tying it back to hanzi`,
 
-  HSK2: `Student is ELEMENTARY (HSK 2).
+  "HSK 2": `Student is ELEMENTARY (HSK 2).
 - Use HSK 1-2 vocabulary
 - Include pinyin for new or difficult hanzi
 - Build simple connected sentences with common verbs, time words, and complements`,
 
-  HSK3: `Student is LOWER-INTERMEDIATE (HSK 3).
+  "HSK 3": `Student is LOWER-INTERMEDIATE (HSK 3).
 - Use HSK 1-3 vocabulary
 - Include pinyin only for new words
 - Encourage longer answers and simple paragraph-level explanations`,
@@ -62,9 +63,10 @@ export const chineseModule: TutorModule = {
   displayName: "Chinese",
   description: "Mandarin Chinese learning with tones, hanzi, and HSK vocabulary",
   icon: "🇨🇳",
-  levels: ["HSK1", "HSK2", "HSK3"],
-  defaultLevel: "HSK1",
+  levels: ["HSK 1", "HSK 2", "HSK 3", "HSK 4", "HSK 5", "HSK 6"],
+  defaultLevel: "HSK 1",
   quizTypes: ["tones", "hanzi", "vocab"],
+  tools: chineseTools,
 
   async lookup(query: string): Promise<DictionaryEntry[]> {
     const normalized = query.trim().toLowerCase();
@@ -91,7 +93,7 @@ export const chineseModule: TutorModule = {
       return "";
     })();
 
-    return `You are a Mandarin Chinese language tutor. ${LEVEL_GUIDES[level] || LEVEL_GUIDES.HSK1}${pinyinDirective}
+    return `You are a Mandarin Chinese tutor. ${LEVEL_GUIDES[level] || LEVEL_GUIDES["HSK 1"]}${pinyinDirective}
 
 When the student writes in Chinese or pinyin, respond with a JSON block:
 \`\`\`json
