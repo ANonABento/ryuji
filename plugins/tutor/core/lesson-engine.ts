@@ -149,7 +149,10 @@ export function completeLesson(
   const progress = db.getProgress(userId, module, lessonId);
   if (!progress) return { score: 0, passed: false, totalCorrect: 0, totalExercises: 0 };
 
-  const totalExercises = lesson.exercises.length;
+  // When exercises are generated from contentSets (via mode selection), the lesson's
+  // static exercises array may not reflect the actual count attempted. Use the larger
+  // of the two to account for dynamically generated exercises.
+  const totalExercises = Math.max(lesson.exercises.length, progress.exerciseResults.length);
   const totalCorrect = progress.exerciseResults.filter((r) => r.correct).length;
   const score = totalExercises > 0 ? totalCorrect / totalExercises : 0;
   const passed = score >= MASTERY_THRESHOLD;
