@@ -102,7 +102,7 @@ const tutorPlugin: Plugin = {
     "random_word",
   ],
 
-  async onMessage(message, ctx) {
+  async onMessage(message) {
     // Handle typed answers for production/cloze exercises
     if (message.author.bot) return;
     const userId = message.author.id;

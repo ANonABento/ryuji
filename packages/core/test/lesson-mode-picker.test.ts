@@ -34,8 +34,6 @@ function makeSession(lesson: Lesson): ActiveLessonSession {
     exerciseIndex: 3,
     lesson,
     exercises: lesson.exercises,
-    selectedMode: "recognition",
-    awaitingModeSelection: true,
     answerOptionsByExercise: new Map([[0, new Map([["0", "stale"]])]]),
   };
 }
@@ -90,8 +88,6 @@ describe("lesson mode picker helpers", () => {
     setSessionMode(session, "matching");
 
     expect(session.exerciseIndex).toBe(0);
-    expect(session.selectedMode).toBe("matching");
-    expect(session.awaitingModeSelection).toBe(false);
     expect(session.answerOptionsByExercise.size).toBe(0);
     expect(session.exercises).toHaveLength(2);
     expect(session.exercises.every((exercise) => exercise.type === "matching")).toBe(true);

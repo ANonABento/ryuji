@@ -49,9 +49,7 @@ export interface ActiveLessonSession {
   lessonId: string;
   exerciseIndex: number;
   lesson: Lesson;
-  exercises?: Exercise[];
-  selectedMode?: PracticeMode;
-  awaitingModeSelection?: boolean;
+  exercises: Exercise[];
   answerOptionsByExercise: AnswerOptionsByExercise;
 }
 
@@ -176,8 +174,6 @@ export function setSessionMode(
   mode: PracticeMode
 ): void {
   const exercises = exercisesForMode(session.lesson, mode);
-  session.selectedMode = mode;
-  session.awaitingModeSelection = false;
   session.exerciseIndex = 0;
   session.exercises = exercises;
   session.lesson = { ...session.lesson, exercises };
@@ -219,7 +215,6 @@ function setActiveLessonSession(
     exerciseIndex,
     lesson: sessionLesson,
     exercises,
-    awaitingModeSelection: lessonSupportsModePicker(lesson),
     answerOptionsByExercise: new Map(),
   };
   activeSessions.set(userId, session);
@@ -330,6 +325,23 @@ export function buildLessonCompletionComponents(
   ];
 }
 
+function buildLessonIntroComponents(
+  lesson: Lesson,
+  lessonId: string
+): ActionRowBuilder<ButtonBuilder>[] {
+  const modePicker = buildModePickerComponents(lesson);
+  if (modePicker.length > 0) return modePicker;
+
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`lesson:start:${lessonId}`)
+        .setLabel("Start Exercises →")
+        .setStyle(ButtonStyle.Primary)
+    ),
+  ];
+}
+
 function buildProgressBar(ratio: number, length: number): string {
   const filled = Math.round(ratio * length);
   const empty = length - filled;
@@ -392,7 +404,7 @@ registerCommand("lesson", {
     .setName("lesson")
     .setDescription("Start or continue your active tutor lesson")
     .toJSON(),
-  handler: async (interaction, _ctx) => {
+  handler: async (interaction) => {
     const db = getLessonDB();
     if (!db) {
       await interaction.reply({
@@ -448,17 +460,10 @@ registerCommand("lesson", {
 
     // Show intro
     const intro = buildIntroEmbed(result.lesson);
-    const modePicker = buildModePickerComponents(result.lesson);
-    const startButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`lesson:start:${next.id}`)
-        .setLabel("Start Exercises →")
-        .setStyle(ButtonStyle.Primary)
-    );
 
     await interaction.reply({
       embeds: [intro],
-      components: modePicker.length > 0 ? modePicker : [startButton],
+      components: buildLessonIntroComponents(result.lesson, next.id),
     });
   },
 });
@@ -510,7 +515,7 @@ registerCommand("progress", {
 
 // --- Button Handlers ---
 
-registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
+registerButtonHandler("lesson", async (interaction, parts) => {
   const action = parts[1];
   const userId = interaction.user.id;
   const db = getLessonDB();
@@ -682,17 +687,10 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
     setActiveLessonSession(userId, module, next.id, result.lesson, result.resumeAt);
 
     const intro = buildIntroEmbed(result.lesson);
-    const modePicker = buildModePickerComponents(result.lesson);
-    const startButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`lesson:start:${next.id}`)
-        .setLabel("Start Exercises →")
-        .setStyle(ButtonStyle.Primary)
-    );
 
     await interaction.update({
       embeds: [intro],
-      components: modePicker.length > 0 ? modePicker : [startButton],
+      components: buildLessonIntroComponents(result.lesson, next.id),
     });
     return;
   }
@@ -720,17 +718,10 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
     setActiveLessonSession(userId, module, lessonId, result.lesson, 0);
 
     const intro = buildIntroEmbed(result.lesson);
-    const modePicker = buildModePickerComponents(result.lesson);
-    const startButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`lesson:start:${lessonId}`)
-        .setLabel("Start Exercises →")
-        .setStyle(ButtonStyle.Primary)
-    );
 
     await interaction.update({
       embeds: [intro],
-      components: modePicker.length > 0 ? modePicker : [startButton],
+      components: buildLessonIntroComponents(result.lesson, lessonId),
     });
     return;
   }

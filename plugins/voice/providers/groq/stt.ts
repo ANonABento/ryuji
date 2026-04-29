@@ -6,6 +6,7 @@
  */
 
 import type { STTProvider } from "../types.ts";
+import { bufferToArrayBuffer } from "../audio.ts";
 
 const API_URL = "https://api.groq.com/openai/v1/audio/transcriptions";
 
@@ -31,13 +32,9 @@ export const groqSTT: STTProvider = {
     }
 
     const formData = new FormData();
-    const audioData = audio.buffer.slice(
-      audio.byteOffset,
-      audio.byteOffset + audio.byteLength
-    ) as ArrayBuffer;
     formData.append(
       "file",
-      new Blob([audioData], { type: "audio/wav" }),
+      new Blob([bufferToArrayBuffer(audio)], { type: "audio/wav" }),
       "audio.wav"
     );
     formData.append("model", "whisper-large-v3-turbo");

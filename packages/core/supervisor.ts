@@ -13,14 +13,18 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
+  type Notification,
+  type ServerResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import type { AnyObjectSchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import { readFile, writeFile, unlink } from "node:fs/promises";
 import { z } from "zod";
 import { VERSION } from "./lib/version.ts";
 import type {
   WorkerMessage,
   IpcToolDef,
+  IpcToolResult,
 } from "./lib/ipc-types.ts";
 
 // --- Config ---
@@ -41,13 +45,28 @@ const MAX_CRASHES = 5; // max crashes within the reset window
 const CRASH_WINDOW_MS = 60_000; // reset crash count after 1min of stability
 
 /** Pending tool calls waiting for worker response */
+type ToolResult = IpcToolResult["result"];
+type PendingToolCall = {
+  resolve: (result: ToolResult) => void;
+  reject: (err: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+};
+
 const pendingCalls = new Map<
   string,
-  { resolve: (result: any) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout> }
+  PendingToolCall
 >();
 
 /** MCP server — created once, lives forever */
-let mcp: Server;
+const mcpRef: { current?: Server } = {};
+
+function sendNotification(server: Server, notification: Notification): void {
+  void server.notification(notification);
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 // --- PID file (single-instance guard) ---
 const DATA_DIR =
@@ -143,13 +162,13 @@ function handleWorkerMessage(msg: WorkerMessage) {
         console.error(
           `Supervisor: worker ready (${currentTools.length} tools)`
         );
-        if (mcp) {
+        if (mcpRef.current) {
           // Update instructions for any future initialize handshake (e.g. reconnect)
-          (mcp as any)._instructions = currentInstructions;
+          (mcpRef.current as unknown as { _instructions?: string })._instructions = currentInstructions;
           // Notify Claude Code that the tool list changed so it re-fetches
-          mcp.notification({
+          sendNotification(mcpRef.current, {
             method: "notifications/tools/list_changed",
-          } as any);
+          });
         }
         break;
 
@@ -165,11 +184,11 @@ function handleWorkerMessage(msg: WorkerMessage) {
 
       case "notification":
         // Forward Discord messages / permission responses to Claude via MCP
-        if (mcp) {
-          mcp.notification({
+        if (mcpRef.current) {
+          sendNotification(mcpRef.current, {
             method: msg.method,
             params: msg.params,
-          } as any);
+          });
         }
         break;
 
@@ -213,7 +232,7 @@ function handleWorkerMessage(msg: WorkerMessage) {
 function callWorkerTool(
   name: string,
   args: Record<string, unknown>
-): Promise<any> {
+): Promise<ToolResult> {
   return new Promise((resolve, reject) => {
     if (!workerReady || !worker) {
       return reject(new Error("Worker not ready"));
@@ -297,7 +316,7 @@ async function restartWorker(reason: string): Promise<{ timedOut: boolean }> {
 async function handleSupervisorTool(
   name: string,
   args: Record<string, unknown>
-): Promise<any> {
+): Promise<ToolResult> {
   if (name === "restart") {
     const reason = (args.reason as string) || "manual restart";
     const { timedOut } = await restartWorker(reason);
@@ -360,10 +379,10 @@ function createMcp(): Server {
     }
 
     try {
-      return await callWorkerTool(name, args);
-    } catch (e: any) {
+      return (await callWorkerTool(name, args)) as unknown as ServerResult;
+    } catch (error: unknown) {
       return {
-        content: [{ type: "text", text: `Tool error: ${e.message}` }],
+        content: [{ type: "text", text: `Tool error: ${errorMessage(error)}` }],
         isError: true,
       };
     }
@@ -379,8 +398,8 @@ function createMcp(): Server {
         description: z.string(),
         input_preview: z.string(),
       }),
-    }) as any,
-    async ({ params }: any) => {
+    }) as unknown as AnyObjectSchema,
+    async ({ params }: { params: Record<string, unknown> }) => {
       if (worker && workerReady) {
         try {
           worker.send({
@@ -422,10 +441,10 @@ await new Promise<void>((resolve) => {
 });
 
 // Create MCP server (now has real instructions + tools from worker)
-mcp = createMcp();
+mcpRef.current = createMcp();
 
 // Connect MCP stdio transport (this is what Claude Code talks to)
-await mcp.connect(new StdioServerTransport());
+await mcpRef.current.connect(new StdioServerTransport());
 console.error("Supervisor: MCP connected");
 
 // Graceful shutdown

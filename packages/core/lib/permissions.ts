@@ -3,10 +3,12 @@
  */
 
 import { z } from "zod";
+import type { AnyObjectSchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import type { AppContext } from "./types.ts";
 import {
   buildPermissionMessage,
   buildPermissionTextFallback,
+  type PermissionRequestParams,
 } from "./handlers/permission-buttons.ts";
 
 const PermissionRequestSchema = z.object({
@@ -20,11 +22,12 @@ const PermissionRequestSchema = z.object({
     input_preview: z.string(),
   }),
 });
+type PermissionRequest = { params: PermissionRequestParams };
 
 export function registerPermissionRelay(ctx: AppContext) {
   ctx.mcp.setNotificationHandler(
-    PermissionRequestSchema as any,
-    async ({ params }: any) => {
+    PermissionRequestSchema as unknown as AnyObjectSchema,
+    async ({ params }: PermissionRequest) => {
       const message = buildPermissionMessage(params);
       const textFallback = buildPermissionTextFallback(params);
 
