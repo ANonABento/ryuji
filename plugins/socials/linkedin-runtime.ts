@@ -7,6 +7,13 @@ let linkedInClient: LinkedInClient | null = null;
 let linkedInMonitor: LinkedInMonitor | null = null;
 let linkedInScheduler: LinkedInScheduler | null = null;
 
+function requireString(value: unknown, name: string): string {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`LinkedIn config value "${name}" must be a non-empty string.`);
+  }
+  return value;
+}
+
 export function getLinkedInClient(ctx: PluginContext): LinkedInClient {
   if (linkedInClient) return linkedInClient;
 
@@ -22,8 +29,8 @@ export function getLinkedInClient(ctx: PluginContext): LinkedInClient {
 
   linkedInClient = new LinkedInClient(
     ctx.DATA_DIR,
-    socialsConfig.clientId,
-    socialsConfig.clientSecret,
+    requireString(socialsConfig.clientId, "clientId"),
+    requireString(socialsConfig.clientSecret, "clientSecret"),
   );
   return linkedInClient;
 }

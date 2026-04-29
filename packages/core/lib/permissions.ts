@@ -21,7 +21,7 @@ export function registerPermissionRelay(ctx: AppContext) {
         description: z.string(),
         input_preview: z.string(),
       }),
-    }),
+    }) as any,
     async ({ params }) => {
       const message = buildPermissionMessage(params);
       const textFallback = buildPermissionTextFallback(params);

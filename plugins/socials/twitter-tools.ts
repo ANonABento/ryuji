@@ -5,6 +5,13 @@ import { TwitterClient } from "./providers/twitter/api.ts";
 
 let twitterClient: TwitterClient | null = null;
 
+function requireString(value: unknown, name: string): string {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`Twitter config value "${name}" must be a non-empty string.`);
+  }
+  return value;
+}
+
 function getTwitterClient(): TwitterClient {
   if (twitterClient) return twitterClient;
   twitterClient = new TwitterClient();
@@ -23,9 +30,9 @@ function getTwitterConfig(ctx: PluginContext): { username: string; password: str
   }
 
   return {
-    username: socialsConfig.username,
-    password: socialsConfig.password,
-    email: socialsConfig.email,
+    username: requireString(socialsConfig.username, "username"),
+    password: requireString(socialsConfig.password, "password"),
+    email: requireString(socialsConfig.email, "email"),
   };
 }
 
