@@ -23,6 +23,13 @@ export interface TweetResult {
   url: string;
 }
 
+interface RettiwtLoginConfig extends IRettiwtConfig {
+  authType: "LOGIN";
+  email: string;
+  userName: string;
+  password: string;
+}
+
 // --- Twitter Client ---
 
 export class TwitterClient {
@@ -39,12 +46,13 @@ export class TwitterClient {
     try {
       // Rettiwt LOGIN auth — pass credentials to constructor,
       // authenticates on first API call
-      this.rettiwt = new Rettiwt({
-        authType: "LOGIN" as any,
+      const loginConfig: RettiwtLoginConfig = {
+        authType: "LOGIN",
         email: config.email,
         userName: config.username,
         password: config.password,
-      } as IRettiwtConfig);
+      };
+      this.rettiwt = new Rettiwt(loginConfig);
 
       // Test the session by fetching own profile
       const me = await this.rettiwt.user.details(config.username);
@@ -91,10 +99,11 @@ export class TwitterClient {
   async postTweetWithMedia(tweetText: string, mediaPath: string): Promise<TweetResult> {
     const client = this.ensureClient();
 
+    const mediaId = await client.tweet.upload(mediaPath);
     const tweet = {
       text: tweetText,
-      media: [{ path: mediaPath }],
-    } as unknown as INewTweet;
+      media: [{ id: mediaId }],
+    } satisfies INewTweet;
     const id = await client.tweet.post(tweet);
 
     return {

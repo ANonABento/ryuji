@@ -2,17 +2,11 @@ import type { PluginContext } from "@choomfie/shared";
 import { LinkedInClient } from "./providers/linkedin/api.ts";
 import { LinkedInMonitor } from "./providers/linkedin/monitor.ts";
 import { LinkedInScheduler } from "./providers/linkedin/scheduler.ts";
+import { requireNonEmptyString } from "./config.ts";
 
 let linkedInClient: LinkedInClient | null = null;
 let linkedInMonitor: LinkedInMonitor | null = null;
 let linkedInScheduler: LinkedInScheduler | null = null;
-
-function requireString(value: unknown, name: string): string {
-  if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`LinkedIn config value "${name}" must be a non-empty string.`);
-  }
-  return value;
-}
 
 export function getLinkedInClient(ctx: PluginContext): LinkedInClient {
   if (linkedInClient) return linkedInClient;
@@ -29,8 +23,8 @@ export function getLinkedInClient(ctx: PluginContext): LinkedInClient {
 
   linkedInClient = new LinkedInClient(
     ctx.DATA_DIR,
-    requireString(socialsConfig.clientId, "clientId"),
-    requireString(socialsConfig.clientSecret, "clientSecret"),
+    requireNonEmptyString(socialsConfig.clientId, "socials.linkedin.clientId"),
+    requireNonEmptyString(socialsConfig.clientSecret, "socials.linkedin.clientSecret"),
   );
   return linkedInClient;
 }

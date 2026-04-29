@@ -27,6 +27,8 @@ import {
   getProgressData,
 } from "./core/lesson-engine.ts";
 import {
+  type ContentSet,
+  type ExerciseMode,
   type Exercise,
   type PracticeMode,
   type Lesson,
@@ -199,7 +201,7 @@ export function buildModePickerComponents(
   if (!lessonSupportsModePicker(lesson)) return [];
 
   const row = new ActionRowBuilder<ButtonBuilder>();
-  for (const mode of lesson.selectableModes!.slice(0, 5)) {
+  for (const mode of (lesson.selectableModes ?? []).slice(0, 5)) {
     row.addComponents(
       new ButtonBuilder()
         .setCustomId(`lesson:mode:${lesson.id}:${mode}`)
@@ -215,16 +217,25 @@ export function setSessionMode(
   mode: PracticeMode
 ): void {
   const contentSets = session.lesson.contentSets ?? [];
-  const modes =
-    mode === "mixed" ? (["recognition", "production", "matching"] as const) : [mode];
 
   session.exercises = contentSets.flatMap((contentSet) =>
-    modes.flatMap((exerciseMode) => generateExercises(contentSet, exerciseMode))
+    getExerciseModesForContentSet(contentSet, mode).flatMap((exerciseMode) =>
+      generateExercises(contentSet, exerciseMode)
+    )
   );
   session.exerciseIndex = 0;
   session.selectedMode = mode;
   session.awaitingModeSelection = false;
   session.answerOptionsByExercise.clear();
+}
+
+function getExerciseModesForContentSet(
+  contentSet: ContentSet,
+  selectedMode: PracticeMode
+): ExerciseMode[] {
+  const allowedModes = contentSet.modes ?? ["recognition", "production", "matching"];
+  if (selectedMode === "mixed") return [...allowedModes];
+  return allowedModes.includes(selectedMode) ? [selectedMode] : [];
 }
 
 function getOrCreateAnswerOptions(
@@ -336,6 +347,17 @@ export function buildLessonCompletionComponents(
   ];
 }
 
+function buildLessonStartComponents(lessonId: string): ActionRowBuilder<ButtonBuilder>[] {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`lesson:start:${lessonId}`)
+        .setLabel("Start Exercises →")
+        .setStyle(ButtonStyle.Primary)
+    ),
+  ];
+}
+
 function buildProgressBar(ratio: number, length: number): string {
   const filled = Math.round(ratio * length);
   const empty = length - filled;
@@ -387,8 +409,8 @@ async function sendNextExercise(
   const embed = buildExerciseEmbed(lesson, exerciseIndex, exercise, exercises.length);
   const buttons = buildExerciseButtons(exercise, lessonId, exerciseIndex, session);
 
-  const isTypingExercise = buttons.length === 0;
-  if (isTypingExercise) {
+  const requiresTypedAnswer = buttons.length === 0;
+  if (requiresTypedAnswer) {
     embed.setFooter({
       text: `Type your answer below${exercise.hint ? ` · 💡 ${exercise.hint}` : ""}`,
     });
@@ -470,14 +492,10 @@ registerCommand("lesson", {
 
     // Show intro
     const intro = buildIntroEmbed(result.lesson);
-    const startButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`lesson:start:${next.id}`)
-        .setLabel("Start Exercises →")
-        .setStyle(ButtonStyle.Primary)
-    );
-
-    await interaction.reply({ embeds: [intro], components: [startButton] });
+    await interaction.reply({
+      embeds: [intro],
+      components: buildLessonStartComponents(next.id),
+    });
   },
 });
 
@@ -605,8 +623,8 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
       return;
     }
 
-  const exercises = session.exercises ?? expandExercisesForSession(session.lesson.exercises);
-  const exercise = exercises[exerciseIndex];
+    const exercises = session.exercises ?? expandExercisesForSession(session.lesson.exercises);
+    const exercise = exercises[exerciseIndex];
     if (!exercise) {
       await interaction.reply({
         content: "That exercise is no longer available. Use `/lesson` to continue.",
@@ -703,14 +721,10 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
     setActiveLessonSession(userId, module, next.id, result.lesson, result.resumeAt);
 
     const intro = buildIntroEmbed(result.lesson);
-    const startButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`lesson:start:${next.id}`)
-        .setLabel("Start Exercises →")
-        .setStyle(ButtonStyle.Primary)
-    );
-
-    await interaction.update({ embeds: [intro], components: [startButton] });
+    await interaction.update({
+      embeds: [intro],
+      components: buildLessonStartComponents(next.id),
+    });
     return;
   }
 
@@ -737,14 +751,10 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
     setActiveLessonSession(userId, module, lessonId, result.lesson, 0);
 
     const intro = buildIntroEmbed(result.lesson);
-    const startButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`lesson:start:${lessonId}`)
-        .setLabel("Start Exercises →")
-        .setStyle(ButtonStyle.Primary)
-    );
-
-    await interaction.update({ embeds: [intro], components: [startButton] });
+    await interaction.update({
+      embeds: [intro],
+      components: buildLessonStartComponents(lessonId),
+    });
     return;
   }
 });
