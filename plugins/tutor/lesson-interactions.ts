@@ -350,7 +350,7 @@ async function sendNextExercise(
 
   // All exercises done?
   if (exerciseIndex >= session.exercises.length) {
-    const result = completeLesson(db, userId, module, lessonId);
+    const result = completeLesson(db, userId, module, lessonId, lesson);
     clearActiveSession(userId);
 
     // Update learner profile

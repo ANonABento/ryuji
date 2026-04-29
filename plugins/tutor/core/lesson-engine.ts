@@ -140,9 +140,10 @@ export function completeLesson(
   db: LessonDB,
   userId: string,
   module: string,
-  lessonId: string
+  lessonId: string,
+  activeLesson?: Lesson
 ): { score: number; passed: boolean; totalCorrect: number; totalExercises: number } {
-  const lesson = getLesson(module, lessonId);
+  const lesson = activeLesson ?? getLesson(module, lessonId);
   if (!lesson) return { score: 0, passed: false, totalCorrect: 0, totalExercises: 0 };
 
   const progress = db.getProgress(userId, module, lessonId);

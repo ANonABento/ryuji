@@ -6,6 +6,8 @@ import {
   type ActiveLessonSession,
 } from "../../../plugins/tutor/lesson-interactions.ts";
 import type { Lesson } from "../../../plugins/tutor/core/lesson-types.ts";
+import { LessonDB } from "../../../plugins/tutor/core/lesson-db.ts";
+import { registerLessons, completeLesson } from "../../../plugins/tutor/core/lesson-engine.ts";
 
 const baseLesson: Lesson = {
   id: "mode.1",
@@ -93,5 +95,54 @@ describe("lesson mode picker helpers", () => {
     expect(session.answerOptionsByExercise.size).toBe(0);
     expect(session.exercises).toHaveLength(2);
     expect(session.exercises.every((exercise) => exercise.type === "matching")).toBe(true);
+  });
+
+  test("completion scoring uses the selected generated exercise count", () => {
+    const lesson: Lesson = {
+      ...baseLesson,
+      id: "mode.generated",
+      exercises: [baseLesson.exercises[0]],
+      contentSets: [
+        {
+          items: [
+            { term: "あ", reading: "a", meaning: "a" },
+            { term: "い", reading: "i", meaning: "i" },
+          ],
+        },
+      ],
+      selectableModes: ["matching"],
+    };
+    const session = makeSession(lesson);
+    setSessionMode(session, "matching");
+
+    registerLessons("mode-test", [lesson], []);
+    const db = new LessonDB(":memory:");
+    db.ensureLesson(session.userId, "mode-test", lesson.id);
+    db.startLesson(session.userId, "mode-test", lesson.id);
+
+    db.saveExerciseResult(session.userId, "mode-test", lesson.id, 0, {
+      index: 0,
+      correct: true,
+      userAnswer: session.exercises[0].answer,
+    });
+    db.saveExerciseResult(session.userId, "mode-test", lesson.id, 1, {
+      index: 1,
+      correct: true,
+      userAnswer: session.exercises[1].answer,
+    });
+
+    const result = completeLesson(
+      db,
+      session.userId,
+      "mode-test",
+      lesson.id,
+      session.lesson
+    );
+
+    expect(result.totalExercises).toBe(2);
+    expect(result.totalCorrect).toBe(2);
+    expect(result.score).toBe(1);
+    expect(result.passed).toBe(true);
+    db.close();
   });
 });
