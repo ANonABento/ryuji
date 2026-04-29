@@ -2,6 +2,7 @@ import type { PluginContext } from "@choomfie/shared";
 import { LinkedInClient } from "./providers/linkedin/api.ts";
 import { LinkedInMonitor } from "./providers/linkedin/monitor.ts";
 import { LinkedInScheduler } from "./providers/linkedin/scheduler.ts";
+import { requireNonEmptyString } from "./config.ts";
 
 let linkedInClient: LinkedInClient | null = null;
 let linkedInMonitor: LinkedInMonitor | null = null;
@@ -13,9 +14,7 @@ export function getLinkedInClient(ctx: PluginContext): LinkedInClient {
   const config = ctx.config.getConfig();
   const socialsConfig = config.socials?.linkedin;
 
-  const clientId = socialsConfig?.clientId;
-  const clientSecret = socialsConfig?.clientSecret;
-  if (typeof clientId !== "string" || typeof clientSecret !== "string") {
+  if (!socialsConfig?.clientId || !socialsConfig?.clientSecret) {
     throw new Error(
       "LinkedIn not configured. Add socials.linkedin.clientId and socials.linkedin.clientSecret to config.json. " +
       "Create a LinkedIn app at https://developer.linkedin.com first.",
@@ -24,8 +23,8 @@ export function getLinkedInClient(ctx: PluginContext): LinkedInClient {
 
   linkedInClient = new LinkedInClient(
     ctx.DATA_DIR,
-    clientId,
-    clientSecret,
+    requireNonEmptyString(socialsConfig.clientId, "socials.linkedin.clientId"),
+    requireNonEmptyString(socialsConfig.clientSecret, "socials.linkedin.clientSecret"),
   );
   return linkedInClient;
 }

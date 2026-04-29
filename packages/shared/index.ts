@@ -12,12 +12,10 @@ export { errorMessage } from "./errors.ts";
 
 // Plugin context
 export type {
-  ChoomfieConfig,
   McpTransport,
   NotificationMessage,
   PluginContext,
   PluginConfig,
-  SocialsConfig,
   SocialsPlatformConfig,
 } from "./plugin-context.ts";
 

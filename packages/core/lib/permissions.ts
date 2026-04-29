@@ -2,34 +2,23 @@
  * Permission relay — forwards tool approval requests to Discord owner DM.
  */
 
-import { z } from "zod";
-import type { AnyObjectSchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import type { AppContext } from "./types.ts";
 import {
   buildPermissionMessage,
   buildPermissionTextFallback,
-  type PermissionRequestParams,
 } from "./handlers/permission-buttons.ts";
-
-const PermissionRequestSchema = z.object({
-  method: z.literal(
-    "notifications/claude/channel/permission_request"
-  ),
-  params: z.object({
-    request_id: z.string(),
-    tool_name: z.string(),
-    description: z.string(),
-    input_preview: z.string(),
-  }),
-});
-type PermissionRequest = { params: PermissionRequestParams };
+import {
+  PermissionRequestNotificationSchema,
+  requirePermissionRequestParams,
+} from "./permission-schema.ts";
 
 export function registerPermissionRelay(ctx: AppContext) {
   ctx.mcp.setNotificationHandler(
-    PermissionRequestSchema as unknown as AnyObjectSchema,
-    async ({ params }: PermissionRequest) => {
-      const message = buildPermissionMessage(params);
-      const textFallback = buildPermissionTextFallback(params);
+    PermissionRequestNotificationSchema,
+    async ({ params }) => {
+      const permissionParams = requirePermissionRequestParams(params);
+      const message = buildPermissionMessage(permissionParams);
+      const textFallback = buildPermissionTextFallback(permissionParams);
 
       // Only send permission requests to the owner (security layer 3)
       const permTarget = ctx.ownerUserId

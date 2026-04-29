@@ -7,10 +7,7 @@
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
-import type {
-  SocialsConfig as PluginSocialsConfig,
-  SocialsPlatformConfig,
-} from "@choomfie/shared";
+import type { SocialsPlatformConfig } from "@choomfie/shared";
 
 export interface Persona {
   name: string;
@@ -47,15 +44,15 @@ export interface TwitterConfig extends SocialsPlatformConfig {
   email: string;
 }
 
-export interface SocialsConfig extends PluginSocialsConfig {
+export interface SocialsConfig {
   youtube?: YouTubeConfig;
   linkedin?: LinkedInConfig;
   reddit?: RedditConfig;
   twitter?: TwitterConfig;
+  [key: string]: SocialsPlatformConfig | undefined;
 }
 
 export interface Config {
-  [key: string]: unknown;
   activePersona: string;
   personas: Record<string, Persona>;
   rateLimitMs: number;
@@ -64,6 +61,7 @@ export interface Config {
   plugins: string[];
   voice: VoiceConfig;
   socials?: SocialsConfig;
+  [key: string]: unknown;
 }
 
 const DEFAULT_CONFIG: Config = {

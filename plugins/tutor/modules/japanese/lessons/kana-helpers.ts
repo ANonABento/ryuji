@@ -101,7 +101,14 @@ export function chartReview(knownChars: [string, string][]): Exercise {
       grid,
       rowLabels,
       colLabels,
-      blanks: [{ row: blankRow, col: blankCol, answer: blankChar, reading: blankReading }],
+      blanks: [
+        {
+          row: blankRow,
+          col: blankCol,
+          answer: blankChar,
+          reading: blankReading,
+        },
+      ],
     },
   };
 }

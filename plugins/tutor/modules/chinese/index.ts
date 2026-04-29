@@ -16,12 +16,20 @@ const LEVEL_GUIDES: Record<string, string> = {
 - Keep sentences SHORT and concrete
 - If they answer in pinyin, accept it while gently tying it back to hanzi`,
 
-  "HSK 2": `Student is ELEMENTARY (HSK 2).
+  HSK1: `Student is a COMPLETE BEGINNER (HSK 1).
+- Use only basic HSK 1 vocabulary and short sentence patterns
+- Always include pinyin with tone numbers for new hanzi: 你好 (ni3 hao3)
+- Explain tones explicitly when pronunciation matters
+- Focus on: greetings, numbers, people, dates, locations, food, simple actions
+- Keep sentences SHORT and concrete
+- If they answer in pinyin, accept it while gently tying it back to hanzi`,
+
+  HSK2: `Student is ELEMENTARY (HSK 2).
 - Use HSK 1-2 vocabulary
 - Include pinyin for new or difficult hanzi
 - Build simple connected sentences with common verbs, time words, and complements`,
 
-  "HSK 3": `Student is LOWER-INTERMEDIATE (HSK 3).
+  HSK3: `Student is LOWER-INTERMEDIATE (HSK 3).
 - Use HSK 1-3 vocabulary
 - Include pinyin only for new words
 - Encourage longer answers and simple paragraph-level explanations`,
@@ -66,6 +74,7 @@ export const chineseModule: TutorModule = {
   levels: ["HSK 1", "HSK 2", "HSK 3", "HSK 4", "HSK 5", "HSK 6"],
   defaultLevel: "HSK 1",
   quizTypes: ["tones", "hanzi", "vocab"],
+
   tools: chineseTools,
 
   async lookup(query: string): Promise<DictionaryEntry[]> {

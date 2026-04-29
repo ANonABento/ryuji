@@ -13,18 +13,18 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
-  type Notification,
-  type ServerResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import type { AnyObjectSchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import { readFile, writeFile, unlink } from "node:fs/promises";
-import { z } from "zod";
 import { VERSION } from "./lib/version.ts";
+import {
+  PERMISSION_REQUEST_METHOD,
+  PermissionRequestNotificationSchema,
+  requirePermissionRequestParams,
+} from "./lib/permission-schema.ts";
 import type {
   WorkerMessage,
   IpcToolDef,
-  IpcToolResult,
 } from "./lib/ipc-types.ts";
 
 // --- Config ---
@@ -44,29 +44,16 @@ let lastCrashTime = 0;
 const MAX_CRASHES = 5; // max crashes within the reset window
 const CRASH_WINDOW_MS = 60_000; // reset crash count after 1min of stability
 
-/** Pending tool calls waiting for worker response */
-type ToolResult = IpcToolResult["result"];
-type PendingToolCall = {
-  resolve: (result: ToolResult) => void;
-  reject: (err: Error) => void;
-  timer: ReturnType<typeof setTimeout>;
-};
+type McpNotification = Parameters<Server["notification"]>[0];
 
+/** Pending tool calls waiting for worker response */
 const pendingCalls = new Map<
   string,
-  PendingToolCall
+  { resolve: (result: any) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout> }
 >();
 
 /** MCP server — created once, lives forever */
-const mcpRef: { current?: Server } = {};
-
-function sendNotification(server: Server, notification: Notification): void {
-  void server.notification(notification);
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
+let mcp: Server;
 
 // --- PID file (single-instance guard) ---
 const DATA_DIR =
@@ -162,13 +149,13 @@ function handleWorkerMessage(msg: WorkerMessage) {
         console.error(
           `Supervisor: worker ready (${currentTools.length} tools)`
         );
-        if (mcpRef.current) {
+        if (mcp) {
           // Update instructions for any future initialize handshake (e.g. reconnect)
-          (mcpRef.current as unknown as { _instructions?: string })._instructions = currentInstructions;
+          Object.assign(mcp, { _instructions: currentInstructions });
           // Notify Claude Code that the tool list changed so it re-fetches
-          sendNotification(mcpRef.current, {
+          mcp.notification({
             method: "notifications/tools/list_changed",
-          });
+          } as McpNotification);
         }
         break;
 
@@ -184,11 +171,11 @@ function handleWorkerMessage(msg: WorkerMessage) {
 
       case "notification":
         // Forward Discord messages / permission responses to Claude via MCP
-        if (mcpRef.current) {
-          sendNotification(mcpRef.current, {
+        if (mcp) {
+          mcp.notification({
             method: msg.method,
             params: msg.params,
-          });
+          } as McpNotification);
         }
         break;
 
@@ -232,7 +219,7 @@ function handleWorkerMessage(msg: WorkerMessage) {
 function callWorkerTool(
   name: string,
   args: Record<string, unknown>
-): Promise<ToolResult> {
+): Promise<any> {
   return new Promise((resolve, reject) => {
     if (!workerReady || !worker) {
       return reject(new Error("Worker not ready"));
@@ -316,7 +303,7 @@ async function restartWorker(reason: string): Promise<{ timedOut: boolean }> {
 async function handleSupervisorTool(
   name: string,
   args: Record<string, unknown>
-): Promise<ToolResult> {
+): Promise<any> {
   if (name === "restart") {
     const reason = (args.reason as string) || "manual restart";
     const { timedOut } = await restartWorker(reason);
@@ -379,10 +366,10 @@ function createMcp(): Server {
     }
 
     try {
-      return (await callWorkerTool(name, args)) as unknown as ServerResult;
-    } catch (error: unknown) {
+      return await callWorkerTool(name, args);
+    } catch (e: any) {
       return {
-        content: [{ type: "text", text: `Tool error: ${errorMessage(error)}` }],
+        content: [{ type: "text", text: `Tool error: ${e.message}` }],
         isError: true,
       };
     }
@@ -390,22 +377,15 @@ function createMcp(): Server {
 
   // Forward permission requests from MCP to worker
   server.setNotificationHandler(
-    z.object({
-      method: z.literal("notifications/claude/channel/permission_request"),
-      params: z.object({
-        request_id: z.string(),
-        tool_name: z.string(),
-        description: z.string(),
-        input_preview: z.string(),
-      }),
-    }) as unknown as AnyObjectSchema,
-    async ({ params }: { params: Record<string, unknown> }) => {
+    PermissionRequestNotificationSchema,
+    async ({ params }) => {
+      const permissionParams = requirePermissionRequestParams(params);
       if (worker && workerReady) {
         try {
           worker.send({
             type: "permission_request",
-            method: "notifications/claude/channel/permission_request",
-            params,
+            method: PERMISSION_REQUEST_METHOD,
+            params: permissionParams,
           });
         } catch {}
       }
@@ -441,10 +421,10 @@ await new Promise<void>((resolve) => {
 });
 
 // Create MCP server (now has real instructions + tools from worker)
-mcpRef.current = createMcp();
+mcp = createMcp();
 
 // Connect MCP stdio transport (this is what Claude Code talks to)
-await mcpRef.current.connect(new StdioServerTransport());
+await mcp.connect(new StdioServerTransport());
 console.error("Supervisor: MCP connected");
 
 // Graceful shutdown

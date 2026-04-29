@@ -1,5 +1,6 @@
 import type { PluginContext, ToolDef } from "@choomfie/shared";
-import { err, errorMessage, text } from "@choomfie/shared";
+import { err, text } from "@choomfie/shared";
+import { requireNonEmptyString } from "./config.ts";
 import { withRetry } from "./providers/retry.ts";
 import { TwitterClient } from "./providers/twitter/api.ts";
 
@@ -15,14 +16,7 @@ function getTwitterConfig(ctx: PluginContext): { username: string; password: str
   const config = ctx.config.getConfig();
   const socialsConfig = config.socials?.twitter;
 
-  const username = socialsConfig?.username;
-  const password = socialsConfig?.password;
-  const email = socialsConfig?.email;
-  if (
-    typeof username !== "string" ||
-    typeof password !== "string" ||
-    typeof email !== "string"
-  ) {
+  if (!socialsConfig?.username || !socialsConfig?.password || !socialsConfig?.email) {
     throw new Error(
       "Twitter not configured. Add to config.json:\n" +
       '  "socials": { "twitter": { "username": "...", "password": "...", "email": "..." } }',
@@ -30,9 +24,9 @@ function getTwitterConfig(ctx: PluginContext): { username: string; password: str
   }
 
   return {
-    username,
-    password,
-    email,
+    username: requireNonEmptyString(socialsConfig.username, "socials.twitter.username"),
+    password: requireNonEmptyString(socialsConfig.password, "socials.twitter.password"),
+    email: requireNonEmptyString(socialsConfig.email, "socials.twitter.email"),
   };
 }
 
@@ -59,8 +53,8 @@ export const twitterTools: ToolDef[] = [
         const client = getTwitterClient();
         const result = await client.login(twitterConfig);
         return text(`Twitter: ${result}`);
-      } catch (error: unknown) {
-        return err(`Twitter auth failed: ${errorMessage(error)}`);
+      } catch (e: any) {
+        return err(`Twitter auth failed: ${e.message}`);
       }
     },
   },
@@ -84,8 +78,8 @@ export const twitterTools: ToolDef[] = [
           { label: "twitter_post", maxAttempts: 2 },
         );
         return text(`Tweet posted!\nURL: ${result.url}\nID: ${result.id}`);
-      } catch (error: unknown) {
-        return err(`Tweet failed: ${errorMessage(error)}`);
+      } catch (e: any) {
+        return err(`Tweet failed: ${e.message}`);
       }
     },
   },
@@ -110,8 +104,8 @@ export const twitterTools: ToolDef[] = [
           { label: "twitter_post_image", maxAttempts: 2 },
         );
         return text(`Tweet with image posted!\nURL: ${result.url}\nID: ${result.id}`);
-      } catch (error: unknown) {
-        return err(`Tweet with image failed: ${errorMessage(error)}`);
+      } catch (e: any) {
+        return err(`Tweet with image failed: ${e.message}`);
       }
     },
   },
@@ -138,8 +132,8 @@ export const twitterTools: ToolDef[] = [
         const results = await client.postThread(tweets);
         const summary = results.map((result, i) => `${i + 1}. ${result.url}`).join("\n");
         return text(`Thread posted! (${results.length} tweets)\n${summary}`);
-      } catch (error: unknown) {
-        return err(`Thread failed: ${errorMessage(error)}`);
+      } catch (e: any) {
+        return err(`Thread failed: ${e.message}`);
       }
     },
   },
@@ -166,8 +160,8 @@ export const twitterTools: ToolDef[] = [
           `Username: @${status.username || "unknown"}\n` +
           "Session: cookie-based (no expiry)",
         );
-      } catch (error: unknown) {
-        return err(`Twitter status check failed: ${errorMessage(error)}`);
+      } catch (e: any) {
+        return err(`Twitter status check failed: ${e.message}`);
       }
     },
   },

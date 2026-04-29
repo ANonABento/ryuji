@@ -15,7 +15,6 @@ import {
   ButtonBuilder,
   ButtonStyle,
 } from "discord.js";
-import { errorMessage } from "@choomfie/shared";
 import { VERSION } from "./version.ts";
 import { registerCommand, registerButtonHandler } from "./interactions.ts";
 import { McpProxy } from "./mcp-proxy.ts";
@@ -291,8 +290,8 @@ registerCommand("github", {
     try {
       const output = await runGh(ghArgs);
       await interaction.editReply({ content: `\`\`\`\n${output.slice(0, 1900)}\n\`\`\`` });
-    } catch (error: unknown) {
-      await interaction.editReply({ content: `GitHub CLI error: ${errorMessage(error)}` });
+    } catch (e: any) {
+      await interaction.editReply({ content: `GitHub CLI error: ${e.message}` });
     }
   },
 });
@@ -552,9 +551,9 @@ registerCommand("voice", {
     let reports;
     try {
       reports = await detectAllProviders();
-    } catch (error: unknown) {
+    } catch (e: any) {
       await interaction.editReply({
-        content: `Provider detection failed: ${errorMessage(error)}. Check that ffmpeg and python3 are installed.`,
+        content: `Provider detection failed: ${e.message}. Check that ffmpeg and python3 are installed.`,
       });
       return;
     }

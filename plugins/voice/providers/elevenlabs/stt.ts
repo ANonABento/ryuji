@@ -7,7 +7,6 @@
  */
 
 import type { STTProvider } from "../types.ts";
-import { bufferToArrayBuffer } from "../audio.ts";
 
 const API_URL = "https://api.elevenlabs.io/v1/speech-to-text";
 
@@ -32,10 +31,11 @@ export const elevenlabsSTT: STTProvider = {
       );
     }
 
+    const audioBytes = new Uint8Array(audio);
     const formData = new FormData();
     formData.append(
       "file",
-      new Blob([bufferToArrayBuffer(audio)], { type: "audio/wav" }),
+      new Blob([audioBytes], { type: "audio/wav" }),
       "audio.wav"
     );
     formData.append("model_id", "scribe_v1");
