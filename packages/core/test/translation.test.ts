@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { AppContext } from "../lib/types.ts";
 import { getAllTools } from "../lib/tools/index.ts";
 import { parseTranslateArgs, translateText } from "../lib/translation.ts";
 
@@ -10,6 +11,35 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 describe("translation", () => {
+  const emptyAppContext = { plugins: [] } as AppContext;
+
+  async function withMockedEnvAndFetch<T>(
+    fetchImpl: typeof globalThis.fetch,
+    apiKey: string | undefined,
+    run: () => Promise<T>
+  ): Promise<T> {
+    const originalFetch = globalThis.fetch;
+    const originalApiKey = process.env.ANTHROPIC_API_KEY;
+
+    globalThis.fetch = fetchImpl;
+    if (apiKey === undefined) {
+      delete process.env.ANTHROPIC_API_KEY;
+    } else {
+      process.env.ANTHROPIC_API_KEY = apiKey;
+    }
+
+    try {
+      return await run();
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalApiKey === undefined) {
+        delete process.env.ANTHROPIC_API_KEY;
+      } else {
+        process.env.ANTHROPIC_API_KEY = originalApiKey;
+      }
+    }
+  }
+
   test("parseTranslateArgs accepts target_lang and text", () => {
     expect(parseTranslateArgs({ target_lang: "Spanish", text: "Hello" })).toEqual({
       targetLang: "Spanish",
@@ -142,41 +172,47 @@ describe("translation", () => {
   });
 
   test("translate MCP tool is registered", () => {
-    const tools = getAllTools({ plugins: [] } as any);
+    const tools = getAllTools(emptyAppContext);
     expect(tools.map((tool) => tool.definition.name)).toContain("translate");
   });
 
   test("translate MCP tool validates arguments and returns text", async () => {
-    const originalFetch = globalThis.fetch;
-    const originalApiKey = process.env.ANTHROPIC_API_KEY;
-    globalThis.fetch = (async () =>
-      jsonResponse({ content: [{ type: "text", text: "Hola" }] })) as unknown as typeof fetch;
+    await withMockedEnvAndFetch(
+      (async () =>
+        jsonResponse({ content: [{ type: "text", text: "Hola" }] })) as typeof globalThis.fetch,
+      "test-key",
+      async () => {
+        const translateTool = getAllTools(emptyAppContext).find(
+          (tool) => tool.definition.name === "translate"
+        );
+        expect(translateTool).toBeDefined();
 
-    process.env.ANTHROPIC_API_KEY = "test-key";
+        const missingText = await translateTool!.handler(
+          { target_lang: "Spanish" },
+          emptyAppContext
+        );
+        expect(missingText.isError).toBe(true);
+        expect(missingText.content[0].text).toContain("text is required");
 
-    try {
-      const translateTool = getAllTools({ plugins: [] } as any).find(
-        (tool) => tool.definition.name === "translate"
-      );
-      expect(translateTool).toBeDefined();
-
-      const missingText = await translateTool!.handler({ target_lang: "Spanish" }, {} as any);
-      expect(missingText.isError).toBe(true);
-      expect(missingText.content[0].text).toContain("text is required");
-
-      const result = await translateTool!.handler(
-        { target_lang: "Spanish", text: "Hello" },
-        {} as any
-      );
-      expect(result.isError).toBeUndefined();
-      expect(result.content[0].text).toBe("Hola");
-    } finally {
-      globalThis.fetch = originalFetch;
-      if (originalApiKey === undefined) {
-        delete process.env.ANTHROPIC_API_KEY;
-      } else {
-        process.env.ANTHROPIC_API_KEY = originalApiKey;
+        const result = await translateTool!.handler(
+          { target_lang: "Spanish", text: "Hello" },
+          emptyAppContext
+        );
+        expect(result.isError).toBeUndefined();
+        expect(result.content[0].text).toBe("Hola");
       }
-    }
+    );
+  });
+
+  test("fetchFn accepts RequestInfo", async () => {
+    const fetchFn = async (_url: RequestInfo) =>
+      Promise.resolve(
+        jsonResponse({ content: [{ type: "text", text: "Hola" }] })
+      );
+    const translated = await translateText(
+      { targetLang: "Spanish", text: "Hello" },
+      { apiKey: "test-key", fetchFn, timeoutMs: 1000 }
+    );
+    expect(translated).toBe("Hola");
   });
 });
