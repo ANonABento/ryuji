@@ -27,10 +27,10 @@ import { log, setSessionId, verbose } from "./log.ts";
 import { createMessageGenerator } from "./message-generator.ts";
 import { getErrorMessage } from "./error.ts";
 import {
+  applyAnthropicFailure,
   createSession,
   extractAssistantText,
   generateSessionId,
-  isAnthropicError,
 } from "./session-core.ts";
 import { writeDaemonState } from "./state-file.ts";
 import type { HandoffEntry, MetaState } from "./types.ts";
@@ -215,31 +215,24 @@ export async function handleStreamError(
   }
 
   let error = initialError;
-  let switchedToOllama = false;
 
   for (let attempt = 1; attempt <= MAX_ERROR_RETRIES; attempt++) {
     log(
       `Session stream failed: ${getErrorMessage(error)} (attempt ${attempt}/${MAX_ERROR_RETRIES})`
     );
 
-    // Check if this is an Anthropic API error and we should fall back to Ollama.
-    if (state.activeProvider === "anthropic" && isAnthropicError(error)) {
-      state.anthropicFailureCount++;
+    const prevFailureCount = state.anthropicFailureCount;
+    const switched = applyAnthropicFailure(state, error);
+    if (switched) {
+      log(
+        `Switching to Ollama fallback after ${ANTHROPIC_FALLBACK_THRESHOLD} consecutive Anthropic errors`
+      );
+      // Notify before starting Ollama session so owner knows even if Ollama fails.
+      void notifyOwnerDirectly(getErrorMessage(error));
+    } else if (state.anthropicFailureCount > prevFailureCount) {
       log(
         `Anthropic API error #${state.anthropicFailureCount}/${ANTHROPIC_FALLBACK_THRESHOLD}: ${getErrorMessage(error)}`
       );
-
-      if (state.anthropicFailureCount >= ANTHROPIC_FALLBACK_THRESHOLD) {
-        log(
-          `Switching to Ollama fallback after ${state.anthropicFailureCount} consecutive Anthropic failures`
-        );
-        state.activeProvider = "ollama";
-        state.anthropicFailureCount = 0;
-        switchedToOllama = true;
-        // Notify the owner now — before we start the Ollama session — so they
-        // know even if Ollama also fails to start.
-        void notifyOwnerDirectly(getErrorMessage(error));
-      }
     }
 
     stopWorkerHealthMonitor(state);
@@ -266,10 +259,6 @@ export async function handleStreamError(
     try {
       await startSession(state, lastSummary);
       log("Session restarted successfully after error");
-
-      if (switchedToOllama) {
-        log("Ollama fallback session is now active (owner already notified via DM)");
-      }
       return;
     } catch (restartError: unknown) {
       error = restartError;

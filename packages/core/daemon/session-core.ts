@@ -4,8 +4,8 @@ import {
   type SDKAssistantMessage,
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import { OLLAMA_BASE_URL, OLLAMA_MODEL, PLUGIN_DIR } from "./constants.ts";
-import type { ModelProvider } from "./types.ts";
+import { ANTHROPIC_FALLBACK_THRESHOLD, OLLAMA_BASE_URL, OLLAMA_MODEL, PLUGIN_DIR } from "./constants.ts";
+import type { MetaState, ModelProvider } from "./types.ts";
 
 export function generateSessionId(): string {
   return `s-${Date.now().toString(36)}`;
@@ -77,6 +77,22 @@ export function isAnthropicError(error: unknown): boolean {
 }
 
 /**
+ * Apply one Anthropic API failure to the state. Returns true if the provider
+ * switched to Ollama (threshold reached), false otherwise. Resets the failure
+ * count to zero on switch.
+ */
+export function applyAnthropicFailure(state: MetaState, error: unknown): boolean {
+  if (state.activeProvider !== "anthropic" || !isAnthropicError(error)) return false;
+  state.anthropicFailureCount++;
+  if (state.anthropicFailureCount >= ANTHROPIC_FALLBACK_THRESHOLD) {
+    state.activeProvider = "ollama";
+    state.anthropicFailureCount = 0;
+    return true;
+  }
+  return false;
+}
+
+/**
  * Create a Claude Code session. For the Ollama provider, injects
  * ANTHROPIC_BASE_URL and ANTHROPIC_API_KEY via the SDK's env option so the
  * spawned Claude process routes its API calls through Ollama's
@@ -90,14 +106,6 @@ export function createSession(
   handoffSummary?: string,
   provider: ModelProvider = "anthropic"
 ): Query {
-  const ollamaEnv: Record<string, string> =
-    provider === "ollama"
-      ? {
-          ANTHROPIC_BASE_URL: OLLAMA_BASE_URL,
-          ANTHROPIC_API_KEY: "ollama",
-        }
-      : {};
-
   return query({
     prompt,
     options: {
@@ -113,9 +121,15 @@ export function createSession(
       includePartialMessages: false,
       settingSources: ["user", "project"],
       cwd: PLUGIN_DIR,
-      ...(provider === "ollama" ? { model: OLLAMA_MODEL } : {}),
-      ...(Object.keys(ollamaEnv).length > 0
-        ? { env: { ...process.env, ...ollamaEnv } }
+      ...(provider === "ollama"
+        ? {
+            model: OLLAMA_MODEL,
+            env: {
+              ...process.env,
+              ANTHROPIC_BASE_URL: OLLAMA_BASE_URL,
+              ANTHROPIC_API_KEY: "ollama",
+            },
+          }
         : {}),
     },
   });

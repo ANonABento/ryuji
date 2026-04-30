@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isAnthropicError } from "../../daemon/session-core.ts";
+import { applyAnthropicFailure, isAnthropicError } from "../../daemon/session-core.ts";
 import { createInitialState } from "../../daemon/lifecycle.ts";
 import { ANTHROPIC_FALLBACK_THRESHOLD } from "../../daemon/constants.ts";
 
@@ -65,24 +65,15 @@ describe("daemon model fallback", () => {
 
     test("simulated fallback: counting errors switches provider", () => {
       const state = createInitialState();
-      expect(state.activeProvider).toBe("anthropic");
+      const error = new Error("429: rate_limit exceeded");
 
-      const rateLimitError = new Error("429: rate_limit exceeded");
-
-      // Simulate repeated Anthropic failures
-      for (let i = 0; i < ANTHROPIC_FALLBACK_THRESHOLD; i++) {
+      for (let i = 0; i < ANTHROPIC_FALLBACK_THRESHOLD - 1; i++) {
+        expect(applyAnthropicFailure(state, error)).toBe(false);
         expect(state.activeProvider).toBe("anthropic");
-
-        if (state.activeProvider === "anthropic" && isAnthropicError(rateLimitError)) {
-          state.anthropicFailureCount++;
-
-          if (state.anthropicFailureCount >= ANTHROPIC_FALLBACK_THRESHOLD) {
-            state.activeProvider = "ollama";
-            state.anthropicFailureCount = 0;
-          }
-        }
+        expect(state.anthropicFailureCount).toBe(i + 1);
       }
 
+      expect(applyAnthropicFailure(state, error)).toBe(true);
       expect(state.activeProvider).toBe("ollama");
       expect(state.anthropicFailureCount).toBe(0);
     });
@@ -92,9 +83,7 @@ describe("daemon model fallback", () => {
       const networkError = new Error("ECONNRESET");
 
       for (let i = 0; i < ANTHROPIC_FALLBACK_THRESHOLD * 2; i++) {
-        if (state.activeProvider === "anthropic" && isAnthropicError(networkError)) {
-          state.anthropicFailureCount++;
-        }
+        expect(applyAnthropicFailure(state, networkError)).toBe(false);
       }
 
       expect(state.activeProvider).toBe("anthropic");

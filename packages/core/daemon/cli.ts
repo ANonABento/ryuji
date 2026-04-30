@@ -4,13 +4,8 @@ import { loadHandoffs } from "./handoffs.ts";
 import { cleanup, createInitialState, setupShutdown } from "./lifecycle.ts";
 import { log } from "./log.ts";
 import { acquirePid } from "./pid.ts";
-import {
-  cycleSession,
-  handleStreamError,
-  startSession,
-  waitForResult,
-} from "./runtime.ts";
-import { isAnthropicError } from "./session-core.ts";
+import { cycleSession, startSession, waitForResult } from "./runtime.ts";
+import { applyAnthropicFailure, isAnthropicError } from "./session-core.ts";
 import { DAEMON_STATE_PATH } from "./state-file.ts";
 import { getErrorMessage } from "./error.ts";
 import type { MetaState } from "./types.ts";
@@ -256,14 +251,9 @@ export async function testFallback(): Promise<void> {
   // 3. Simulate threshold errors and verify provider switch
   log(`\nSimulating ${ANTHROPIC_FALLBACK_THRESHOLD} consecutive Anthropic errors...`);
 
+  const rateLimitError = new Error("429: rate_limit exceeded");
   for (let i = 1; i <= ANTHROPIC_FALLBACK_THRESHOLD; i++) {
-    state.anthropicFailureCount++;
-
-    if (state.anthropicFailureCount >= ANTHROPIC_FALLBACK_THRESHOLD) {
-      state.activeProvider = "ollama";
-      state.anthropicFailureCount = 0;
-    }
-
+    applyAnthropicFailure(state, rateLimitError);
     log(
       `  Error ${i}: provider=${state.activeProvider}, failureCount=${state.anthropicFailureCount}`
     );
