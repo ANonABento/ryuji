@@ -35,6 +35,7 @@ export interface SocialsConfig {
     username: string;
     password: string;
   };
+  [key: string]: unknown;
 }
 
 export interface Config {
