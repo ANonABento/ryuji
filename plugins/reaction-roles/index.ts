@@ -159,7 +159,10 @@ async function resolveReaction(
   reaction: MessageReaction | PartialMessageReaction
 ): Promise<MessageReaction | null> {
   try {
-    return reaction.partial ? ((await reaction.fetch()) as MessageReaction) : reaction;
+    if (reaction.partial) {
+      return (await reaction.fetch()) as MessageReaction;
+    }
+    return reaction as MessageReaction;
   } catch {
     return null;
   }
@@ -167,7 +170,10 @@ async function resolveReaction(
 
 async function resolveUser(user: User | PartialUser): Promise<User | null> {
   try {
-    return user.partial ? ((await user.fetch()) as User) : user;
+    if (user.partial) {
+      return (await user.fetch()) as User;
+    }
+    return user as User;
   } catch {
     return null;
   }
