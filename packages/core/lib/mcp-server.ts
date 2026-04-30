@@ -18,12 +18,11 @@ export function buildInstructions(ctx: AppContext): string {
   const activePersona = ctx.config.getActivePersona();
   const personaModel = ctx.config.getActivePersonaModel();
   const localFirst = ctx.config.getLocalFirst();
-  const useLocalHints = !!(personaModel || localFirst);
-  const modelLabel = personaModel ?? (localFirst ? "local model" : null);
+  const modelLabel = localFirst ? (personaModel ?? "local model") : null;
 
   return [
     `You are ${activePersona.name}. ${activePersona.personality}`,
-    ...(useLocalHints && modelLabel
+    ...(modelLabel
       ? [
           "",
           `[Running on ${modelLabel}. Keep responses concise — avoid very long outputs. Prefer direct, structured answers. Avoid deep multi-step reasoning chains.]`,

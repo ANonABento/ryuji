@@ -119,6 +119,32 @@ export const personaTools: ToolDef[] = [
   },
   {
     definition: {
+      name: "set_local_first",
+      description:
+        "Enable or disable localFirst mode. When on, personas with a model override get local-model prompt hints injected into the system prompt (e.g. 'keep responses concise'). Requires worker restart to take effect.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          enabled: {
+            type: "boolean",
+            description: "true to enable localFirst mode, false to disable",
+          },
+        },
+        required: ["enabled"],
+      },
+    },
+    handler: async (args, ctx) => {
+      const enabled = args.enabled as boolean;
+      ctx.config.setLocalFirst(enabled);
+      const status = enabled ? "**on**" : "**off**";
+      const hint = enabled
+        ? " Personas with a model override will now include local-model prompt hints."
+        : " Local-model prompt hints are disabled.";
+      return text(`localFirst mode is now ${status}.${hint} Restart for changes to take effect.`);
+    },
+  },
+  {
+    definition: {
       name: "delete_persona",
       description:
         "Delete a persona preset (cannot delete the active one).",
