@@ -11,6 +11,10 @@
 
 import { Database } from "bun:sqlite";
 import { normalizeTimeZone, toSQLiteDatetime } from "./time.ts";
+import {
+  isValidCustomCommandName,
+  normalizeCustomCommandName,
+} from "./custom-commands.ts";
 
 export interface CoreMemory {
   key: string;
@@ -512,16 +516,27 @@ export class MemoryStore {
     created_at as createdAt, updated_at as updatedAt`;
 
   setCustomCommand(name: string, response: string, createdBy: string) {
+    const normalizedName = normalizeCustomCommandName(name);
+    const normalizedResponse = response.trim();
+
+    if (!isValidCustomCommandName(normalizedName)) {
+      throw new Error("Invalid custom command name.");
+    }
+    if (!normalizedResponse) {
+      throw new Error("Response cannot be empty.");
+    }
+
     this.db
       .query(
         `INSERT INTO custom_commands (name, response, created_by, updated_at)
          VALUES (?1, ?2, ?3, datetime('now'))
          ON CONFLICT(name) DO UPDATE SET response = ?2, updated_at = datetime('now')`
       )
-      .run(name, response, createdBy);
+      .run(normalizedName, normalizedResponse, createdBy);
   }
 
   getCustomCommand(name: string): CustomCommand | null {
+    const normalizedName = normalizeCustomCommandName(name);
     return (
       this.db
         .query(
@@ -529,7 +544,7 @@ export class MemoryStore {
            FROM custom_commands
            WHERE name = ?`
         )
-        .get(name) as CustomCommand | null
+        .get(normalizedName) as CustomCommand | null
     );
   }
 
@@ -544,9 +559,10 @@ export class MemoryStore {
   }
 
   deleteCustomCommand(name: string): boolean {
+    const normalizedName = normalizeCustomCommandName(name);
     const result = this.db
       .query("DELETE FROM custom_commands WHERE name = ?")
-      .run(name);
+      .run(normalizedName);
     return result.changes > 0;
   }
 

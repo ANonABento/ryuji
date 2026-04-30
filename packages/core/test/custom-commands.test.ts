@@ -29,8 +29,9 @@ async function makeMemory(): Promise<{ memory: MemoryStore; path: string }> {
 test("MemoryStore adds, updates, lists, deletes, and persists custom commands", async () => {
   const { memory, path } = await makeMemory();
 
-  memory.setCustomCommand("hello", "hi there", "owner");
+  memory.setCustomCommand("Hello", "hi there", "owner");
   expect(memory.getCustomCommand("hello")?.response).toBe("hi there");
+  expect(memory.getCustomCommand("HELLO")?.response).toBe("hi there");
 
   memory.setCustomCommand("hello", "updated", "owner");
   expect(memory.listCustomCommands()).toHaveLength(1);
@@ -44,12 +45,26 @@ test("MemoryStore adds, updates, lists, deletes, and persists custom commands", 
   reopened.close();
 });
 
+test("MemoryStore rejects invalid custom command names and empty responses", async () => {
+  const { memory } = await makeMemory();
+
+  expect(() => memory.setCustomCommand("Bad Name", "resp", "owner")).toThrowError(
+    "Invalid custom command name."
+  );
+  expect(() => memory.setCustomCommand("hello", "   ", "owner")).toThrowError(
+    "Response cannot be empty."
+  );
+
+  memory.close();
+});
+
 test("buildCustomCommandDefs creates slash commands and merge skips built-in collisions", () => {
   const staticCommands = [
     new SlashCommandBuilder().setName("help").setDescription("Help").toJSON(),
   ];
 
   expect(buildCustomCommandDefs([{ name: "hello" }])[0].name).toBe("hello");
+  expect(buildCustomCommandDefs([{ name: "Hello World" }]).length).toBe(0);
   expect(mergeCommandDefs(staticCommands, [{ name: "help" }, { name: "hello" }]).map((c) => c.name))
     .toEqual(["help", "hello"]);
 });

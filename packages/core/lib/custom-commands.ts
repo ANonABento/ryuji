@@ -17,12 +17,14 @@ export function normalizeCustomCommandName(name: string): string {
 export function buildCustomCommandDefs(
   customCommands: Pick<CustomCommand, "name">[]
 ): RESTPostAPIChatInputApplicationCommandsJSONBody[] {
-  return customCommands.map((command) =>
-    new SlashCommandBuilder()
-      .setName(command.name)
-      .setDescription("Custom command")
-      .toJSON()
-  );
+  return customCommands
+    .filter((command) => isValidCustomCommandName(normalizeCustomCommandName(command.name)))
+    .map((command) =>
+      new SlashCommandBuilder()
+        .setName(normalizeCustomCommandName(command.name))
+        .setDescription("Custom command")
+        .toJSON()
+    );
 }
 
 export function mergeCommandDefs(
