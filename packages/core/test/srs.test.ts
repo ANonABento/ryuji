@@ -3,6 +3,11 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { commands, modalHandlers, type PluginContext } from "@choomfie/shared";
+import type {
+  ChatInputCommandInteraction,
+  EmbedBuilder,
+  ModalSubmitInteraction,
+} from "discord.js";
 import { SRSManager } from "../../../plugins/tutor/core/srs.ts";
 import { setSRS } from "../../../plugins/tutor/core/srs-instance.ts";
 import { setModule } from "../../../plugins/tutor/core/session.ts";
@@ -12,8 +17,45 @@ import { buildAddCardModal } from "../../../plugins/tutor/srs-interactions.ts";
 const tempDirs: string[] = [];
 const emptyContext = {} as PluginContext;
 
+interface ReplyPayload {
+  content?: string;
+  embeds?: EmbedBuilder[];
+}
+
+interface CommandInteractionStub {
+  user: { id: string };
+  options: {
+    getString: (name: string, required?: boolean) => string | null;
+    getSubcommand?: () => string;
+  };
+  reply?: (payload: ReplyPayload) => Promise<void>;
+  showModal?: (modal: { toJSON: () => { custom_id: string } }) => Promise<void>;
+}
+
+interface ModalInteractionStub {
+  user: { id: string };
+  fields: {
+    getTextInputValue: (name: string) => string;
+  };
+  reply: (payload: ReplyPayload) => Promise<void>;
+}
+
 function resultText(result: Awaited<ReturnType<(typeof srsTools)[number]["handler"]>>): string {
   return result.content[0]?.text ?? "";
+}
+
+async function createSRS(): Promise<SRSManager> {
+  const dir = await mkdtemp(join(tmpdir(), "choomfie-srs-"));
+  tempDirs.push(dir);
+  return new SRSManager(join(dir, "srs.db"));
+}
+
+function commandInteraction(stub: CommandInteractionStub): ChatInputCommandInteraction {
+  return stub as unknown as ChatInputCommandInteraction;
+}
+
+function modalInteraction(stub: ModalInteractionStub): ModalSubmitInteraction {
+  return stub as unknown as ModalSubmitInteraction;
 }
 
 afterEach(async () => {
@@ -28,10 +70,7 @@ afterEach(async () => {
 });
 
 test("SRS stats do not count untouched cards as learned", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "choomfie-srs-"));
-  tempDirs.push(dir);
-
-  const srs = new SRSManager(join(dir, "srs.db"));
+  const srs = await createSRS();
   srs.importDeck("user-1", "deck-1", [
     { front: "食べる", back: "to eat", reading: "たべる" },
     { front: "飲む", back: "to drink", reading: "のむ" },
@@ -45,10 +84,7 @@ test("SRS stats do not count untouched cards as learned", async () => {
 });
 
 test("SRS manager can create, list, and delete empty decks", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "choomfie-srs-"));
-  tempDirs.push(dir);
-
-  const srs = new SRSManager(join(dir, "srs.db"));
+  const srs = await createSRS();
   expect(srs.createDeck("user-1", "manual")).toBe(true);
   expect(srs.createDeck("user-1", "manual")).toBe(false);
 
@@ -64,10 +100,7 @@ test("SRS manager can create, list, and delete empty decks", async () => {
 });
 
 test("SRS reviewCard rejects cards owned by another user", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "choomfie-srs-"));
-  tempDirs.push(dir);
-
-  const srs = new SRSManager(join(dir, "srs.db"));
+  const srs = await createSRS();
   const cardId = srs.addCard("owner-user", "見る", "to see", "みる", "deck-1");
 
   expect(() => srs.reviewCard("other-user", cardId, "good")).toThrow(
@@ -78,11 +111,8 @@ test("SRS reviewCard rejects cards owned by another user", async () => {
 });
 
 test("srs_review defaults to active module lesson deck and shows card IDs", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "choomfie-srs-"));
-  tempDirs.push(dir);
-
   const userId = "chinese-srs-user";
-  const srs = new SRSManager(join(dir, "srs.db"));
+  const srs = await createSRS();
   setSRS(srs);
   setModule(userId, "chinese", "HSK1");
   const cardId = srs.addCard(userId, "你好", "hello", "ni3 hao3", "lesson-chinese");
@@ -101,11 +131,8 @@ test("srs_review defaults to active module lesson deck and shows card IDs", asyn
 });
 
 test("/add_card modal saves a manual card to the selected deck", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "choomfie-srs-"));
-  tempDirs.push(dir);
-
   const userId = "manual-card-user";
-  const srs = new SRSManager(join(dir, "srs.db"));
+  const srs = await createSRS();
   setSRS(srs);
 
   const addCard = commands.get("add_card");
@@ -113,7 +140,7 @@ test("/add_card modal saves a manual card to the selected deck", async () => {
 
   let modalCustomId = "";
   await addCard!.handler(
-    {
+    commandInteraction({
       user: { id: userId },
       options: {
         getString: (name: string) => (name === "deck" ? "manual" : null),
@@ -121,7 +148,7 @@ test("/add_card modal saves a manual card to the selected deck", async () => {
       showModal: async (modal: { toJSON: () => { custom_id: string } }) => {
         modalCustomId = modal.toJSON().custom_id;
       },
-    } as any,
+    }),
     emptyContext
   );
 
@@ -131,7 +158,7 @@ test("/add_card modal saves a manual card to the selected deck", async () => {
 
   let replyContent = "";
   await modalHandler!(
-    {
+    modalInteraction({
       user: { id: userId },
       fields: {
         getTextInputValue: (name: string) => {
@@ -144,45 +171,46 @@ test("/add_card modal saves a manual card to the selected deck", async () => {
           return values[name] ?? "";
         },
       },
-      reply: async (payload: { content: string }) => {
-        replyContent = payload.content;
+      reply: async (payload: ReplyPayload) => {
+        replyContent = payload.content ?? "";
       },
-    } as any,
+    }),
     modalCustomId.split(":"),
     emptyContext
   );
 
   expect(replyContent).toContain("Added card");
   expect(srs.hasDeck(userId, "manual")).toBe(true);
-  expect(srs.getDeckStats(userId, "manual")).toMatchObject({ total: 1, due: 1, learned: 0 });
+  expect(srs.getDeckStats(userId, "manual")).toMatchObject({
+    total: 1,
+    due: 1,
+    learned: 0,
+  });
 
   srs.close();
 });
 
 test("/decks command can create, list stats, and delete a deck", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "choomfie-srs-"));
-  tempDirs.push(dir);
-
   const userId = "deck-command-user";
-  const srs = new SRSManager(join(dir, "srs.db"));
+  const srs = await createSRS();
   setSRS(srs);
 
   const decks = commands.get("decks");
   expect(decks).toBeDefined();
 
-  const replies: any[] = [];
+  const replies: ReplyPayload[] = [];
   const runDeckCommand = async (subcommand: string, name?: string) => {
     await decks!.handler(
-      {
+      commandInteraction({
         user: { id: userId },
         options: {
           getSubcommand: () => subcommand,
           getString: () => name ?? null,
         },
-        reply: async (payload: any) => {
+        reply: async (payload: ReplyPayload) => {
           replies.push(payload);
         },
-      } as any,
+      }),
       emptyContext
     );
   };
@@ -194,10 +222,12 @@ test("/decks command can create, list stats, and delete a deck", async () => {
   srs.addCard(userId, "見る", "to see", "みる", "manual");
 
   await runDeckCommand("list");
-  expect(replies.at(-1).embeds[0].toJSON().description).toContain("**manual**");
+  expect(replies.at(-1)?.embeds?.[0]?.toJSON().description).toContain(
+    "**manual**"
+  );
 
   await runDeckCommand("stats", "manual");
-  expect(replies.at(-1).embeds[0].toJSON().fields).toEqual(
+  expect(replies.at(-1)?.embeds?.[0]?.toJSON().fields).toEqual(
     expect.arrayContaining([
       expect.objectContaining({ name: "Total", value: "1" }),
       expect.objectContaining({ name: "Due", value: "1" }),
@@ -205,7 +235,9 @@ test("/decks command can create, list stats, and delete a deck", async () => {
   );
 
   await runDeckCommand("delete", "manual");
-  expect(replies.at(-1).content).toContain("Deleted SRS deck **manual** and 1 cards");
+  expect(replies.at(-1)?.content).toContain(
+    "Deleted SRS deck **manual** and 1 cards"
+  );
   expect(srs.hasDeck(userId, "manual")).toBe(false);
 
   srs.close();
@@ -217,27 +249,28 @@ test("/add_card rejects unavailable SRS and expired modal submissions", async ()
 
   let replyContent = "";
   await addCard!.handler(
-    {
+    commandInteraction({
       user: { id: "no-srs-user" },
       options: {
         getString: () => "manual",
       },
-      reply: async (payload: { content: string }) => {
-        replyContent = payload.content;
+      reply: async (payload: ReplyPayload) => {
+        replyContent = payload.content ?? "";
       },
-    } as any,
+    }),
     emptyContext
   );
   expect(replyContent).toBe("SRS is not initialized.");
 
-  const dir = await mkdtemp(join(tmpdir(), "choomfie-srs-"));
-  tempDirs.push(dir);
-  const srs = new SRSManager(join(dir, "srs.db"));
+  const srs = await createSRS();
   setSRS(srs);
 
   const originalNow = Date.now;
   Date.now = () => originalNow();
-  const modalCustomId = buildAddCardModal("expired-user", "manual").toJSON().custom_id;
+  const modalCustomId = buildAddCardModal(
+    "expired-user",
+    "manual"
+  ).toJSON().custom_id;
   Date.now = () => originalNow() + 16 * 60 * 1000;
 
   const modalHandler = modalHandlers.get("srs-add-card");
@@ -245,15 +278,15 @@ test("/add_card rejects unavailable SRS and expired modal submissions", async ()
 
   try {
     await modalHandler!(
-      {
+      modalInteraction({
         user: { id: "expired-user" },
         fields: {
           getTextInputValue: () => "value",
         },
-        reply: async (payload: { content: string }) => {
-          replyContent = payload.content;
+        reply: async (payload: ReplyPayload) => {
+          replyContent = payload.content ?? "";
         },
-      } as any,
+      }),
       modalCustomId.split(":"),
       emptyContext
     );

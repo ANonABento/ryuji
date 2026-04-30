@@ -32,7 +32,21 @@ function validateDeckName(deck: string): string | null {
 }
 
 function formatDeckLine(deck: SRSDeck): string {
-  return `**${deck.name}** — ${deck.total} cards, ${deck.due} due, ${deck.learned} learned`;
+  return `**${deck.name}** - ${deck.total} cards, ${deck.due} due, ${deck.learned} learned`;
+}
+
+function buildStatsEmbed(
+  title: string,
+  stats: { total: number; due: number; learned: number }
+): EmbedBuilder {
+  return new EmbedBuilder()
+    .setColor(0x57f287)
+    .setTitle(title)
+    .addFields(
+      { name: "Total", value: String(stats.total), inline: true },
+      { name: "Due", value: String(stats.due), inline: true },
+      { name: "Learned", value: String(stats.learned), inline: true }
+    );
 }
 
 function pruneExpiredAddCardDecks(now = Date.now()) {
@@ -202,31 +216,17 @@ registerCommand("decks", {
           return;
         }
 
-        const stats = srs.getDeckStats(userId, name);
-        const embed = new EmbedBuilder()
-          .setColor(0x57f287)
-          .setTitle(`SRS Stats: ${name}`)
-          .addFields(
-            { name: "Total", value: String(stats.total), inline: true },
-            { name: "Due", value: String(stats.due), inline: true },
-            { name: "Learned", value: String(stats.learned), inline: true }
-          );
-        await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+        await interaction.reply({
+          embeds: [
+            buildStatsEmbed(`SRS Stats: ${name}`, srs.getDeckStats(userId, name)),
+          ],
+          flags: MessageFlags.Ephemeral,
+        });
         return;
       }
 
-      const stats = srs.getDeckStats(userId);
       await interaction.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setColor(0x57f287)
-            .setTitle("SRS Stats")
-            .addFields(
-              { name: "Total", value: String(stats.total), inline: true },
-              { name: "Due", value: String(stats.due), inline: true },
-              { name: "Learned", value: String(stats.learned), inline: true }
-            ),
-        ],
+        embeds: [buildStatsEmbed("SRS Stats", srs.getDeckStats(userId))],
         flags: MessageFlags.Ephemeral,
       });
     }
