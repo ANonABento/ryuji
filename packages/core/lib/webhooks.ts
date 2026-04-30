@@ -64,7 +64,7 @@ function clampDiscordContent(content: string): string {
 
 export async function handleWebhookRequest(req: Request, ctx: AppContext): Promise<Response> {
   const url = new URL(req.url);
-  const match = /^\/webhook\/([^/]+)$/.exec(url.pathname);
+  const match = /^\/webhook\/([^/]+)\/?$/.exec(url.pathname);
 
   if (!match) return json({ error: "not_found" }, 404);
   if (req.method !== "POST") {
@@ -83,10 +83,14 @@ export async function handleWebhookRequest(req: Request, ctx: AppContext): Promi
     return json({ error: "channel_unavailable" }, 502);
   }
 
-  await channel.send({
-    content: clampDiscordContent(content.trim()),
-    allowedMentions: { parse: [] },
-  });
+  try {
+    await channel.send({
+      content: clampDiscordContent(content.trim()),
+      allowedMentions: { parse: [] },
+    });
+  } catch {
+    return json({ error: "channel_unavailable" }, 502);
+  }
 
   return json({ ok: true });
 }

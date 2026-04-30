@@ -39,6 +39,24 @@ function fakeContext(memory: MemoryStore, sent: string[]): AppContext {
   } as unknown as AppContext;
 }
 
+function fakeContextWithBrokenChannel(memory: MemoryStore): AppContext {
+  return {
+    memory,
+    discord: {
+      channels: {
+        fetch: async () => ({
+          id: "chan_broken",
+          type: ChannelType.GuildText,
+          isTextBased: () => true,
+          send: async () => {
+            throw new Error("Cannot post in this channel");
+          },
+        }),
+      },
+    },
+  } as unknown as AppContext;
+}
+
 test("MemoryStore persists and revokes incoming webhooks", async () => {
   const memory = await makeMemory();
   memory.addIncomingWebhook("tok_123", "chan_1", "owner_1", "guild_1");
@@ -72,6 +90,44 @@ test("webhook endpoint posts JSON content to the configured Discord channel", as
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({ ok: true });
   expect(sent).toEqual(["ship it"]);
+  memory.close();
+});
+
+test("webhook endpoint posts plain text payloads", async () => {
+  const memory = await makeMemory();
+  const sent: string[] = [];
+  memory.addIncomingWebhook("tok_plain", "chan_3", "owner_1");
+
+  const response = await handleWebhookRequest(
+    new Request("http://localhost:8787/webhook/tok_plain", {
+      method: "POST",
+      body: "simple text",
+    }),
+    fakeContext(memory, sent)
+  );
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ ok: true });
+  expect(sent).toEqual(["simple text"]);
+  memory.close();
+});
+
+test("webhook endpoint handles channel send failures with 502", async () => {
+  const memory = await makeMemory();
+  const sent: string[] = [];
+  memory.addIncomingWebhook("tok_broken", "chan_broken", "owner_1");
+
+  const response = await handleWebhookRequest(
+    new Request("http://localhost:8787/webhook/tok_broken", {
+      method: "POST",
+      body: "will fail",
+    }),
+    fakeContextWithBrokenChannel(memory)
+  );
+
+  expect(response.status).toBe(502);
+  expect(await response.json()).toEqual({ error: "channel_unavailable" });
+  expect(sent).toEqual([]);
   memory.close();
 });
 
