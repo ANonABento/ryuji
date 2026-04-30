@@ -26,6 +26,7 @@ import { cleanupIdlePipelines, listenToUser } from "./listening.ts";
 import { speakText } from "./playback.ts";
 import type { GuildVoice } from "./types.ts";
 import { SileroVAD } from "./vad.ts";
+import { getFillersForPersona } from "./fillers.ts";
 
 // --- Timeouts ---
 const CONNECTION_TIMEOUT = 10_000; // 10s to establish voice connection
@@ -53,6 +54,8 @@ export class VoiceManager {
   private guilds = new Map<string, GuildVoice>();
   private stt!: STTProvider;
   private tts!: TTSProvider;
+  /** Pre-synthesized filler PCM buffers keyed by persona name (Phase 4) */
+  private fillerCache = new Map<string, Buffer[]>();
 
   constructor(private ctx: PluginContext) {}
 
@@ -68,6 +71,57 @@ export class VoiceManager {
     console.error(
       `Voice providers: STT=${this.stt.name}, TTS=${this.tts.name}, VAD=silero (per-speaker)`
     );
+
+    // Pre-synthesize fillers for the active persona (Phase 4)
+    const persona = (this.ctx.config.getConfig().activePersona as string | undefined) ?? "choomfie";
+    void this.warmFillers(persona);
+  }
+
+  /** Pre-synthesize all filler phrases for a persona and store in cache. */
+  private async warmFillers(persona: string): Promise<void> {
+    if (this.fillerCache.has(persona)) return;
+
+    const fillerSet = getFillersForPersona(persona);
+    const phrases = fillerSet.thinking;
+    const speed = this.ctx.config.getVoiceConfig().ttsSpeed ?? 1.0;
+
+    console.error(`Voice: pre-synthesizing ${phrases.length} fillers for persona "${persona}"`);
+    try {
+      const buffers = await Promise.all(
+        phrases.map((phrase) => this.tts.synthesize(phrase, "en", speed)),
+      );
+      this.fillerCache.set(persona, buffers);
+      console.error(`Voice: ${buffers.length} fillers cached for "${persona}"`);
+    } catch (e) {
+      console.error(`Voice: filler warm-up failed for "${persona}": ${e}`);
+    }
+  }
+
+  /**
+   * Play a random filler phrase in the guild's voice channel.
+   * Called immediately when speech ends to mask LLM latency (Phase 4).
+   * Bypasses the speak queue so it plays without waiting for pending speaks.
+   */
+  playFillerForGuild(guildId: string): void {
+    const gv = this.guilds.get(guildId);
+    if (!gv) return;
+
+    // Don't interrupt ongoing playback (e.g., bot is mid-sentence)
+    if (gv.player.state.status === AudioPlayerStatus.Playing) return;
+
+    const persona = (this.ctx.config.getConfig().activePersona as string | undefined) ?? "choomfie";
+    const fillers = this.fillerCache.get(persona);
+    if (!fillers || fillers.length === 0) return;
+
+    const pcm = fillers[Math.floor(Math.random() * fillers.length)]!;
+    try {
+      const stream = Readable.from(pcm);
+      const resource = createAudioResource(stream, { inputType: StreamType.Raw });
+      gv.player.play(resource);
+      console.error(`Voice: playing filler for persona "${persona}"`);
+    } catch (e) {
+      console.error(`Voice: filler playback error: ${e}`);
+    }
   }
 
   private ensureInitialized() {
@@ -139,6 +193,7 @@ export class VoiceManager {
         maxSegmentChunks: MAX_SEGMENT_CHUNKS,
         minOpusChunks: MIN_OPUS_CHUNKS,
         onInterrupt: (currentGuildId) => this.interrupt(currentGuildId),
+        onSpeechEnd: () => this.playFillerForGuild(guildId),
         stt: this.stt,
         userId,
       });
@@ -201,6 +256,11 @@ export class VoiceManager {
 
     // Reset speak queue — stale tasks will check generationId and bail
     gv.speakQueue = Promise.resolve();
+
+    // Store what was spoken so the next transcript notification can include it as context
+    if (spokenText) {
+      gv.interruptionContext = `User interrupted after hearing: "${spokenText}"`;
+    }
 
     console.error(`Voice: interrupted (gen=${gv.generationId}), spoken so far: "${spokenText?.slice(0, 80) ?? ""}"`);
     return spokenText;

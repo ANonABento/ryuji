@@ -51,14 +51,20 @@ export async function sendVoiceTranscriptNotification(
   userId: string,
   content: string,
   channelId?: string | null,
+  interruptionContext?: string,
 ): Promise<void> {
   const user = await ctx.discord?.users.fetch(userId);
   if (!user || !ctx.mcp?.notification) return;
 
+  // Prepend interruption context so Claude knows what was already heard
+  const fullContent = interruptionContext
+    ? `[${interruptionContext}]\n\n${content}`
+    : content;
+
   ctx.mcp.notification({
     method: "notifications/claude/channel",
     params: {
-      content,
+      content: fullContent,
       meta: {
         chat_id: channelId || guildId,
         message_id: `voice_${Date.now()}`,
@@ -72,6 +78,9 @@ export async function sendVoiceTranscriptNotification(
             : "user",
         source: "voice",
         guild_id: guildId,
+        // Hint for concise voice responses (~2-3 spoken sentences)
+        max_response_tokens: "150",
+        interrupted: interruptionContext ? "true" : "false",
       },
     },
   });
