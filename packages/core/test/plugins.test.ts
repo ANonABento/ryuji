@@ -26,10 +26,15 @@ test("loadPlugins skips unknown plugin names", async () => {
 test("loadPlugins loads real workspace plugins", async () => {
   const config = {
     getEnabledPlugins() {
-      return ["voice", "browser", "socials"];
+      return ["automod", "voice", "browser", "socials"];
     },
   };
 
   const plugins = await loadPlugins(config as any);
-  expect(plugins.map((p) => p.name)).toEqual(["voice", "browser", "socials"]);
+  expect(plugins.map((p) => p.name)).toEqual([
+    "automod",
+    "voice",
+    "browser",
+    "socials",
+  ]);
 });

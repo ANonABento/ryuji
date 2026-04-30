@@ -275,7 +275,10 @@ export class ConfigManager {
   // --- Automod ---
 
   getAutomodConfig(): AutomodConfig {
-    return { ...this.config.automod };
+    return {
+      ...this.config.automod,
+      bannedWords: [...this.config.automod.bannedWords],
+    };
   }
 
   setAutomodConfig(raw: Partial<AutomodConfig>) {

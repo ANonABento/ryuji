@@ -3,7 +3,7 @@
  */
 import { test, expect, describe } from "bun:test";
 
-const PLUGIN_NAMES = ["voice", "browser", "tutor", "socials"];
+const PLUGIN_NAMES = ["automod", "voice", "browser", "tutor", "socials"];
 
 describe("plugin interface", () => {
   for (const name of PLUGIN_NAMES) {
@@ -14,16 +14,17 @@ describe("plugin interface", () => {
       // Required: name
       expect(plugin.name).toBe(name);
 
-      // Required: tools array
-      expect(Array.isArray(plugin.tools)).toBe(true);
-      expect(plugin.tools.length).toBeGreaterThan(0);
+      // Tools are optional for some plugins (e.g. automod), but if present should be valid arrays.
+      if (plugin.tools) {
+        expect(Array.isArray(plugin.tools)).toBe(true);
 
-      // Each tool has definition with name, description, inputSchema
-      for (const tool of plugin.tools) {
-        expect(typeof tool.definition.name).toBe("string");
-        expect(typeof tool.definition.description).toBe("string");
-        expect(tool.definition.inputSchema).toBeTruthy();
-        expect(typeof tool.handler).toBe("function");
+        // Each tool has definition with name, description, inputSchema
+        for (const tool of plugin.tools) {
+          expect(typeof tool.definition.name).toBe("string");
+          expect(typeof tool.definition.description).toBe("string");
+          expect(tool.definition.inputSchema).toBeTruthy();
+          expect(typeof tool.handler).toBe("function");
+        }
       }
 
       // Optional fields are correct types if present

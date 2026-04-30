@@ -7,7 +7,7 @@ import { join } from "node:path";
 
 // plugins/ directory — each plugin is a workspace package
 const PLUGINS_DIR = join(import.meta.dir, "../../../..", "plugins");
-const PLUGIN_NAMES = ["voice", "browser", "tutor", "socials"];
+const PLUGIN_NAMES = ["automod", "voice", "browser", "tutor", "socials"];
 
 /** Recursively get all .ts files in a directory */
 function getTsFiles(dir: string): string[] {
