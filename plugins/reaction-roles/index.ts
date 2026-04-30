@@ -16,6 +16,9 @@ import { registerCommand } from "@choomfie/shared";
 import { ReactionRoleDB } from "./db.ts";
 import { emojiKeyFromInput, emojiKeyFromReaction } from "./emoji.ts";
 
+type ReactionRoleAction = "add" | "remove";
+type ReactionRoleStore = Pick<ReactionRoleDB, "get">;
+
 let db: ReactionRoleDB | null = null;
 let reactionAddHandler:
   | ((
@@ -173,10 +176,18 @@ async function resolveUser(user: User | PartialUser): Promise<User | null> {
 async function handleReaction(
   reaction: MessageReaction | PartialMessageReaction,
   user: User | PartialUser,
-  action: "add" | "remove"
+  action: ReactionRoleAction
 ) {
   if (!db) return;
+  await applyReactionRole(db, reaction, user, action);
+}
 
+export async function applyReactionRole(
+  store: ReactionRoleStore,
+  reaction: MessageReaction | PartialMessageReaction,
+  user: User | PartialUser,
+  action: ReactionRoleAction
+) {
   const resolvedUser = await resolveUser(user);
   if (!resolvedUser || resolvedUser.bot) return;
 
@@ -187,11 +198,10 @@ async function handleReaction(
   const guild = message.guild;
   if (!guild) return;
 
-  const mapping = db.get(
-    guild.id,
-    message.id,
-    emojiKeyFromReaction(resolvedReaction)
-  );
+  const emojiKey = emojiKeyFromReaction(resolvedReaction);
+  if (!emojiKey) return;
+
+  const mapping = store.get(guild.id, message.id, emojiKey);
   if (!mapping) return;
 
   try {
