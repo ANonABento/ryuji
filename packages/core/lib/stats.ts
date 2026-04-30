@@ -67,11 +67,18 @@ export async function buildStatsEmbed(ctx: AppContext): Promise<EmbedBuilder> {
   const botUser = ctx.discord.user;
   const messagesHandled = ctx.messageStats.received + ctx.messageStats.sent;
   const tokenUsageToday = await getTokenUsageToday(ctx);
-  const activePlugins = ctx.plugins.length
-    ? ctx.plugins
-        .map((plugin) => {
+  const configuredPlugins =
+    typeof ctx.config.getEnabledPlugins === "function"
+      ? ctx.config.getEnabledPlugins()
+      : ctx.plugins.map((plugin) => plugin.name);
+  const activePlugins = configuredPlugins.length
+    ? configuredPlugins
+        .map((pluginName) => {
+          const plugin = ctx.plugins.find((candidate) => candidate.name === pluginName);
+          if (!plugin) return `${pluginName} (not loaded)`;
+
           const tools = plugin.tools?.length ?? 0;
-          return tools > 0 ? `${plugin.name} (${tools} tools)` : plugin.name;
+          return tools > 0 ? `${pluginName} (${tools} tools)` : `${pluginName}`;
         })
         .join("\n")
     : "none";
