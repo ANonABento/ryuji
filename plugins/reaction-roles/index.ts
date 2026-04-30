@@ -207,7 +207,7 @@ export async function applyReactionRole(
   const emojiKey = emojiKeyFromReaction(resolvedReaction);
   if (!emojiKey) return;
 
-  const mapping = store.get(guild.id, message.id, emojiKey);
+  const mapping = store.get(guild.id, message.channelId, message.id, emojiKey);
   if (!mapping) return;
 
   try {

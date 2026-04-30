@@ -40,7 +40,10 @@ test("ReactionRoleDB persists and updates mappings", () => {
     roleId: "role-1",
   });
 
-  expect(db.get("guild-1", "message-1", "✅")?.roleId).toBe("role-1");
+  expect(db.get("guild-1", "channel-1", "message-1", "✅")?.roleId).toBe(
+    "role-1"
+  );
+  expect(db.get("guild-1", "channel-2", "message-1", "✅")).toBeNull();
 
   db.upsert({
     guildId: "guild-1",
@@ -50,7 +53,9 @@ test("ReactionRoleDB persists and updates mappings", () => {
     roleId: "role-2",
   });
 
-  expect(db.get("guild-1", "message-1", "✅")?.roleId).toBe("role-2");
+  expect(db.get("guild-1", "channel-1", "message-1", "✅")?.roleId).toBe(
+    "role-2"
+  );
   db.close();
   rmSync(dir, { force: true, recursive: true });
 });
@@ -58,15 +63,16 @@ test("ReactionRoleDB persists and updates mappings", () => {
 test("applyReactionRole adds and removes the configured role", async () => {
   const actions: string[] = [];
   const store = {
-    get(guildId: string, messageId: string, emojiKey: string) {
-      expect([guildId, messageId, emojiKey]).toEqual([
+    get(guildId: string, channelId: string, messageId: string, emojiKey: string) {
+      expect([guildId, channelId, messageId, emojiKey]).toEqual([
         "guild-1",
+        "channel-1",
         "message-1",
         "✅",
       ]);
       return {
         guildId,
-        channelId: "channel-1",
+        channelId,
         messageId,
         emojiKey,
         roleId: "role-1",
@@ -111,7 +117,13 @@ test("applyReactionRole ignores bots and unmapped reactions", async () => {
   let lookups = 0;
   let memberFetches = 0;
   const store = {
-    get() {
+    get(guildId: string, channelId: string, messageId: string, emojiKey: string) {
+      expect([guildId, channelId, messageId, emojiKey]).toEqual([
+        "guild-1",
+        "channel-1",
+        "message-1",
+        "✅",
+      ]);
       lookups++;
       return null;
     },
@@ -121,6 +133,7 @@ test("applyReactionRole ignores bots and unmapped reactions", async () => {
     emoji: { id: null, name: "✅" },
     message: {
       id: "message-1",
+      channelId: "channel-1",
       guild: {
         id: "guild-1",
         members: {
