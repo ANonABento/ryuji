@@ -16,10 +16,11 @@ import { getSRS } from "./core/srs-instance.ts";
 import type { SRSDeck } from "./core/srs.ts";
 
 const MAX_DECK_NAME_LENGTH = 50;
-const pendingAddCardDecks = new Map<string, string>();
+const ADD_CARD_MODAL_TTL_MS = 15 * 60 * 1000;
+const pendingAddCardDecks = new Map<string, { deck: string; expiresAt: number }>();
 
 function normalizeDeckName(deck: string): string {
-  return deck.trim().replace(/\s+/g, " ").slice(0, MAX_DECK_NAME_LENGTH);
+  return deck.trim().replace(/\s+/g, " ");
 }
 
 function validateDeckName(deck: string): string | null {
@@ -34,9 +35,19 @@ function formatDeckLine(deck: SRSDeck): string {
   return `**${deck.name}** — ${deck.total} cards, ${deck.due} due, ${deck.learned} learned`;
 }
 
+function pruneExpiredAddCardDecks(now = Date.now()) {
+  for (const [key, pending] of pendingAddCardDecks) {
+    if (pending.expiresAt <= now) pendingAddCardDecks.delete(key);
+  }
+}
+
 export function buildAddCardModal(userId: string, deck: string): ModalBuilder {
+  pruneExpiredAddCardDecks();
   const token = crypto.randomUUID().slice(0, 12);
-  pendingAddCardDecks.set(`${userId}:${token}`, deck);
+  pendingAddCardDecks.set(`${userId}:${token}`, {
+    deck,
+    expiresAt: Date.now() + ADD_CARD_MODAL_TTL_MS,
+  });
   return new ModalBuilder()
     .setCustomId(`srs-add-card:${token}`)
     .setTitle(`Add Card: ${deck.slice(0, 33)}`)
@@ -235,6 +246,15 @@ registerCommand("add_card", {
     )
     .toJSON(),
   handler: async (interaction) => {
+    const srs = getSRS();
+    if (!srs) {
+      await interaction.reply({
+        content: "SRS is not initialized.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
     const deck = normalizeDeckName(interaction.options.getString("deck", true));
     const error = validateDeckName(deck);
     if (error) {
@@ -258,8 +278,18 @@ registerModalHandler("srs-add-card", async (interaction, parts) => {
 
   const token = parts[1] ?? "";
   const pendingKey = `${interaction.user.id}:${token}`;
-  const deck = normalizeDeckName(pendingAddCardDecks.get(pendingKey) ?? "");
+  pruneExpiredAddCardDecks();
+  const pending = pendingAddCardDecks.get(pendingKey);
   pendingAddCardDecks.delete(pendingKey);
+  if (!pending) {
+    await interaction.reply({
+      content: "This add-card form expired. Run `/add_card` again.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const deck = normalizeDeckName(pending.deck);
   const error = validateDeckName(deck);
   if (error) {
     await interaction.reply({ content: error, flags: MessageFlags.Ephemeral });
