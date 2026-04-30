@@ -43,10 +43,10 @@ export class OllamaProvider implements ChatProvider {
     return {
       content: data.message.content,
       model: data.model,
-      usage: {
-        input_tokens: data.prompt_eval_count,
-        output_tokens: data.eval_count,
-      },
+      usage:
+        data.prompt_eval_count !== undefined || data.eval_count !== undefined
+          ? { input_tokens: data.prompt_eval_count, output_tokens: data.eval_count }
+          : undefined,
     };
   }
 }
