@@ -34,10 +34,34 @@ describe("translation", () => {
       "x-api-key": "test-key",
       "anthropic-version": "2023-06-01",
     });
-    expect(JSON.parse(String(calls[0].body))).toMatchObject({
+    const requestBody = JSON.parse(String(calls[0].body));
+    expect(requestBody).toMatchObject({
       temperature: 0,
       messages: [{ role: "user" }],
     });
+    expect(requestBody.messages[0].content).toContain(
+      "<target_language>Spanish</target_language>"
+    );
+    expect(requestBody.messages[0].content).toContain(
+      "<source_text>\nHello\n</source_text>"
+    );
+  });
+
+  test("translateText preserves separation between multiple text blocks", async () => {
+    const fetchFn = async () =>
+      jsonResponse({
+        content: [
+          { type: "text", text: "Line one" },
+          { type: "text", text: "Line two" },
+        ],
+      });
+
+    const translated = await translateText(
+      { targetLang: "English", text: "Uno. Dos." },
+      { apiKey: "test-key", fetchFn, timeoutMs: 1000 }
+    );
+
+    expect(translated).toBe("Line one\nLine two");
   });
 
   test("translateText surfaces Anthropic API errors", async () => {
@@ -52,6 +76,17 @@ describe("translation", () => {
     ).rejects.toThrow("invalid api key");
   });
 
+  test("translateText surfaces API failures without Anthropic error details", async () => {
+    const fetchFn = async () => jsonResponse({}, 503);
+
+    await expect(
+      translateText(
+        { targetLang: "Spanish", text: "Hello" },
+        { apiKey: "test-key", fetchFn, timeoutMs: 1000 }
+      )
+    ).rejects.toThrow("Anthropic API request failed (503");
+  });
+
   test("translateText requires an Anthropic API key", async () => {
     await expect(
       translateText(
@@ -59,6 +94,33 @@ describe("translation", () => {
         { apiKey: "", fetchFn: async () => jsonResponse({}) }
       )
     ).rejects.toThrow("ANTHROPIC_API_KEY is not set.");
+  });
+
+  test("translateText rejects malformed successful responses", async () => {
+    const fetchFn = async () =>
+      new Response("not json", {
+        status: 200,
+        headers: { "content-type": "text/plain" },
+      });
+
+    await expect(
+      translateText(
+        { targetLang: "Spanish", text: "Hello" },
+        { apiKey: "test-key", fetchFn, timeoutMs: 1000 }
+      )
+    ).rejects.toThrow("Anthropic API returned no translated text.");
+  });
+
+  test("translateText rejects responses missing text content", async () => {
+    const fetchFn = async () =>
+      jsonResponse({ content: [{ type: "non_text", value: "ignored" }] });
+
+    await expect(
+      translateText(
+        { targetLang: "Spanish", text: "Hello" },
+        { apiKey: "test-key", fetchFn, timeoutMs: 1000 }
+      )
+    ).rejects.toThrow("Anthropic API returned no translated text.");
   });
 
   test("translateText times out slow Anthropic requests", async () => {
@@ -89,6 +151,7 @@ describe("translation", () => {
     const originalApiKey = process.env.ANTHROPIC_API_KEY;
     globalThis.fetch = (async () =>
       jsonResponse({ content: [{ type: "text", text: "Hola" }] })) as unknown as typeof fetch;
+
     process.env.ANTHROPIC_API_KEY = "test-key";
 
     try {
