@@ -5,7 +5,7 @@
 import type { TextChannel, ThreadChannel } from "discord.js";
 import type { ToolDef } from "../types.ts";
 import { err, text } from "../types.ts";
-import { generateImage } from "../image-generation.ts";
+import { formatGeneratedImageMessage, generateImage } from "../image-generation.ts";
 import { refreshChannel } from "../conversation.ts";
 import { onReplySent } from "../typing.ts";
 
@@ -47,14 +47,13 @@ export const imageTools: ToolDef[] = [
         }
 
         const textChannel = channel as TextChannel | ThreadChannel;
-        const fallbackNote = image.fallbackReason
-          ? `\n\nFallback render used because ${image.fallbackReason.split("\n")[0]}`
-          : "";
+        const baseMessage = (typeof args.text === "string" && args.text.trim())
+          ? args.text.trim()
+          : `Image: ${prompt}`;
         const sent = await textChannel.send({
-          content: (typeof args.text === "string" && args.text.trim())
-            ? args.text.trim()
-            : `Image: ${prompt}${fallbackNote}`,
+          content: formatGeneratedImageMessage(image, baseMessage),
           files: [{ attachment: image.filePath }],
+          allowedMentions: { parse: [] },
         });
         ctx.messageStats.sent++;
         refreshChannel(ctx.activeChannels, args.chat_id);

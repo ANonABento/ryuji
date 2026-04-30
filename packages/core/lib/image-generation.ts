@@ -1,5 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
+import { errorMessage } from "@choomfie/shared";
 
 export interface GeneratedImage {
   filePath: string;
@@ -11,6 +13,16 @@ export interface GeneratedImage {
 const DEFAULT_OPENAI_IMAGE_MODEL = "gpt-image-1";
 const DEFAULT_OPENAI_IMAGE_SIZE = "1024x1024";
 const DEFAULT_ANTHROPIC_MODEL = "claude-3-5-haiku-latest";
+
+export function formatGeneratedImageMessage(
+  image: GeneratedImage,
+  baseMessage = `Image: ${image.prompt}`,
+): string {
+  const fallbackReason = image.fallbackReason?.split("\n")[0];
+  return fallbackReason
+    ? `${baseMessage}\n\nFallback render used because ${fallbackReason}`
+    : baseMessage;
+}
 
 function sanitizeFilenamePart(value: string): string {
   const cleaned = value
@@ -30,7 +42,11 @@ function escapeXml(value: string): string {
 }
 
 function wrapText(value: string, maxChars: number, maxLines: number): string[] {
-  const words = value.trim().split(/\s+/).filter(Boolean);
+  const words = value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .flatMap((word) => word.match(new RegExp(`.{1,${maxChars}}`, "g")) ?? []);
   const lines: string[] = [];
   let current = "";
 
@@ -53,13 +69,18 @@ async function writeInboxFile(
   dataDir: string,
   prompt: string,
   extension: "png" | "svg",
-  data: string | ArrayBuffer,
+  data: string | ArrayBuffer | Uint8Array,
 ): Promise<string> {
   const inboxDir = join(dataDir, "inbox");
   await mkdir(inboxDir, { recursive: true });
-  const filename = `${Date.now()}_${sanitizeFilenamePart(prompt)}.${extension}`;
+  const filename = [
+    Date.now(),
+    randomUUID(),
+    sanitizeFilenamePart(prompt),
+  ].join("_") + `.${extension}`;
   const filePath = join(inboxDir, basename(filename));
-  await writeFile(filePath, typeof data === "string" ? data : new Uint8Array(data));
+  const payload = data instanceof ArrayBuffer ? new Uint8Array(data) : data;
+  await writeFile(filePath, payload);
   return filePath;
 }
 
@@ -104,7 +125,7 @@ async function generateWithOpenAI(
   if (!image) throw new Error("OpenAI image generation returned no image data");
 
   const bytes = image.b64_json
-    ? Uint8Array.from(atob(image.b64_json), (char) => char.charCodeAt(0)).buffer
+    ? Buffer.from(image.b64_json, "base64")
     : image.url
       ? await fetchArrayBuffer(image.url)
       : null;
@@ -199,8 +220,7 @@ export async function generateImage(
     const openaiImage = await generateWithOpenAI(cleanPrompt, dataDir);
     if (openaiImage) return openaiImage;
   } catch (error) {
-    const fallbackReason = error instanceof Error ? error.message : String(error);
-    return generateFallbackSvg(cleanPrompt, dataDir, fallbackReason);
+    return generateFallbackSvg(cleanPrompt, dataDir, errorMessage(error));
   }
 
   return generateFallbackSvg(cleanPrompt, dataDir, "OPENAI_API_KEY is not configured");
@@ -221,8 +241,7 @@ async function generateFallbackSvg(
       provider = "anthropic-svg";
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    fallbackReason = `${fallbackReason}; ${message}`;
+    fallbackReason = `${fallbackReason}; ${errorMessage(error)}`;
   }
 
   const svg = renderSvg(prompt, description, fallbackReason);
