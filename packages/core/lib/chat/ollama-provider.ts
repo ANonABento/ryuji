@@ -63,6 +63,7 @@ export class OllamaProvider implements ChatProvider {
         }
       }
 
+      buffer += decoder.decode();
       const trailing = buffer.trim();
       if (trailing) {
         const chunk = JSON.parse(trailing) as OllamaChatChunk;

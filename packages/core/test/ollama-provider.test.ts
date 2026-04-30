@@ -43,6 +43,43 @@ test("OllamaProvider maps chat messages and streams response chunks", async () =
   expect(result).toBe("hello");
 });
 
+test("OllamaProvider handles UTF-8 bytes split across stream chunks", async () => {
+  const encoded = new TextEncoder().encode(
+    JSON.stringify({
+      message: { role: "assistant", content: "hi \u2603" },
+      done: true,
+    })
+  );
+  const snowman = new TextEncoder().encode("\u2603");
+  const splitAt =
+    encoded.findIndex((byte, index) =>
+      snowman.every(
+        (snowmanByte, offset) => encoded[index + offset] === snowmanByte
+      )
+    ) + 1;
+  expect(splitAt).toBeGreaterThan(0);
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoded.slice(0, splitAt));
+      controller.enqueue(encoded.slice(splitAt));
+      controller.close();
+    },
+  });
+
+  globalThis.fetch = (async () =>
+    new Response(stream, { status: 200 })) as typeof fetch;
+
+  const provider = new OllamaProvider("llama3.1:8b");
+  let result = "";
+  for await (const chunk of provider.stream([
+    { role: "user", content: "Say hi." },
+  ])) {
+    result += chunk;
+  }
+
+  expect(result).toBe("hi \u2603");
+});
+
 test("ConfigManager defaults Ollama model while preserving Claude provider default", async () => {
   const dir = join(tmpdir(), `choomfie-config-${Date.now()}-${Math.random()}`);
   await mkdir(dir, { recursive: true });
