@@ -109,3 +109,55 @@ test("searchArchival caches embeddings and does not re-embed on second search", 
 
   memory.close();
 });
+
+test("deleteArchival removes the memory and it no longer appears in search results", async () => {
+  const memory = await makeMemory(fakeEmbeddingProvider);
+
+  memory.addArchival("Good pasta dough needs enough resting time.", "cooking");
+  const id = memory.addArchival("Road trip notes: charge the car before leaving.", "travel");
+
+  expect(memory.searchArchival("automobile journey", 5)).toHaveLength(2);
+
+  expect(memory.deleteArchival(id)).toBe(true);
+  expect(memory.deleteArchival(id)).toBe(false);
+
+  const results = memory.searchArchival("automobile journey", 5);
+  expect(results).toHaveLength(1);
+  expect(results[0].content).toContain("pasta");
+
+  memory.close();
+});
+
+test("deleteArchival cascade: re-embedding on next search does not reuse a deleted row", async () => {
+  let embedCallCount = 0;
+  const counting: EmbeddingProvider = {
+    name: "counting",
+    model: "v1",
+    embed(text: string): number[] | null {
+      embedCallCount++;
+      return fakeEmbeddingProvider.embed(text);
+    },
+  };
+
+  const memory = await makeMemory(counting);
+
+  // Add and immediately delete a memory.  If ON DELETE CASCADE is not enforced,
+  // the orphaned embedding row would collide if the same auto-increment id were
+  // reused — or silently poison caches.  With foreign_keys = ON the row is gone.
+  const id = memory.addArchival("Road trip notes: charge the car before leaving.", "travel");
+  memory.deleteArchival(id);
+
+  // Add a new memory after the delete
+  memory.addArchival("Good pasta dough needs enough resting time.", "cooking");
+
+  // embedCallCount so far: 1 (deleted memory) + 1 (new memory) = 2
+  expect(embedCallCount).toBe(2);
+
+  embedCallCount = 0;
+  const results = memory.searchArchival("automobile journey", 5);
+  // Only the pasta memory remains; it has a cached embedding (no re-embed needed for it)
+  expect(results).toHaveLength(1);
+  expect(embedCallCount).toBe(1); // only the query is re-embedded
+
+  memory.close();
+});

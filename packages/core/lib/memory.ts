@@ -352,6 +352,13 @@ export class MemoryStore {
     return id;
   }
 
+  deleteArchival(id: number): boolean {
+    const result = this.db
+      .query("DELETE FROM archival_memory WHERE id = ?")
+      .run(id);
+    return result.changes > 0;
+  }
+
   searchArchival(query: string, limit: number = 10): ArchivalMemory[] {
     const semanticResults = this.searchArchivalByEmbedding(query, limit);
     if (semanticResults) return semanticResults;
