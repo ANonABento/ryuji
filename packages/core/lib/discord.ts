@@ -7,6 +7,7 @@ import {
   Events,
   GatewayIntentBits,
   Partials,
+  type GuildMember,
   type Message,
 } from "discord.js";
 import { mkdir, readdir, stat, unlink } from "node:fs/promises";
@@ -23,6 +24,7 @@ import {
 } from "./conversation.ts";
 import { deployGuildCommands } from "./command-deploy.ts";
 import { isAllowed, isOwner } from "./access.ts";
+import { handleGuildMemberAdd } from "./handlers/welcome.ts";
 
 const PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i;
 
@@ -48,6 +50,7 @@ export function createDiscordClient(ctx: AppContext): Client {
   const discord = new Client({
     intents: [
       GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMembers,
       GatewayIntentBits.GuildMessages,
       GatewayIntentBits.MessageContent,
       GatewayIntentBits.DirectMessages,
@@ -57,6 +60,10 @@ export function createDiscordClient(ctx: AppContext): Client {
       Partials.Channel, // Required for DM support
       Partials.Message,
     ],
+  });
+
+  discord.on(Events.GuildMemberAdd, async (member: GuildMember) => {
+    await handleGuildMemberAdd(member, ctx);
   });
 
   discord.once(Events.ClientReady, async (c) => {

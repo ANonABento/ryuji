@@ -19,25 +19,37 @@ export interface VoiceConfig {
   ttsSpeed?: number; // 0.5 to 2.0 (default 1.0)
 }
 
+export type SocialsPlatformConfig = Record<
+  string,
+  string | number | boolean | undefined
+>;
+
 export interface SocialsConfig {
-  youtube?: {
+  youtube?: SocialsPlatformConfig & {
     apiKey?: string;       // Optional — for YouTube Data API v3 reads (fallback to yt-dlp)
     clientId?: string;     // Optional — for OAuth (comments)
     clientSecret?: string; // Optional — for OAuth (comments)
   };
-  linkedin?: {
+  linkedin?: SocialsPlatformConfig & {
     clientId: string;
     clientSecret: string;
   };
-  reddit?: {
+  reddit?: SocialsPlatformConfig & {
     clientId: string;
     clientSecret: string;
     username: string;
     password: string;
   };
+  [key: string]: SocialsPlatformConfig | undefined;
+}
+
+export interface WelcomeConfig {
+  channelId?: string | null;
+  template: string;
 }
 
 export interface Config {
+  [key: string]: unknown;
   activePersona: string;
   personas: Record<string, Persona>;
   rateLimitMs: number;
@@ -45,8 +57,12 @@ export interface Config {
   autoSummarize: boolean;
   plugins: string[];
   voice: VoiceConfig;
+  welcome: WelcomeConfig;
   socials?: SocialsConfig;
 }
+
+export const DEFAULT_WELCOME_TEMPLATE =
+  "Welcome {user} to {server}!";
 
 const DEFAULT_CONFIG: Config = {
   activePersona: "choomfie",
@@ -62,6 +78,10 @@ const DEFAULT_CONFIG: Config = {
   autoSummarize: true,
   plugins: [],
   voice: { stt: "auto", tts: "auto", ttsSpeed: 0.7 },
+  welcome: {
+    channelId: null,
+    template: DEFAULT_WELCOME_TEMPLATE,
+  },
 };
 
 function mergeConfig(saved: Partial<Config>): Config {
@@ -71,6 +91,8 @@ function mergeConfig(saved: Partial<Config>): Config {
       : {};
   const savedVoice =
     saved.voice && typeof saved.voice === "object" ? saved.voice : {};
+  const savedWelcome =
+    saved.welcome && typeof saved.welcome === "object" ? saved.welcome : {};
   const savedSocials =
     saved.socials && typeof saved.socials === "object" ? saved.socials : undefined;
 
@@ -84,6 +106,10 @@ function mergeConfig(saved: Partial<Config>): Config {
     voice: {
       ...DEFAULT_CONFIG.voice,
       ...savedVoice,
+    },
+    welcome: {
+      ...DEFAULT_CONFIG.welcome,
+      ...savedWelcome,
     },
     ...(savedSocials ? { socials: savedSocials } : {}),
   };
@@ -196,6 +222,21 @@ export class ConfigManager {
 
   setVoiceConfig(voice: Partial<VoiceConfig>) {
     this.config.voice = { ...this.config.voice, ...voice };
+    this.save();
+  }
+
+  // --- Welcome messages ---
+
+  getWelcomeConfig(): WelcomeConfig {
+    return this.config.welcome || { ...DEFAULT_CONFIG.welcome };
+  }
+
+  setWelcomeConfig(welcome: Partial<WelcomeConfig>) {
+    this.config.welcome = {
+      ...DEFAULT_CONFIG.welcome,
+      ...this.config.welcome,
+      ...welcome,
+    };
     this.save();
   }
 
