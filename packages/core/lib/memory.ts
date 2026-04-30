@@ -52,6 +52,14 @@ export interface Birthday {
   lastRemindedOn: string | null;
 }
 
+export interface CustomCommand {
+  name: string;
+  response: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface MemoryStats {
   coreCount: number;
   archivalCount: number;
@@ -122,6 +130,14 @@ export class MemoryStore {
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now')),
         last_reminded_on TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS custom_commands (
+        name TEXT PRIMARY KEY,
+        response TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
       );
     `);
 
@@ -488,6 +504,50 @@ export class MemoryStore {
     this.db
       .query("UPDATE birthdays SET last_reminded_on = ?, updated_at = datetime('now') WHERE id = ?")
       .run(reminderDate, id);
+  }
+
+  // --- Custom commands ---
+
+  private static readonly CUSTOM_COMMAND_COLS = `name, response, created_by as createdBy,
+    created_at as createdAt, updated_at as updatedAt`;
+
+  setCustomCommand(name: string, response: string, createdBy: string) {
+    this.db
+      .query(
+        `INSERT INTO custom_commands (name, response, created_by, updated_at)
+         VALUES (?1, ?2, ?3, datetime('now'))
+         ON CONFLICT(name) DO UPDATE SET response = ?2, updated_at = datetime('now')`
+      )
+      .run(name, response, createdBy);
+  }
+
+  getCustomCommand(name: string): CustomCommand | null {
+    return (
+      this.db
+        .query(
+          `SELECT ${MemoryStore.CUSTOM_COMMAND_COLS}
+           FROM custom_commands
+           WHERE name = ?`
+        )
+        .get(name) as CustomCommand | null
+    );
+  }
+
+  listCustomCommands(): CustomCommand[] {
+    return this.db
+      .query(
+        `SELECT ${MemoryStore.CUSTOM_COMMAND_COLS}
+         FROM custom_commands
+         ORDER BY name COLLATE NOCASE ASC`
+      )
+      .all() as CustomCommand[];
+  }
+
+  deleteCustomCommand(name: string): boolean {
+    const result = this.db
+      .query("DELETE FROM custom_commands WHERE name = ?")
+      .run(name);
+    return result.changes > 0;
   }
 
   // --- Stats ---

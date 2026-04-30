@@ -23,6 +23,7 @@ import {
 } from "./conversation.ts";
 import { deployGuildCommands } from "./command-deploy.ts";
 import { isAllowed, isOwner } from "./access.ts";
+import { mergeCommandDefs } from "./custom-commands.ts";
 
 const PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i;
 
@@ -124,7 +125,7 @@ export function createDiscordClient(ctx: AppContext): Client {
 
     // Auto-deploy slash commands if they've changed
     try {
-      const commands = getCommandDefs();
+      const commands = mergeCommandDefs(getCommandDefs(), ctx.memory.listCustomCommands());
       const hash = Bun.hash(JSON.stringify(commands)).toString(36);
       const hashFile = `${ctx.DATA_DIR}/.commands-hash`;
       let lastHash = "";

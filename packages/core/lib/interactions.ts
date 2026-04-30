@@ -125,6 +125,14 @@ export async function handleInteraction(
       await safeHandle(interaction, `Command(${interaction.commandName})`, () =>
         cmd.handler(interaction, ctx)
       );
+      return;
+    }
+
+    const customCommand = ctx.memory.getCustomCommand(interaction.commandName);
+    if (customCommand) {
+      await safeHandle(interaction, `CustomCommand(${interaction.commandName})`, async () => {
+        await interaction.reply({ content: customCommand.response });
+      });
     }
     return;
   }

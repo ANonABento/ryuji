@@ -12,6 +12,8 @@
 import { REST, Routes } from "discord.js";
 import { getCommandDefs } from "../lib/interactions.ts";
 import { deployGuildCommands } from "../lib/command-deploy.ts";
+import { mergeCommandDefs } from "../lib/custom-commands.ts";
+import { MemoryStore } from "../lib/memory.ts";
 import { readFile } from "node:fs/promises";
 import "@choomfie/tutor";
 
@@ -49,7 +51,8 @@ const appInfo = (await rest.get(Routes.currentApplication())) as {
 };
 const applicationId = appInfo.id;
 
-const commands = getCommandDefs();
+const memory = new MemoryStore(`${DATA_DIR}/choomfie.db`);
+const commands = mergeCommandDefs(getCommandDefs(), memory.listCustomCommands());
 
 console.log(`Deploying ${commands.length} commands...`);
 
@@ -83,3 +86,5 @@ if (isGlobal) {
     client.login(token);
   });
 }
+
+memory.close();
