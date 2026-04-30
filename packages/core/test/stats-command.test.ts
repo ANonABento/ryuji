@@ -82,3 +82,38 @@ test("reads token usage only for the current day", async () => {
   );
   expect(await getTokenUsageToday(ctx)).toBe(0);
 });
+
+test("reads same-day token usage even with stale pid metadata", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "choomfie-stats-"));
+  await mkdir(join(dir, "meta"));
+
+  const ctx = { DATA_DIR: dir } as any;
+  const today = new Date().toISOString().slice(0, 10);
+
+  await writeFile(
+    join(dir, "meta", "daemon-state.json"),
+    JSON.stringify({
+      pid: 123456789,
+      tokenUsageToday: { date: today, inputTokens: 2048 },
+    })
+  );
+
+  expect(await getTokenUsageToday(ctx)).toBe(2048);
+});
+
+test("guards against malformed token counts", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "choomfie-stats-"));
+  await mkdir(join(dir, "meta"));
+
+  const ctx = { DATA_DIR: dir } as any;
+  const today = new Date().toISOString().slice(0, 10);
+
+  await writeFile(
+    join(dir, "meta", "daemon-state.json"),
+    JSON.stringify({
+      tokenUsageToday: { date: today, inputTokens: "not-a-number" },
+    })
+  );
+
+  expect(await getTokenUsageToday(ctx)).toBe(0);
+});

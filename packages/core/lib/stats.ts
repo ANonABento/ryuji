@@ -41,17 +41,11 @@ export async function getTokenUsageToday(ctx: AppContext): Promise<number> {
       await readFile(`${ctx.DATA_DIR}/meta/daemon-state.json`, "utf-8")
     ) as DaemonState;
 
-    if (daemonState.pid) {
-      try {
-        process.kill(daemonState.pid, 0);
-      } catch {
-        return 0;
-      }
-    }
-
     const today = new Date().toISOString().slice(0, 10);
     if (daemonState.tokenUsageToday?.date === today) {
-      return daemonState.tokenUsageToday.inputTokens ?? 0;
+      const inputTokens = Number(daemonState.tokenUsageToday.inputTokens ?? 0);
+      if (!Number.isFinite(inputTokens) || inputTokens < 0) return 0;
+      return inputTokens;
     }
 
     return 0;
