@@ -17,6 +17,8 @@ import type { SRSDeck } from "./core/srs.ts";
 
 const MAX_DECK_NAME_LENGTH = 50;
 const ADD_CARD_MODAL_TTL_MS = 15 * 60 * 1000;
+const SRS_NOT_INITIALIZED_MESSAGE = "SRS is not initialized.";
+const UNSUPPORTED_DECKS_SUBCOMMAND_MESSAGE = "Unsupported /decks subcommand.";
 const pendingAddCardDecks = new Map<string, { deck: string; expiresAt: number }>();
 
 function normalizeDeckName(deck: string): string {
@@ -53,6 +55,13 @@ function pruneExpiredAddCardDecks(now = Date.now()) {
   for (const [key, pending] of pendingAddCardDecks) {
     if (pending.expiresAt <= now) pendingAddCardDecks.delete(key);
   }
+}
+
+async function replyEphemeral(
+  interaction: { reply: (payload: { content: string; flags: MessageFlags }) => Promise<void> },
+  content: string
+): Promise<void> {
+  await interaction.reply({ content, flags: MessageFlags.Ephemeral });
 }
 
 export function buildAddCardModal(userId: string, deck: string): ModalBuilder {
@@ -148,10 +157,7 @@ registerCommand("decks", {
   handler: async (interaction) => {
     const srs = getSRS();
     if (!srs) {
-      await interaction.reply({
-        content: "SRS is not initialized.",
-        flags: MessageFlags.Ephemeral,
-      });
+      await replyEphemeral(interaction, SRS_NOT_INITIALIZED_MESSAGE);
       return;
     }
 
@@ -160,13 +166,13 @@ registerCommand("decks", {
 
     if (subcommand === "list") {
       const decks = srs.listDecks(userId);
-      if (decks.length === 0) {
-        await interaction.reply({
-          content: "You do not have any SRS decks yet. Create one with `/decks create`.",
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
+    if (decks.length === 0) {
+      await replyEphemeral(
+        interaction,
+        "You do not have any SRS decks yet. Create one with `/decks create`."
+      );
+      return;
+    }
 
       const embed = new EmbedBuilder()
         .setColor(0x5865f2)
@@ -180,27 +186,29 @@ registerCommand("decks", {
       const deck = normalizeDeckName(interaction.options.getString("name", true));
       const error = validateDeckName(deck);
       if (error) {
-        await interaction.reply({ content: error, flags: MessageFlags.Ephemeral });
+        await replyEphemeral(interaction, error);
         return;
       }
 
       const created = srs.createDeck(userId, deck);
-      await interaction.reply({
-        content: created ? `Created SRS deck **${deck}**.` : `SRS deck **${deck}** already exists.`,
-        flags: MessageFlags.Ephemeral,
-      });
+      await replyEphemeral(
+        interaction,
+        created
+          ? `Created SRS deck **${deck}**.`
+          : `SRS deck **${deck}** already exists.`
+      );
       return;
     }
 
     if (subcommand === "delete") {
       const deck = normalizeDeckName(interaction.options.getString("name", true));
       const { existed, deletedCards } = srs.deleteDeck(userId, deck);
-      await interaction.reply({
-        content: existed
+      await replyEphemeral(
+        interaction,
+        existed
           ? `Deleted SRS deck **${deck}** and ${deletedCards} cards.`
-          : `SRS deck **${deck}** was not found.`,
-        flags: MessageFlags.Ephemeral,
-      });
+          : `SRS deck **${deck}** was not found.`
+      );
       return;
     }
 
@@ -209,10 +217,7 @@ registerCommand("decks", {
       if (deck) {
         const name = normalizeDeckName(deck);
         if (!srs.hasDeck(userId, name)) {
-          await interaction.reply({
-            content: `SRS deck **${name}** was not found.`,
-            flags: MessageFlags.Ephemeral,
-          });
+          await replyEphemeral(interaction, `SRS deck **${name}** was not found.`);
           return;
         }
 
@@ -229,7 +234,10 @@ registerCommand("decks", {
         embeds: [buildStatsEmbed("SRS Stats", srs.getDeckStats(userId))],
         flags: MessageFlags.Ephemeral,
       });
+      return;
     }
+
+    await replyEphemeral(interaction, UNSUPPORTED_DECKS_SUBCOMMAND_MESSAGE);
   },
 });
 
@@ -248,17 +256,14 @@ registerCommand("add_card", {
   handler: async (interaction) => {
     const srs = getSRS();
     if (!srs) {
-      await interaction.reply({
-        content: "SRS is not initialized.",
-        flags: MessageFlags.Ephemeral,
-      });
+      await replyEphemeral(interaction, SRS_NOT_INITIALIZED_MESSAGE);
       return;
     }
 
     const deck = normalizeDeckName(interaction.options.getString("deck", true));
     const error = validateDeckName(deck);
     if (error) {
-      await interaction.reply({ content: error, flags: MessageFlags.Ephemeral });
+      await replyEphemeral(interaction, error);
       return;
     }
 
@@ -267,14 +272,11 @@ registerCommand("add_card", {
 });
 
 registerModalHandler("srs-add-card", async (interaction, parts) => {
-  const srs = getSRS();
-  if (!srs) {
-    await interaction.reply({
-      content: "SRS is not initialized.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
+    const srs = getSRS();
+    if (!srs) {
+      await replyEphemeral(interaction, SRS_NOT_INITIALIZED_MESSAGE);
+      return;
+    }
 
   const token = parts[1] ?? "";
   const pendingKey = `${interaction.user.id}:${token}`;
@@ -282,17 +284,14 @@ registerModalHandler("srs-add-card", async (interaction, parts) => {
   const pending = pendingAddCardDecks.get(pendingKey);
   pendingAddCardDecks.delete(pendingKey);
   if (!pending) {
-    await interaction.reply({
-      content: "This add-card form expired. Run `/add_card` again.",
-      flags: MessageFlags.Ephemeral,
-    });
+    await replyEphemeral(interaction, "This add-card form expired. Run `/add_card` again.");
     return;
   }
 
   const deck = normalizeDeckName(pending.deck);
   const error = validateDeckName(deck);
   if (error) {
-    await interaction.reply({ content: error, flags: MessageFlags.Ephemeral });
+    await replyEphemeral(interaction, error);
     return;
   }
 
@@ -302,10 +301,7 @@ registerModalHandler("srs-add-card", async (interaction, parts) => {
   const tags = interaction.fields.getTextInputValue("tags").trim();
 
   if (!front || !back) {
-    await interaction.reply({
-      content: "Front and back are required.",
-      flags: MessageFlags.Ephemeral,
-    });
+    await replyEphemeral(interaction, "Front and back are required.");
     return;
   }
 
