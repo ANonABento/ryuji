@@ -101,7 +101,7 @@ function mergeConfig(saved: Partial<Config>): Config {
   const savedSocials =
     saved.socials && typeof saved.socials === "object" ? saved.socials : undefined;
 
-  return applyLocalFirst({
+  return {
     ...DEFAULT_CONFIG,
     ...saved,
     personas: {
@@ -113,7 +113,7 @@ function mergeConfig(saved: Partial<Config>): Config {
       ...savedVoice,
     },
     ...(savedSocials ? { socials: savedSocials } : {}),
-  });
+  };
 }
 
 export class ConfigManager {
@@ -239,7 +239,6 @@ export class ConfigManager {
 
   setLocalFirst(enabled: boolean) {
     this.config.localFirst = enabled;
-    this.config = applyLocalFirst(this.config);
     this.save();
   }
 
@@ -254,7 +253,6 @@ export class ConfigManager {
 
   setVoiceConfig(voice: Partial<VoiceConfig>) {
     this.config.voice = { ...this.config.voice, ...voice };
-    this.config = applyLocalFirst(this.config);
     this.save();
   }
 

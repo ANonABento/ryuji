@@ -15,7 +15,9 @@ import {
   ButtonBuilder,
   ButtonStyle,
 } from "discord.js";
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { findMonorepoRoot } from "@choomfie/shared";
 import { VERSION } from "./version.ts";
 import { registerCommand, registerButtonHandler } from "./interactions.ts";
 import { McpProxy } from "./mcp-proxy.ts";
@@ -664,23 +666,32 @@ registerCommand("local_check", {
       ollamaDetail = e?.name === "TimeoutError" ? "timed out (3s)" : "not running";
     }
 
-    // Check whisper-cpp
+    // Check whisper-cpp (try whisper-cli first, then whisper-cpp)
     let whisperOk = false;
     let whisperDetail = "not installed";
     try {
-      const proc = Bun.spawn(["which", "whisper-cpp"], { stdout: "pipe", stderr: "pipe" });
-      await proc.exited;
-      whisperOk = proc.exitCode === 0;
-      whisperDetail = whisperOk ? "found" : "not installed — `brew install whisper-cpp`";
+      for (const bin of ["whisper-cli", "whisper-cpp"]) {
+        const proc = Bun.spawn(["which", bin], { stdout: "pipe", stderr: "pipe" });
+        await proc.exited;
+        if (proc.exitCode === 0) {
+          whisperOk = true;
+          whisperDetail = `found (${bin})`;
+          break;
+        }
+      }
+      if (!whisperOk) whisperDetail = "not installed — `brew install whisper-cpp`";
     } catch {
       whisperDetail = "detection failed";
     }
 
-    // Check kokoro
+    // Check kokoro-onnx — prefer venv python if present
     let kokoroOk = false;
     let kokoroDetail = "not installed";
     try {
-      const proc = Bun.spawn(["python3", "-c", "import kokoro"], {
+      const root = findMonorepoRoot(import.meta.dir);
+      const venvPy = join(root, ".venv", "bin", "python3");
+      const python = existsSync(venvPy) ? venvPy : "python3";
+      const proc = Bun.spawn([python, "-c", "import kokoro_onnx"], {
         stdout: "pipe",
         stderr: "pipe",
       });
