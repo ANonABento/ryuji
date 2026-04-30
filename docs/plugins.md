@@ -78,8 +78,7 @@ Every plugin is a Bun workspace package that depends on `@choomfie/shared`. All 
 ```typescript
 // plugins/hello/index.ts
 import type { Plugin, ToolDef } from "@choomfie/shared";
-import { text, err } from "@choomfie/shared";
-import { registerCommand } from "@choomfie/shared";
+import { text, err, registerCommand } from "@choomfie/shared";
 import { SlashCommandBuilder } from "discord.js";
 
 // ── MCP Tool ────────────────────────────────────────────────────────────────
@@ -499,8 +498,10 @@ if (interaction.user.id !== ctx.ownerUserId) {
 Plugins manage their own state at module scope. Do **not** add fields to `AppContext` — it belongs to core.
 
 ```typescript
-// Module-scoped state
+// Module-scoped state — tools close over this directly
 let manager: MyManager | null = null;
+
+export const getManager = () => manager;
 
 const plugin: Plugin = {
   name: "my-plugin",
@@ -509,7 +510,6 @@ const plugin: Plugin = {
   async init(ctx) {
     manager = new MyManager(ctx);
     await manager.start();
-    setManager(manager); // expose to tools via getter
   },
 
   async destroy() {
@@ -518,15 +518,10 @@ const plugin: Plugin = {
   },
 };
 
-// Module-level getter for tool handlers to call
-let _manager: MyManager | null = null;
-export function setManager(m: MyManager | null) { _manager = m; }
-export function getManager(): MyManager | null { return _manager; }
-
 export default plugin;
 ```
 
-Tool handlers then call `getManager()` instead of importing the instance directly.
+Tool handlers call `getManager()` which always reflects the current value of `manager`.
 
 ---
 
@@ -575,7 +570,7 @@ Study these for real-world patterns:
 const browserPlugin: Plugin = {
   name: "browser",
   tools: browserTools,
-  userTools: ["browse", "browser_click", "browser_type", "browser_screenshot"],
+  userTools: ["browse", "browser_click", "browser_type", "browser_screenshot", "browser_press_key", "browser_close"],
   instructions: ["## Browser", "You can browse the web using Playwright.", ...],
 
   async init() { console.error("Browser plugin initialized"); },
