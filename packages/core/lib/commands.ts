@@ -662,8 +662,8 @@ registerCommand("local_check", {
       } else {
         ollamaDetail = `HTTP ${res.status}`;
       }
-    } catch (e: any) {
-      ollamaDetail = e?.name === "TimeoutError" ? "timed out (3s)" : "not running";
+    } catch (e) {
+      ollamaDetail = (e as Error)?.name === "TimeoutError" ? "timed out (3s)" : "not running";
     }
 
     // Check whisper-cpp (try whisper-cli first, then whisper-cpp)

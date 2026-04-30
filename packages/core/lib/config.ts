@@ -222,19 +222,19 @@ export class ConfigManager {
   }
 
   getProvider(): LlmProvider {
-    return this.isLocalFirst() ? "ollama" : this.config.provider;
+    return applyLocalFirst(this.config).provider;
   }
 
   getLocalModel(): string {
-    return process.env.OLLAMA_MODEL || this.config.localModel || DEFAULT_CONFIG.localModel;
+    return process.env.OLLAMA_MODEL || this.config.localModel;
   }
 
   getOllamaUrl(): string {
-    return process.env.OLLAMA_URL || this.config.ollamaUrl || DEFAULT_CONFIG.ollamaUrl;
+    return process.env.OLLAMA_URL || this.config.ollamaUrl;
   }
 
   getEmbeddingsProvider(): EmbeddingsProvider {
-    return this.isLocalFirst() ? "local" : this.config.embeddings;
+    return applyLocalFirst(this.config).embeddings;
   }
 
   setLocalFirst(enabled: boolean) {
@@ -245,10 +245,7 @@ export class ConfigManager {
   // --- Voice ---
 
   getVoiceConfig(): VoiceConfig {
-    if (this.isLocalFirst()) {
-      return { ...this.config.voice, stt: "whisper", tts: "kokoro" };
-    }
-    return this.config.voice || { stt: "auto", tts: "auto" };
+    return applyLocalFirst(this.config).voice;
   }
 
   setVoiceConfig(voice: Partial<VoiceConfig>) {
