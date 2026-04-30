@@ -75,6 +75,7 @@ class KokoroSession {
   }
 
   private async _start(python: string): Promise<void> {
+    this.readBuffer = "";
     console.error("Kokoro: starting persistent session (loading ONNX model)...");
 
     const proc = Bun.spawn([python, "-c", KOKORO_SERVER_SCRIPT], {
