@@ -121,7 +121,6 @@ export function listenToUser(opts: {
 
     if (segmentTranscripts.length === 0) return;
 
-    // Play filler immediately while STT + LLM process the transcript (Phase 4)
     opts.onSpeechEnd?.();
 
     const pending = [...segmentTranscripts];

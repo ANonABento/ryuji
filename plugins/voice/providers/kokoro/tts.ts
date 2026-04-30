@@ -61,6 +61,7 @@ class KokoroSession {
   private startPromise: Promise<void> | null = null;
   /** Serializes synthesis calls — Python server handles one request at a time */
   private synthLock: Promise<void> = Promise.resolve();
+  private readonly _dec = new TextDecoder();
 
   async ensureStarted(python: string): Promise<void> {
     if (this.proc) return;
@@ -136,7 +137,7 @@ class KokoroSession {
         this.reader = null;
         throw new Error("Kokoro server exited unexpectedly");
       }
-      this.readBuffer += new TextDecoder().decode(value);
+      this.readBuffer += this._dec.decode(value);
     }
   }
 
@@ -156,16 +157,12 @@ class KokoroSession {
   }
 
   async synthesize(text: string, voice: string, python: string): Promise<string> {
-    let wavPath!: string;
-    // Chain onto the lock so only one synthesis runs at a time
-    const task: Promise<void> = this.synthLock.then(async () => {
+    const task: Promise<string> = this.synthLock.then(async () => {
       await this.ensureStarted(python);
-      wavPath = await this._doSynthesize(text, voice);
+      return this._doSynthesize(text, voice);
     });
-    // Next call waits for this one even if it fails
-    this.synthLock = task.then(undefined, () => {});
-    await task;
-    return wavPath;
+    this.synthLock = task.then(() => {}, () => {});
+    return task;
   }
 
   stop(): void {
@@ -180,6 +177,10 @@ class KokoroSession {
 
 // Module-level singleton — one persistent session per worker lifetime
 const session = new KokoroSession();
+
+export function stopKokoroSession(): void {
+  session.stop();
+}
 
 export const kokoroTTS: TTSProvider = {
   name: "kokoro",

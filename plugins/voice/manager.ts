@@ -37,12 +37,12 @@ const PLAYBACK_FINISH_TIMEOUT = 120_000; // 2min for current playback to finish 
 const MIN_OPUS_CHUNKS = 10; // Skip utterances shorter than ~200ms
 const LISTEN_HARD_TIMEOUT = 30_000; // 30s safety net for leaked subscriptions
 
-// --- Multi-speaker (Phase 6) ---
+// --- Multi-speaker ---
 const MAX_CONCURRENT_SPEAKERS = 4; // Max simultaneous VAD pipelines per guild
 const PIPELINE_IDLE_TIMEOUT = 60_000; // Evict idle pipelines after 60s
 const PIPELINE_CLEANUP_INTERVAL = 30_000; // Check for idle pipelines every 30s
 
-// --- Streaming STT (Phase 5) ---
+// --- Streaming STT ---
 // Max speech duration before flushing a segment to whisper.
 // Discord sends ~50 opus packets/sec (20ms frames), so 3s ≈ 150 chunks.
 const MAX_SEGMENT_CHUNKS = 150; // ~3s at 50 packets/sec
@@ -54,8 +54,8 @@ export class VoiceManager {
   private guilds = new Map<string, GuildVoice>();
   private stt!: STTProvider;
   private tts!: TTSProvider;
-  /** Pre-synthesized filler PCM buffers keyed by persona name (Phase 4) */
   private fillerCache = new Map<string, Buffer[]>();
+  private fillerWarm = new Map<string, Promise<void>>();
 
   constructor(private ctx: PluginContext) {}
 
@@ -64,7 +64,7 @@ export class VoiceManager {
     this.tts = await getTTSProvider(this.ctx.config);
 
     // Verify Silero VAD model loads (fast sanity check), but don't keep it —
-    // each speaker gets their own VAD instance (Phase 6: multi-speaker)
+    // each speaker gets their own VAD instance (per-speaker pipelines)
     const testVAD = await SileroVAD.create();
     void testVAD; // discard — just verifying model path works
 
@@ -72,34 +72,44 @@ export class VoiceManager {
       `Voice providers: STT=${this.stt.name}, TTS=${this.tts.name}, VAD=silero (per-speaker)`
     );
 
-    // Pre-synthesize fillers for the active persona (Phase 4)
-    const persona = (this.ctx.config.getConfig().activePersona as string | undefined) ?? "choomfie";
-    void this.warmFillers(persona);
+    void this.warmFillers(this.getActivePersona());
   }
 
-  /** Pre-synthesize all filler phrases for a persona and store in cache. */
+  private getActivePersona(): string {
+    return (this.ctx.config.getConfig().activePersona as string | undefined) ?? "choomfie";
+  }
+
   private async warmFillers(persona: string): Promise<void> {
     if (this.fillerCache.has(persona)) return;
+
+    const existing = this.fillerWarm.get(persona);
+    if (existing) return existing;
 
     const fillerSet = getFillersForPersona(persona);
     const phrases = fillerSet.thinking;
     const speed = this.ctx.config.getVoiceConfig().ttsSpeed ?? 1.0;
 
     console.error(`Voice: pre-synthesizing ${phrases.length} fillers for persona "${persona}"`);
-    try {
-      const buffers = await Promise.all(
-        phrases.map((phrase) => this.tts.synthesize(phrase, "en", speed)),
-      );
-      this.fillerCache.set(persona, buffers);
-      console.error(`Voice: ${buffers.length} fillers cached for "${persona}"`);
-    } catch (e) {
-      console.error(`Voice: filler warm-up failed for "${persona}": ${e}`);
-    }
+    const warm = (async () => {
+      try {
+        const buffers = await Promise.all(
+          phrases.map((phrase) => this.tts.synthesize(phrase, "en", speed)),
+        );
+        this.fillerCache.set(persona, buffers);
+        console.error(`Voice: ${buffers.length} fillers cached for "${persona}"`);
+      } catch (e) {
+        console.error(`Voice: filler warm-up failed for "${persona}": ${e}`);
+      } finally {
+        this.fillerWarm.delete(persona);
+      }
+    })();
+    this.fillerWarm.set(persona, warm);
+    return warm;
   }
 
   /**
    * Play a random filler phrase in the guild's voice channel.
-   * Called immediately when speech ends to mask LLM latency (Phase 4).
+   * Called immediately when speech ends to mask LLM latency.
    * Bypasses the speak queue so it plays without waiting for pending speaks.
    */
   playFillerForGuild(guildId: string): void {
@@ -109,7 +119,7 @@ export class VoiceManager {
     // Don't interrupt ongoing playback (e.g., bot is mid-sentence)
     if (gv.player.state.status === AudioPlayerStatus.Playing) return;
 
-    const persona = (this.ctx.config.getConfig().activePersona as string | undefined) ?? "choomfie";
+    const persona = this.getActivePersona();
     const fillers = this.fillerCache.get(persona);
     if (!fillers || fillers.length === 0) return;
 

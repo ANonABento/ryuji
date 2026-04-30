@@ -56,7 +56,6 @@ export async function sendVoiceTranscriptNotification(
   const user = await ctx.discord?.users.fetch(userId);
   if (!user || !ctx.mcp?.notification) return;
 
-  // Prepend interruption context so Claude knows what was already heard
   const fullContent = interruptionContext
     ? `[${interruptionContext}]\n\n${content}`
     : content;
@@ -78,9 +77,7 @@ export async function sendVoiceTranscriptNotification(
             : "user",
         source: "voice",
         guild_id: guildId,
-        // Hint for concise voice responses (~2-3 spoken sentences)
         max_response_tokens: "150",
-        interrupted: interruptionContext ? "true" : "false",
       },
     },
   });

@@ -12,6 +12,7 @@ import { GatewayIntentBits } from "discord.js";
 import type { Plugin } from "@choomfie/shared";
 import { voiceTools } from "./tools.ts";
 import { VoiceManager } from "./manager.ts";
+import { stopKokoroSession } from "./providers/kokoro/index.ts";
 
 let manager: VoiceManager | null = null;
 
@@ -57,6 +58,7 @@ const voicePlugin: Plugin = {
       manager.disconnectAll();
       manager = null;
     }
+    stopKokoroSession();
   },
 };
 
