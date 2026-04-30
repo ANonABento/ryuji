@@ -2,12 +2,12 @@
  * French lesson registry — A1 foundations organized into pronunciation, vocabulary, and conversations.
  */
 
-import type { Lesson, Unit } from "../../../core/lesson-types.ts";
+import type { ContentItem, Lesson, Unit } from "../../../core/lesson-types.ts";
 import { generateExercises, type ContentSet } from "../../../core/exercise-generator.ts";
-import { frenchA1Vocab } from "../data/a1-vocab.ts";
+import { frenchA1ByTerms, frenchA1Vocab } from "../data/a1-vocab.ts";
 import { cloze, introItems, mc, vocabSRS } from "./helpers.ts";
 
-function content(items = frenchA1Vocab): ContentSet {
+function content(items: ContentItem[]): ContentSet {
   return { items, productionLabel: "French" };
 }
 
@@ -15,7 +15,7 @@ function vocabularyLesson(
   id: string,
   title: string,
   prerequisites: string[],
-  items: typeof frenchA1Vocab,
+  items: ContentItem[],
   introduction: string,
   skill: string,
 ): Lesson {
@@ -43,12 +43,156 @@ function vocabularyLesson(
   };
 }
 
-const greetingItems = frenchA1Vocab.slice(0, 16);
-const peopleNumberItems = frenchA1Vocab.slice(16, 38);
-const timePlaceItems = frenchA1Vocab.slice(38, 65);
-const foodPeopleItems = frenchA1Vocab.slice(65, 95);
-const verbItems = frenchA1Vocab.slice(95, 113);
-const descriptionQuestionItems = frenchA1Vocab.slice(113);
+const greetingItems = frenchA1ByTerms([
+  "bonjour",
+  "salut",
+  "bonsoir",
+  "au revoir",
+  "merci",
+  "s'il vous plaît",
+  "s'il te plaît",
+  "pardon",
+  "désolé",
+  "oui",
+  "non",
+  "peut-être",
+  "d'accord",
+  "monsieur",
+  "madame",
+  "mademoiselle",
+]);
+
+const peopleNumberItems = frenchA1ByTerms([
+  "je",
+  "tu",
+  "vous",
+  "il",
+  "elle",
+  "nous",
+  "ils",
+  "elles",
+  "moi",
+  "toi",
+  "un",
+  "une",
+  "deux",
+  "trois",
+  "quatre",
+  "cinq",
+  "six",
+  "sept",
+  "huit",
+  "neuf",
+  "dix",
+  "zéro",
+]);
+
+const timePlaceItems = frenchA1ByTerms([
+  "aujourd'hui",
+  "demain",
+  "hier",
+  "matin",
+  "après-midi",
+  "soir",
+  "nuit",
+  "jour",
+  "semaine",
+  "mois",
+  "année",
+  "heure",
+  "minute",
+  "maison",
+  "école",
+  "travail",
+  "gare",
+  "restaurant",
+  "café",
+  "hôtel",
+  "magasin",
+  "supermarché",
+  "rue",
+  "ville",
+  "pays",
+  "France",
+  "Paris",
+]);
+
+const foodPeopleItems = frenchA1ByTerms([
+  "eau",
+  "un café",
+  "thé",
+  "pain",
+  "fromage",
+  "fruit",
+  "pomme",
+  "légume",
+  "viande",
+  "poisson",
+  "riz",
+  "lait",
+  "vin",
+  "bière",
+  "addition",
+  "homme",
+  "femme",
+  "enfant",
+  "ami",
+  "amie",
+  "famille",
+  "mère",
+  "père",
+  "frère",
+  "sœur",
+  "professeur",
+  "étudiant",
+  "étudiante",
+  "docteur",
+]);
+
+const verbItems = frenchA1ByTerms([
+  "avoir",
+  "être",
+  "aller",
+  "venir",
+  "faire",
+  "parler",
+  "comprendre",
+  "manger",
+  "boire",
+  "acheter",
+  "aimer",
+  "vouloir",
+  "pouvoir",
+  "savoir",
+  "regarder",
+  "écouter",
+  "lire",
+  "écrire",
+]);
+
+const descriptionQuestionItems = frenchA1ByTerms([
+  "grand",
+  "petit",
+  "bon",
+  "bonne",
+  "mauvais",
+  "nouveau",
+  "chaud",
+  "froid",
+  "facile",
+  "difficile",
+  "cher",
+  "gratuit",
+  "ici",
+  "là-bas",
+  "où",
+  "quand",
+  "comment",
+  "combien",
+  "qui",
+  "quoi",
+  "pourquoi",
+]);
 
 export const frenchLessons: Lesson[] = [
   {
