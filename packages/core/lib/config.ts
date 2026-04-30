@@ -19,6 +19,18 @@ export interface VoiceConfig {
   ttsSpeed?: number; // 0.5 to 2.0 (default 1.0)
 }
 
+export interface SocialsPlatformConfig {
+  [key: string]: string | number | boolean | undefined;
+}
+
+export type AutomodAction = "warn" | "timeout" | "kick";
+
+export interface AutomodConfig {
+  maxMessagesPerMinute: number;
+  bannedWords: string[];
+  action: AutomodAction;
+}
+
 export interface SocialsConfig {
   youtube?: {
     apiKey?: string;       // Optional — for YouTube Data API v3 reads (fallback to yt-dlp)
@@ -35,6 +47,7 @@ export interface SocialsConfig {
     username: string;
     password: string;
   };
+  [key: string]: SocialsPlatformConfig | undefined;
 }
 
 export interface Config {
@@ -45,7 +58,9 @@ export interface Config {
   autoSummarize: boolean;
   plugins: string[];
   voice: VoiceConfig;
+  automod: AutomodConfig;
   socials?: SocialsConfig;
+  [key: string]: unknown;
 }
 
 const DEFAULT_CONFIG: Config = {
@@ -62,7 +77,36 @@ const DEFAULT_CONFIG: Config = {
   autoSummarize: true,
   plugins: [],
   voice: { stt: "auto", tts: "auto", ttsSpeed: 0.7 },
+  automod: {
+    maxMessagesPerMinute: 20,
+    bannedWords: [],
+    action: "warn",
+  },
 };
+
+function normalizeMaxMessagesPerMinute(raw: unknown): number {
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return DEFAULT_CONFIG.automod.maxMessagesPerMinute;
+
+  const normalized = Math.floor(value);
+  if (normalized < 1) return 1;
+  if (normalized > 120) return 120;
+  return normalized;
+}
+
+function normalizeBannedWords(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter(Boolean)
+    .map((item) => item.toLowerCase())
+    .filter((item, idx, arr) => arr.indexOf(item) === idx);
+}
+
+function normalizeAutomodAction(raw: unknown): AutomodAction {
+  if (raw === "timeout" || raw === "kick" || raw === "warn") return raw;
+  return DEFAULT_CONFIG.automod.action;
+}
 
 function mergeConfig(saved: Partial<Config>): Config {
   const savedPersonas =
@@ -71,8 +115,11 @@ function mergeConfig(saved: Partial<Config>): Config {
       : {};
   const savedVoice =
     saved.voice && typeof saved.voice === "object" ? saved.voice : {};
+  const savedAutomod =
+    saved.automod && typeof saved.automod === "object" ? saved.automod : {};
   const savedSocials =
     saved.socials && typeof saved.socials === "object" ? saved.socials : undefined;
+  const normalizedAutomod = savedAutomod as Partial<AutomodConfig>;
 
   return {
     ...DEFAULT_CONFIG,
@@ -84,6 +131,15 @@ function mergeConfig(saved: Partial<Config>): Config {
     voice: {
       ...DEFAULT_CONFIG.voice,
       ...savedVoice,
+    },
+    automod: {
+      ...DEFAULT_CONFIG.automod,
+      ...savedAutomod,
+      maxMessagesPerMinute: normalizeMaxMessagesPerMinute(
+        normalizedAutomod.maxMessagesPerMinute
+      ),
+      bannedWords: normalizeBannedWords(normalizedAutomod.bannedWords),
+      action: normalizeAutomodAction(normalizedAutomod.action),
     },
     ...(savedSocials ? { socials: savedSocials } : {}),
   };
@@ -214,6 +270,24 @@ export class ConfigManager {
 
   getSocialsConfig(): SocialsConfig | undefined {
     return this.config.socials;
+  }
+
+  // --- Automod ---
+
+  getAutomodConfig(): AutomodConfig {
+    return { ...this.config.automod };
+  }
+
+  setAutomodConfig(raw: Partial<AutomodConfig>) {
+    const existing = this.config.automod || { ...DEFAULT_CONFIG.automod };
+    this.config.automod = {
+      maxMessagesPerMinute: normalizeMaxMessagesPerMinute(
+        raw.maxMessagesPerMinute ?? existing.maxMessagesPerMinute
+      ),
+      bannedWords: normalizeBannedWords(raw.bannedWords ?? existing.bannedWords),
+      action: normalizeAutomodAction(raw.action ?? existing.action),
+    };
+    this.save();
   }
 
   // --- Full config ---

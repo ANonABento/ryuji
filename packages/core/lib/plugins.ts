@@ -7,6 +7,7 @@ import type { ConfigManager } from "./config.ts";
 
 /** Explicit mapping of plugin names to workspace packages. */
 const PLUGIN_PACKAGES: Record<string, string> = {
+  automod: "@choomfie/automod",
   voice: "@choomfie/voice",
   browser: "@choomfie/browser",
   tutor: "@choomfie/tutor",
