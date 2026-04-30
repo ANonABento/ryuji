@@ -114,6 +114,85 @@ test("welcome_config updates config and requires owner", async () => {
   expect(intruderInteraction.reply.calls[0][0].content).toBe("This command is owner-only~");
 });
 
+test("welcome_config blocks enabling without channel configured", async () => {
+  await import("../lib/handlers/welcome.ts");
+  const cmd = commands.get("welcome_config");
+  expect(cmd).toBeTruthy();
+
+  const cfg = { channelId: null as string | null, template: "Welcome {user}!" };
+  const setWelcomeConfig = spyWithImpl(() => {});
+  const ctx = {
+    ownerUserId: "owner",
+    config: {
+      getWelcomeConfig: () => ({ ...cfg }),
+      setWelcomeConfig: (next: any) => {
+        Object.assign(cfg, next);
+        setWelcomeConfig(next);
+      },
+    },
+  } as unknown as AppContext;
+
+  const ownerInteraction = {
+    user: { id: "owner" },
+    guildId: "guild-1",
+    guild: { name: "Guild", memberCount: 3 },
+    member: { displayName: "Owner" },
+    options: {
+      getChannel: () => null,
+      getString: () => null,
+      getBoolean: () => true,
+    },
+    reply: spy(),
+    deferReply: async () => {},
+  } as any;
+
+  await cmd!.handler(ownerInteraction, ctx);
+
+  expect(cfg.channelId).toBeNull();
+  expect(cfg.template).toBe("Welcome {user}!");
+  expect(setWelcomeConfig.calls).toHaveLength(0);
+  expect(ownerInteraction.reply.calls).toHaveLength(1);
+  expect(ownerInteraction.reply.calls[0][0].content).toBe("Choose a channel before enabling welcome messages.");
+});
+
+test("handleGuildMemberAdd ignores bot users", async () => {
+  const send = spy();
+  const fetch = spyWithImpl(async () => channel);
+  const channel = {
+    isTextBased: () => true,
+    send,
+  } as any;
+
+  const ctx = {
+    config: {
+      getWelcomeConfig: () => ({
+        channelId: "channel-id",
+        template: "Welcome {username}!",
+      }),
+    },
+    messageStats: { sent: 0 },
+  } as unknown as AppContext;
+
+  await handleGuildMemberAdd(
+    {
+      guild: {
+        channels: { fetch },
+        name: "Choomfie",
+        memberCount: 5,
+      },
+      id: "user-1",
+      displayName: "BentoBot",
+      user: { username: "bot-user", bot: true },
+      guildId: "guild-1",
+    } as any,
+    ctx
+  );
+
+  expect(fetch.calls).toHaveLength(0);
+  expect(send.calls).toHaveLength(0);
+  expect(ctx.messageStats.sent).toBe(0);
+});
+
 test("renderWelcomeTemplate keeps placeholders intact when values are missing", () => {
   const rendered = renderWelcomeTemplate(
     "Hi {user} {username} {displayName} {server} #{memberCount} {missing}",

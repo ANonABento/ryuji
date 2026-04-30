@@ -34,6 +34,8 @@ export async function handleGuildMemberAdd(
   member: GuildMember,
   ctx: AppContext
 ): Promise<void> {
+  if (member.user.bot) return;
+
   const welcome = ctx.config.getWelcomeConfig();
   if (!welcome.channelId) return;
 
