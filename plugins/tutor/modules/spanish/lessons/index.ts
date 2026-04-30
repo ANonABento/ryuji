@@ -128,12 +128,12 @@ export const spanishLessons: Lesson[] = [
     title: "Subject Pronouns and Ser",
     prerequisites: ["1.3"],
     introduction: {
-      text: "Use subject pronouns with ser for identity: yo soy, tu eres, el/ella es, nosotros somos. Spanish often drops the pronoun when the verb is clear.",
+      text: "Use subject pronouns with ser for identity: yo soy, tú eres, él/ella es, nosotros somos. Spanish often drops the pronoun when the verb is clear.",
       items: introItems(content(["yo", "tú", "usted", "él", "ella", "nosotros", "nosotras"]).items),
     },
     exercises: [
       mc("Choose the Spanish for **I am**.", "yo soy", ["yo eres", "tu soy", "ella somos"]),
-      mc("Choose the Spanish for **you are** with informal tu.", "tu eres", ["tu es", "usted eres", "yo soy"]),
+      mc("Choose the Spanish for **you are** with informal tú.", "tú eres", ["tú es", "usted eres", "yo soy"]),
       cloze("Complete: **Ella ___ estudiante.**", "es", undefined, undefined, ["ella es"]),
       cloze("Complete: **Nosotros ___ amigos.**", "somos"),
       mc("Which verb is used for identity?", "ser", ["estar", "tener", "ir"]),
@@ -148,7 +148,7 @@ export const spanishLessons: Lesson[] = [
     title: "Estar, Location, and State",
     prerequisites: ["2.1"],
     introduction: {
-      text: "Use estar for location and temporary state: estoy aqui, la escuela esta alli, estoy bien. Keep ser for identity.",
+      text: "Use estar for location and temporary state: estoy aquí, la escuela está allí, estoy bien. Keep ser for identity.",
       items: introItems(content(["estar", "aquí", "allí", "bien", "mal", "casa", "escuela"]).items),
     },
     exercises: [
