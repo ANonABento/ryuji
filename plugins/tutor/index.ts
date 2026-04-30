@@ -29,6 +29,7 @@ import {
   hasActiveTypingExercise,
   handleTypedAnswer,
 } from "./lesson-interactions.ts";
+import "./srs-interactions.ts";
 import { getActiveModule } from "./core/session.ts";
 import { EmbedBuilder } from "discord.js";
 import { updateFromLessonCompletion } from "./core/learner-profile.ts";
