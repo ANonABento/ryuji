@@ -1,5 +1,8 @@
 import { expect, test } from "bun:test";
-import { buildStatsEmbed, getTopTools, trackToolCall } from "../lib/stats.ts";
+import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { buildStatsEmbed, getTokenUsageToday, getTopTools, trackToolCall } from "../lib/stats.ts";
 
 function makeCtx() {
   return {
@@ -53,4 +56,29 @@ test("buildStatsEmbed includes required stats fields", async () => {
   expect(fields.find((field) => field.name === "Token Usage Today")?.value).toContain("0 input tokens");
   expect(fields.find((field) => field.name === "Active Plugins")?.value).toContain("voice (2 tools)");
   expect(fields.find((field) => field.name === "Top Tools")?.value).toContain("`reply`");
+});
+
+test("reads token usage only for the current day", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "choomfie-stats-"));
+  await mkdir(join(dir, "meta"));
+
+  const ctx = { DATA_DIR: dir } as any;
+  const today = new Date().toISOString().slice(0, 10);
+  await writeFile(
+    join(dir, "meta", "daemon-state.json"),
+    JSON.stringify({
+      pid: process.pid,
+      tokenUsageToday: { date: today, inputTokens: 1234 },
+    })
+  );
+  expect(await getTokenUsageToday(ctx)).toBe(1234);
+
+  await writeFile(
+    join(dir, "meta", "daemon-state.json"),
+    JSON.stringify({
+      pid: process.pid,
+      tokenUsageToday: { date: "2000-01-01", inputTokens: 9999 },
+    })
+  );
+  expect(await getTokenUsageToday(ctx)).toBe(0);
 });

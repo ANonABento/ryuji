@@ -69,6 +69,15 @@ export function buildSystemPromptAppend(handoffSummary?: string): string {
   return parts.join("");
 }
 
+function addInputTokens(state: MetaState, inputTokens: number): void {
+  const today = new Date().toISOString().slice(0, 10);
+  if (state.tokenUsageToday.date !== today) {
+    state.tokenUsageToday = { date: today, inputTokens: 0 };
+  }
+
+  state.tokenUsageToday.inputTokens += inputTokens;
+}
+
 function extractAssistantText(msg: SDKAssistantMessage): string | null {
   const content = msg.message?.content;
   if (!Array.isArray(content)) return null;
@@ -100,7 +109,9 @@ export function handleSessionMessage(
 
         const usage = successResult.usage;
         if (usage) {
-          state.totalInputTokens += usage.input_tokens ?? 0;
+          const inputTokens = usage.input_tokens ?? 0;
+          state.totalInputTokens += inputTokens;
+          addInputTokens(state, inputTokens);
         }
 
         opts.log(

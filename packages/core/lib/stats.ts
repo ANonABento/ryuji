@@ -6,9 +6,6 @@ import { VERSION } from "./version.ts";
 
 interface DaemonState {
   pid?: number;
-  tokens?: {
-    current?: number;
-  };
   tokenUsageToday?: {
     date?: string;
     inputTokens?: number;
@@ -57,7 +54,7 @@ export async function getTokenUsageToday(ctx: AppContext): Promise<number> {
       return daemonState.tokenUsageToday.inputTokens ?? 0;
     }
 
-    return daemonState.tokens?.current ?? 0;
+    return 0;
   } catch {
     return 0;
   }

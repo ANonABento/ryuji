@@ -20,10 +20,7 @@ export async function writeDaemonState(state: MetaState): Promise<void> {
     sessionUptimeSeconds: uptime,
     turns: { current: state.turnCount, threshold: TURN_THRESHOLD },
     tokens: { current: state.totalInputTokens, threshold: TOKEN_THRESHOLD },
-    tokenUsageToday: {
-      date: new Date().toISOString().slice(0, 10),
-      inputTokens: state.totalInputTokens,
-    },
+    tokenUsageToday: state.tokenUsageToday,
     costUsd: state.totalCostUsd,
     totalCycles: state.totalCycles,
     lastCycleReason: state.lastCycleReason,

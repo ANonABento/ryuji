@@ -83,12 +83,18 @@ type WorkerHealthStatus = {
   consecutiveFailures: number;
 };
 
+type TokenUsageToday = {
+  date: string;
+  inputTokens: number;
+};
+
 type MetaState = {
   state: SessionState;
   session: Query | null;
   sessionId: string;
   turnCount: number;
   totalInputTokens: number;
+  tokenUsageToday: TokenUsageToday;
   totalCostUsd: number;
   sessionStartTime: number;
   messageQueue: SDKUserMessage[];
@@ -114,6 +120,10 @@ type MetaState = {
 // --- Logging ---
 
 let currentSessionId = "boot";
+
+function todayKey(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 function log(msg: string) {
   console.error(`[daemon:${currentSessionId}] ${new Date().toISOString()} ${msg}`);
@@ -300,6 +310,15 @@ function extractAssistantText(msg: SDKAssistantMessage): string | null {
   return texts.length > 0 ? texts.join("\n") : null;
 }
 
+function addInputTokens(state: MetaState, inputTokens: number): void {
+  const today = todayKey();
+  if (state.tokenUsageToday.date !== today) {
+    state.tokenUsageToday = { date: today, inputTokens: 0 };
+  }
+
+  state.tokenUsageToday.inputTokens += inputTokens;
+}
+
 async function startSession(
   state: MetaState,
   handoffSummary?: string
@@ -478,7 +497,9 @@ function handleSessionMessage(state: MetaState, message: SDKMessage): void {
 
         const usage = successResult.usage;
         if (usage) {
-          state.totalInputTokens += usage.input_tokens ?? 0;
+          const inputTokens = usage.input_tokens ?? 0;
+          state.totalInputTokens += inputTokens;
+          addInputTokens(state, inputTokens);
         }
 
         log(
@@ -980,10 +1001,7 @@ async function writeDaemonState(state: MetaState): Promise<void> {
     sessionUptimeSeconds: uptime,
     turns: { current: state.turnCount, threshold: TURN_THRESHOLD },
     tokens: { current: state.totalInputTokens, threshold: TOKEN_THRESHOLD },
-    tokenUsageToday: {
-      date: new Date().toISOString().slice(0, 10),
-      inputTokens: state.totalInputTokens,
-    },
+    tokenUsageToday: state.tokenUsageToday,
     costUsd: state.totalCostUsd,
     totalCycles: state.totalCycles,
     lastCycleReason: state.lastCycleReason,
@@ -1011,6 +1029,7 @@ function createInitialState(): MetaState {
     sessionId: generateSessionId(),
     turnCount: 0,
     totalInputTokens: 0,
+    tokenUsageToday: { date: todayKey(), inputTokens: 0 },
     totalCostUsd: 0,
     sessionStartTime: 0,
     messageQueue: [],
