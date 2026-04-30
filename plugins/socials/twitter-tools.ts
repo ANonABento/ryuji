@@ -23,9 +23,9 @@ function getTwitterConfig(ctx: PluginContext): { username: string; password: str
   }
 
   return {
-    username: socialsConfig.username,
-    password: socialsConfig.password,
-    email: socialsConfig.email,
+    username: socialsConfig.username as string,
+    password: socialsConfig.password as string,
+    email: socialsConfig.email as string,
   };
 }
 

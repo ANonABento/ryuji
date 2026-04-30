@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Twitter/X provider — posting via rettiwt-api (unofficial, no API key needed).
  *

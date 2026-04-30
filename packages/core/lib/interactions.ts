@@ -52,13 +52,13 @@ export type CommandHandler = (
 
 export function registerButtonHandler(prefix: string, handler: ButtonHandler) {
   registerSharedButtonHandler(prefix, (interaction, parts, ctx) =>
-    handler(interaction, parts, ctx as AppContext)
+    handler(interaction, parts, ctx as unknown as AppContext)
   );
 }
 
 export function registerModalHandler(prefix: string, handler: ModalHandler) {
   registerSharedModalHandler(prefix, (interaction, parts, ctx) =>
-    handler(interaction, parts, ctx as AppContext)
+    handler(interaction, parts, ctx as unknown as AppContext)
   );
 }
 
@@ -71,7 +71,7 @@ export function registerCommand(
 ) {
   registerSharedCommand(name, {
     data: def.data,
-    handler: (interaction, ctx) => def.handler(interaction, ctx as AppContext),
+    handler: (interaction, ctx) => def.handler(interaction, ctx as unknown as AppContext),
   });
 }
 

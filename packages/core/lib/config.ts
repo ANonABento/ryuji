@@ -24,17 +24,30 @@ export interface SocialsConfig {
     apiKey?: string;       // Optional — for YouTube Data API v3 reads (fallback to yt-dlp)
     clientId?: string;     // Optional — for OAuth (comments)
     clientSecret?: string; // Optional — for OAuth (comments)
+    [key: string]: string | undefined;
   };
   linkedin?: {
     clientId: string;
     clientSecret: string;
+    [key: string]: string;
   };
   reddit?: {
     clientId: string;
     clientSecret: string;
     username: string;
     password: string;
+    [key: string]: string;
   };
+  [key: string]: { [k: string]: string | undefined } | undefined;
+}
+
+export type LlmProvider = "anthropic" | "openai" | "ollama" | "lmstudio";
+
+export interface LlmConfig {
+  provider: LlmProvider;
+  model?: string;
+  apiKey?: string;
+  baseUrl?: string;
 }
 
 export interface Config {
@@ -46,6 +59,8 @@ export interface Config {
   plugins: string[];
   voice: VoiceConfig;
   socials?: SocialsConfig;
+  llm?: LlmConfig;
+  [key: string]: unknown;
 }
 
 const DEFAULT_CONFIG: Config = {
@@ -214,6 +229,17 @@ export class ConfigManager {
 
   getSocialsConfig(): SocialsConfig | undefined {
     return this.config.socials;
+  }
+
+  // --- LLM ---
+
+  getLlmConfig(): LlmConfig {
+    return this.config.llm ?? { provider: "anthropic" };
+  }
+
+  setLlmConfig(llm: LlmConfig) {
+    this.config.llm = llm;
+    this.save();
   }
 
   // --- Full config ---
