@@ -7,6 +7,7 @@ import { pick, pickN, shuffle } from "../../core/random.ts";
 import { spanishA1Vocab } from "./data/a1-vocab.ts";
 import { spanishToIpa } from "./pronunciation.ts";
 import { spanishTools } from "./tools.ts";
+import { spanishExampleSentences } from "./example-sentences.ts";
 
 const LEVEL_GUIDES: Record<string, string> = {
   A1: `Student is a COMPLETE BEGINNER (CEFR A1).
@@ -82,19 +83,7 @@ function asDictionaryEntry(item: (typeof spanishA1Vocab)[number]): DictionaryEnt
 }
 
 function exampleSentences(term: string): string[] | undefined {
-  const examples: Record<string, string[]> = {
-    hola: ["Hola, soy Ana. — Hello, I am Ana."],
-    gracias: ["Gracias por el café. — Thank you for the coffee."],
-    casa: ["Estoy en casa. — I am at home."],
-    escuela: ["La escuela está allí. — The school is there."],
-    agua: ["Quiero agua, por favor. — I want water, please."],
-    hablar: ["Hablo español. — I speak Spanish."],
-    comer: ["Quiero comer pan. — I want to eat bread."],
-    tener: ["Tengo un libro. — I have a book."],
-    ser: ["Soy estudiante. — I am a student."],
-    estar: ["Estoy bien. — I am fine."],
-  };
-  return examples[term];
+  return spanishExampleSentences[term];
 }
 
 function normalizeSearch(input: string): string {
