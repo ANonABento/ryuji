@@ -26,7 +26,8 @@ export const spanishTools: ToolDef[] = [
       },
     },
     handler: async (args) => {
-      const input = stringArg(args, "text");
+      const rawInput = stringArg(args, "text");
+      const input = rawInput?.trim();
       if (!input) {
         return err("Expected `text` to be a non-empty string.");
       }

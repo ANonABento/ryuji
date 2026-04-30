@@ -8,6 +8,7 @@ import { setLessonDB } from "../../../plugins/tutor/core/lesson-db-instance.ts";
 import { spanishLessons, spanishUnits } from "../../../plugins/tutor/modules/spanish/lessons/index.ts";
 import { getAllModuleTools, getModule, listModules } from "../../../plugins/tutor/modules/index.ts";
 import { spanishModule } from "../../../plugins/tutor/modules/spanish/index.ts";
+import { spanishTools } from "../../../plugins/tutor/modules/spanish/tools.ts";
 import { spanishToIpa } from "../../../plugins/tutor/modules/spanish/pronunciation.ts";
 import { lessonTools } from "../../../plugins/tutor/tools/lesson-tools.ts";
 import { moduleTools } from "../../../plugins/tutor/tools/module-tools.ts";
@@ -42,6 +43,15 @@ describe("Spanish tutor module", () => {
     const toolNames = getAllModuleTools().map((tool) => tool.definition.name);
 
     expect(toolNames).toContain("spanish_pronunciation");
+  });
+
+  test("pronunciation tool rejects blank input", async () => {
+    const pronunciationTool = spanishTools.find((tool) => tool.definition.name === "spanish_pronunciation");
+    expect(pronunciationTool).toBeDefined();
+
+    const result = await pronunciationTool!.handler({ text: "   " }, undefined as never);
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("non-empty string");
   });
 
   test("switch_module spanish makes lesson_status report Spanish progress", async () => {
