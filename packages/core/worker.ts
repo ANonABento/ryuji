@@ -15,6 +15,7 @@ import { buildInstructions } from "./lib/mcp-server.ts";
 import { registerPermissionRelay } from "./lib/permissions.ts";
 import { destroyAll as destroyTyping } from "./lib/typing.ts";
 import { McpProxy } from "./lib/mcp-proxy.ts";
+import { trackToolCall } from "./lib/stats.ts";
 import type { SupervisorMessage, IpcToolDef } from "./lib/ipc-types.ts";
 import type { ToolResult } from "./lib/types.ts";
 
@@ -66,6 +67,7 @@ process.on("message", async (msg: SupervisorMessage) => {
       };
     } else {
       try {
+        trackToolCall(ctx, msg.name);
         result = await handler(msg.args, ctx);
       } catch (e: any) {
         result = {

@@ -23,6 +23,7 @@ import { formatDuration, fromSQLiteDatetime } from "./time.ts";
 import { isOwner, requireOwner } from "./handlers/shared.ts";
 import { buildGhArgs, runGh } from "./handlers/github.ts";
 import { discoverPlugins } from "./plugins.ts";
+import { buildStatsEmbed } from "./stats.ts";
 import {
   buildReminderModal,
   buildPersonaModal,
@@ -238,6 +239,7 @@ registerCommand("help", {
           name: "Other",
           value: [
             "`/github <check>` — PRs, issues, notifications",
+            "`/stats` — uptime, messages, tokens, and tools",
             "`/status` — bot status and stats",
           ].join("\n"),
           inline: false,
@@ -294,6 +296,21 @@ registerCommand("github", {
     } catch (e: any) {
       await interaction.editReply({ content: `GitHub CLI error: ${e.message}` });
     }
+  },
+});
+
+// /stats
+registerCommand("stats", {
+  data: new SlashCommandBuilder()
+    .setName("stats")
+    .setDescription("Show runtime stats")
+    .toJSON(),
+  handler: async (interaction, ctx) => {
+    const embed = await buildStatsEmbed(ctx);
+    await interaction.reply({
+      embeds: [embed],
+      flags: MessageFlags.Ephemeral,
+    });
   },
 });
 

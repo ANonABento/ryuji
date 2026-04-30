@@ -54,6 +54,10 @@ export async function writeDaemonState(
     sessionUptimeSeconds: uptime,
     turns: { current: state.turnCount, threshold: opts.turnThreshold },
     tokens: { current: state.totalInputTokens, threshold: opts.tokenThreshold },
+    tokenUsageToday: {
+      date: new Date().toISOString().slice(0, 10),
+      inputTokens: state.totalInputTokens,
+    },
     costUsd: state.totalCostUsd,
     totalCycles: state.totalCycles,
     lastCycleReason: state.lastCycleReason,
