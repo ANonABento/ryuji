@@ -52,6 +52,15 @@ export interface Birthday {
   lastRemindedOn: string | null;
 }
 
+export interface IncomingWebhook {
+  token: string;
+  channelId: string;
+  guildId: string | null;
+  createdBy: string;
+  createdAt: string;
+  revokedAt: string | null;
+}
+
 export interface MemoryStats {
   coreCount: number;
   archivalCount: number;
@@ -122,6 +131,15 @@ export class MemoryStore {
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now')),
         last_reminded_on TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS incoming_webhooks (
+        token TEXT PRIMARY KEY,
+        channel_id TEXT NOT NULL,
+        guild_id TEXT,
+        created_by TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now')),
+        revoked_at TEXT
       );
     `);
 
@@ -488,6 +506,52 @@ export class MemoryStore {
     this.db
       .query("UPDATE birthdays SET last_reminded_on = ?, updated_at = datetime('now') WHERE id = ?")
       .run(reminderDate, id);
+  }
+
+  // --- Incoming webhooks ---
+
+  private static readonly WEBHOOK_COLS = `token, channel_id as channelId, guild_id as guildId,
+    created_by as createdBy, created_at as createdAt, revoked_at as revokedAt`;
+
+  addIncomingWebhook(token: string, channelId: string, createdBy: string, guildId?: string | null) {
+    this.db
+      .query(
+        "INSERT INTO incoming_webhooks (token, channel_id, guild_id, created_by) VALUES (?, ?, ?, ?)"
+      )
+      .run(token, channelId, guildId ?? null, createdBy);
+  }
+
+  getIncomingWebhook(token: string): IncomingWebhook | null {
+    return (
+      this.db
+        .query(
+          `SELECT ${MemoryStore.WEBHOOK_COLS}
+           FROM incoming_webhooks
+           WHERE token = ? AND revoked_at IS NULL`
+        )
+        .get(token) as IncomingWebhook | null
+    );
+  }
+
+  listIncomingWebhooks(includeRevoked = false): IncomingWebhook[] {
+    const where = includeRevoked ? "" : "WHERE revoked_at IS NULL";
+    return this.db
+      .query(
+        `SELECT ${MemoryStore.WEBHOOK_COLS}
+         FROM incoming_webhooks
+         ${where}
+         ORDER BY created_at DESC`
+      )
+      .all() as IncomingWebhook[];
+  }
+
+  revokeIncomingWebhook(token: string): boolean {
+    const result = this.db
+      .query(
+        "UPDATE incoming_webhooks SET revoked_at = datetime('now') WHERE token = ? AND revoked_at IS NULL"
+      )
+      .run(token);
+    return result.changes > 0;
   }
 
   // --- Stats ---

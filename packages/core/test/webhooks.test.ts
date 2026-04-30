@@ -1,0 +1,95 @@
+import { afterEach, expect, test } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ChannelType } from "discord.js";
+import { MemoryStore } from "../lib/memory.ts";
+import { handleWebhookRequest } from "../lib/webhooks.ts";
+import type { AppContext } from "../lib/types.ts";
+
+const tempDirs: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true }).catch(() => {}))
+  );
+});
+
+async function makeMemory(): Promise<MemoryStore> {
+  const dir = await mkdtemp(join(tmpdir(), "choomfie-webhooks-"));
+  tempDirs.push(dir);
+  return new MemoryStore(join(dir, "choomfie.db"));
+}
+
+function fakeContext(memory: MemoryStore, sent: string[]): AppContext {
+  return {
+    memory,
+    discord: {
+      channels: {
+        fetch: async (id: string) => ({
+          id,
+          type: ChannelType.GuildText,
+          isTextBased: () => true,
+          send: async (message: { content: string }) => {
+            sent.push(message.content);
+          },
+        }),
+      },
+    },
+  } as unknown as AppContext;
+}
+
+test("MemoryStore persists and revokes incoming webhooks", async () => {
+  const memory = await makeMemory();
+  memory.addIncomingWebhook("tok_123", "chan_1", "owner_1", "guild_1");
+
+  const saved = memory.getIncomingWebhook("tok_123");
+  expect(saved?.channelId).toBe("chan_1");
+  expect(saved?.guildId).toBe("guild_1");
+  expect(memory.listIncomingWebhooks()).toHaveLength(1);
+
+  expect(memory.revokeIncomingWebhook("tok_123")).toBe(true);
+  expect(memory.getIncomingWebhook("tok_123")).toBeNull();
+  expect(memory.listIncomingWebhooks()).toHaveLength(0);
+  expect(memory.listIncomingWebhooks(true)[0]?.revokedAt).toBeTruthy();
+  memory.close();
+});
+
+test("webhook endpoint posts JSON content to the configured Discord channel", async () => {
+  const memory = await makeMemory();
+  const sent: string[] = [];
+  memory.addIncomingWebhook("tok_abc", "chan_2", "owner_1");
+
+  const response = await handleWebhookRequest(
+    new Request("http://localhost:8787/webhook/tok_abc", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: "ship it" }),
+    }),
+    fakeContext(memory, sent)
+  );
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ ok: true });
+  expect(sent).toEqual(["ship it"]);
+  memory.close();
+});
+
+test("webhook endpoint rejects revoked tokens", async () => {
+  const memory = await makeMemory();
+  const sent: string[] = [];
+  memory.addIncomingWebhook("tok_revoked", "chan_2", "owner_1");
+  memory.revokeIncomingWebhook("tok_revoked");
+
+  const response = await handleWebhookRequest(
+    new Request("http://localhost:8787/webhook/tok_revoked", {
+      method: "POST",
+      body: "nope",
+    }),
+    fakeContext(memory, sent)
+  );
+
+  expect(response.status).toBe(404);
+  expect(sent).toEqual([]);
+  memory.close();
+});

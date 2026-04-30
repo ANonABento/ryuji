@@ -14,6 +14,7 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  ChannelType,
 } from "discord.js";
 import { dirname, join } from "node:path";
 import { VERSION } from "./version.ts";
@@ -28,6 +29,7 @@ import {
   buildPersonaModal,
   buildMemoryModal,
 } from "./handlers/modals.ts";
+import { buildWebhookUrl, generateWebhookToken } from "./webhooks.ts";
 
 // --- Command definitions ---
 
@@ -238,6 +240,7 @@ registerCommand("help", {
           name: "Other",
           value: [
             "`/github <check>` — PRs, issues, notifications",
+            "`/webhook create` — create an incoming webhook for a channel",
             "`/status` — bot status and stats",
           ].join("\n"),
           inline: false,
@@ -530,6 +533,113 @@ registerCommand("plugins", {
         .setDescription("Restarting to deactivate...")
         .setFooter({ text: remaining.length ? `Enabled: ${remaining.join(", ")}` : "No plugins enabled" });
       await interaction.reply({ embeds: [embed] });
+    }
+  },
+});
+
+// /webhook create|list|revoke — incoming HTTP webhooks (owner only)
+registerCommand("webhook", {
+  data: new SlashCommandBuilder()
+    .setName("webhook")
+    .setDescription("Manage incoming webhooks (owner only)")
+    .addSubcommand((sub) =>
+      sub
+        .setName("create")
+        .setDescription("Create a webhook URL for a Discord channel")
+        .addChannelOption((o) =>
+          o
+            .setName("channel")
+            .setDescription("Channel to post into (defaults to this channel)")
+            .addChannelTypes(ChannelType.GuildText, ChannelType.PublicThread, ChannelType.PrivateThread)
+        )
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("list")
+        .setDescription("List active incoming webhooks")
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("revoke")
+        .setDescription("Revoke an incoming webhook token")
+        .addStringOption((o) =>
+          o
+            .setName("token")
+            .setDescription("Webhook token to revoke")
+            .setRequired(true)
+        )
+    )
+    .toJSON(),
+  handler: async (interaction, ctx) => {
+    if (await requireOwner(interaction, ctx)) return;
+
+    const action = interaction.options.getSubcommand(true);
+
+    if (action === "create") {
+      const selected = interaction.options.getChannel("channel");
+      const channelId = selected?.id ?? interaction.channelId;
+      const channel = await ctx.discord.channels.fetch(channelId).catch(() => null);
+
+      if (!channel || !channel.isTextBased() || channel.type === ChannelType.DM) {
+        await interaction.reply({
+          content: "Choose a server text channel or thread for the webhook target.",
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      let token = generateWebhookToken();
+      while (ctx.memory.getIncomingWebhook(token)) {
+        token = generateWebhookToken();
+      }
+
+      ctx.memory.addIncomingWebhook(
+        token,
+        channel.id,
+        interaction.user.id,
+        "guildId" in channel ? channel.guildId : interaction.guildId
+      );
+
+      await interaction.reply({
+        content: [
+          `Webhook created for <#${channel.id}>.`,
+          `URL: \`${buildWebhookUrl(token)}\``,
+          "POST JSON with `content`, `message`, or `text`, or POST plain text.",
+        ].join("\n"),
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    if (action === "list") {
+      const webhooks = ctx.memory.listIncomingWebhooks();
+      if (webhooks.length === 0) {
+        await interaction.reply({
+          content: "No active incoming webhooks.",
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      const lines = webhooks.map((webhook) => {
+        const suffix = webhook.token.length > 8 ? `...${webhook.token.slice(-8)}` : webhook.token;
+        return `\`${suffix}\` -> <#${webhook.channelId}> by <@${webhook.createdBy}>`;
+      });
+
+      await interaction.reply({
+        content: `**Active incoming webhooks**\n${lines.join("\n").slice(0, 1900)}`,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    if (action === "revoke") {
+      const token = interaction.options.getString("token", true).trim();
+      const revoked = ctx.memory.revokeIncomingWebhook(token);
+      await interaction.reply({
+        content: revoked ? "Webhook revoked." : "Webhook token not found.",
+        flags: MessageFlags.Ephemeral,
+      });
     }
   },
 });

@@ -15,6 +15,7 @@ import { buildInstructions } from "./lib/mcp-server.ts";
 import { registerPermissionRelay } from "./lib/permissions.ts";
 import { destroyAll as destroyTyping } from "./lib/typing.ts";
 import { McpProxy } from "./lib/mcp-proxy.ts";
+import { startWebhookServer } from "./lib/webhooks.ts";
 import type { SupervisorMessage, IpcToolDef } from "./lib/ipc-types.ts";
 import type { ToolResult } from "./lib/types.ts";
 
@@ -33,6 +34,8 @@ registerPermissionRelay(ctx);
 
 // Create Discord client
 ctx.discord = createDiscordClient(ctx);
+
+const webhookServer = startWebhookServer(ctx);
 
 // Build tool list + instructions for supervisor
 const allTools = getAllTools(ctx);
@@ -140,6 +143,9 @@ async function shutdown() {
       } catch {}
     }
   }
+  try {
+    webhookServer.stop();
+  } catch {}
   try {
     ctx.discord.destroy();
   } catch {}
