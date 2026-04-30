@@ -23,6 +23,7 @@ import {
 } from "./conversation.ts";
 import { deployGuildCommands } from "./command-deploy.ts";
 import { isAllowed, isOwner } from "./access.ts";
+import { handleProviderChat } from "./chat/discord-chat.ts";
 
 const PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i;
 
@@ -316,6 +317,17 @@ export function createDiscordClient(ctx: AppContext): Client {
     const cleanContent = message.content
       .replace(new RegExp(`<@!?${discord.user!.id}>`, "g"), "")
       .trim();
+
+    if (
+      await handleProviderChat(
+        message,
+        ctx,
+        cleanContent || "(empty message - user may have just mentioned you)",
+        meta
+      )
+    ) {
+      return;
+    }
 
     // Forward to Claude Code
     ctx.mcp.notification({

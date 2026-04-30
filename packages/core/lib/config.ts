@@ -38,6 +38,8 @@ export interface SocialsConfig {
 }
 
 export interface Config {
+  provider: "claude" | "ollama";
+  ollama_model: string;
   activePersona: string;
   personas: Record<string, Persona>;
   rateLimitMs: number;
@@ -49,6 +51,8 @@ export interface Config {
 }
 
 const DEFAULT_CONFIG: Config = {
+  provider: "claude",
+  ollama_model: "llama3.1:8b",
   activePersona: "choomfie",
   personas: {
     choomfie: {
@@ -77,6 +81,11 @@ function mergeConfig(saved: Partial<Config>): Config {
   return {
     ...DEFAULT_CONFIG,
     ...saved,
+    provider: saved.provider === "ollama" ? "ollama" : DEFAULT_CONFIG.provider,
+    ollama_model:
+      typeof saved.ollama_model === "string" && saved.ollama_model.trim()
+        ? saved.ollama_model
+        : DEFAULT_CONFIG.ollama_model,
     personas: {
       ...DEFAULT_CONFIG.personas,
       ...savedPersonas,
@@ -185,6 +194,28 @@ export class ConfigManager {
 
   setAutoSummarize(enabled: boolean) {
     this.config.autoSummarize = enabled;
+    this.save();
+  }
+
+  // --- Chat provider ---
+
+  getProvider(): Config["provider"] {
+    return this.config.provider === "ollama" ? "ollama" : "claude";
+  }
+
+  setProvider(provider: Config["provider"]) {
+    this.config.provider = provider;
+    this.save();
+  }
+
+  getOllamaModel(): string {
+    return this.config.ollama_model || DEFAULT_CONFIG.ollama_model;
+  }
+
+  setOllamaModel(model: string) {
+    const trimmed = model.trim();
+    if (!trimmed) return;
+    this.config.ollama_model = trimmed;
     this.save();
   }
 
