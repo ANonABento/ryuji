@@ -11,6 +11,13 @@ import { getLessonDB } from "../core/lesson-db-instance.ts";
 import { formatForPrompt } from "../core/learner-profile.ts";
 import { getActiveSession } from "../lesson-interactions.ts";
 
+function normalizeLevel(input: string, levels: string[]): string | null {
+  const normalizedInput = input.trim().toUpperCase().replace(/\s+/g, "");
+  return levels.find(
+    (level) => level.toUpperCase().replace(/\s+/g, "") === normalizedInput
+  ) ?? null;
+}
+
 export const tutorTools: ToolDef[] = [
   {
     definition: {
@@ -180,11 +187,12 @@ export const tutorTools: ToolDef[] = [
       const userId = args.user_id as string;
       const moduleName = getActiveModule(userId);
       const mod = getModule(moduleName);
-      const level = (args.level as string).toUpperCase();
+      const requestedLevel = typeof args.level === "string" ? args.level : "";
+      const level = normalizeLevel(requestedLevel, mod.levels);
 
-      if (!mod.levels.includes(level)) {
+      if (!level) {
         return err(
-          `Invalid level "${level}" for ${mod.displayName}. Available: ${mod.levels.join(", ")}`
+          `Invalid level "${requestedLevel.toUpperCase()}" for ${mod.displayName}. Available: ${mod.levels.join(", ")}`
         );
       }
 
