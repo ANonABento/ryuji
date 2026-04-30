@@ -41,9 +41,9 @@ type FetchableTextChannel = {
   };
 };
 
-function startOfUtcDay(): Date {
+function startOfCurrentDay(): Date {
   const now = new Date();
-  now.setUTCHours(0, 0, 0, 0);
+  now.setHours(0, 0, 0, 0);
   return now;
 }
 
@@ -321,7 +321,7 @@ registerCommand("serverstats", {
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-    const since = startOfUtcDay();
+    const since = startOfCurrentDay();
 
     try {
       const fetchGuild = interaction.guild.fetch as (
@@ -348,7 +348,7 @@ registerCommand("serverstats", {
         if (count > 0) {
           channelStats.push({
             id: channel.id,
-            name: channel.name,
+            name: channel.name ?? "unknown",
             count,
           });
         }
