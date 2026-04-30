@@ -30,6 +30,13 @@ import {
   buildMemoryModal,
 } from "./handlers/modals.ts";
 
+const DISCORD_CONTENT_LIMIT = 2000;
+
+function fitDiscordContent(content: string): string {
+  if (content.length <= DISCORD_CONTENT_LIMIT) return content;
+  return content.slice(0, DISCORD_CONTENT_LIMIT - 3) + "...";
+}
+
 // --- Command definitions ---
 
 // /remind — opens a modal form
@@ -283,10 +290,12 @@ registerCommand("translate", {
 
     try {
       const translated = await translateText({ targetLang, text: sourceText });
-      await interaction.editReply({ content: translated.slice(0, 2000) });
+      await interaction.editReply({ content: fitDiscordContent(translated) });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      await interaction.editReply({ content: `Translation failed: ${message}` });
+      await interaction.editReply({
+        content: fitDiscordContent(`Translation failed: ${message}`),
+      });
     }
   },
 });
