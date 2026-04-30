@@ -6,7 +6,7 @@
  */
 
 import type { LessonDB } from "./lesson-db.ts";
-import type { Lesson, Exercise, ExerciseResult, Unit, LessonStatus } from "./lesson-types.ts";
+import type { Lesson, Exercise, ExerciseResult, Unit } from "./lesson-types.ts";
 import { getSRS } from "./srs-instance.ts";
 
 const MASTERY_THRESHOLD = 0.8; // 80% to pass

@@ -21,12 +21,16 @@ const EXPECTED_JAPANESE_UNIT_NAMES = [
   "Katakana",
   "First Words & Phrases",
   "Basic Grammar",
-];
+] as const;
 
-const EXPECTED_CHINESE_UNIT_NAMES = ["Tones", "Hanzi", "HSK 1 Vocabulary"];
-const EXPECTED_FRENCH_UNIT_NAMES = ["Pronunciation", "A1 Vocabulary", "First Conversations"];
+const EXPECTED_CHINESE_UNIT_NAMES = ["Tones", "Hanzi", "HSK 1 Vocabulary"] as const;
+const EXPECTED_FRENCH_UNIT_NAMES = ["Pronunciation", "A1 Vocabulary", "First Conversations"] as const;
 
-function expectRegisteredUnits(lessons: Lesson[], units: Unit[], expectedUnitNames: string[]) {
+function expectRegisteredUnits(
+  lessons: Lesson[],
+  units: Unit[],
+  expectedUnitNames: readonly string[]
+): void {
   expect(units.map((unit) => unit.name)).toEqual(expectedUnitNames);
 
   const lessonIds = new Set(lessons.map((lesson) => lesson.id));
@@ -36,7 +40,7 @@ function expectRegisteredUnits(lessons: Lesson[], units: Unit[], expectedUnitNam
   expect(orphanLessonIds).toEqual([]);
 }
 
-function expectUniqueLessonIds(lessons: Lesson[]) {
+function expectUniqueLessonIds(lessons: Lesson[]): void {
   const seen = new Set<string>();
   const duplicates: string[] = [];
 
@@ -48,7 +52,7 @@ function expectUniqueLessonIds(lessons: Lesson[]) {
   expect(duplicates).toEqual([]);
 }
 
-function expectResolvedLessonReferences(lessons: Lesson[], units: Unit[]) {
+function expectResolvedLessonReferences(lessons: Lesson[], units: Unit[]): void {
   const lessonIds = new Set(lessons.map((lesson) => lesson.id));
   const missingPrereqs: string[] = [];
   const missingUnitRefs: string[] = [];
@@ -82,7 +86,7 @@ function expectResolvedLessonReferences(lessons: Lesson[], units: Unit[]) {
   expect(duplicateUnitRefs).toEqual([]);
 }
 
-function expectValidLessonExercises(lessons: Lesson[]) {
+function expectValidLessonExercises(lessons: Lesson[]): void {
   const emptyLessons: string[] = [];
   const emptyAnswers: string[] = [];
   const degenerateButtons: string[] = [];
@@ -113,7 +117,7 @@ function expectValidLessonExercises(lessons: Lesson[]) {
   expect(selfDistractors).toEqual([]);
 }
 
-function expectReachableLessons(lessons: Lesson[]) {
+function expectReachableLessons(lessons: Lesson[]): void {
   const reachable = new Set(
     lessons
       .filter((lesson) => lesson.prerequisites.length === 0)
