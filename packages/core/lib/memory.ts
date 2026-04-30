@@ -85,7 +85,6 @@ interface TimestampRow {
 }
 
 interface ArchivalEmbeddingRow {
-  memoryId: number;
   embedding: string;
   dimension: number;
 }
@@ -310,10 +309,8 @@ export class MemoryStore {
   /** Archive oldest core memories when count exceeds MAX_CORE_MEMORIES */
   compactCoreMemory(): number {
     const count = (
-      this.db.query("SELECT COUNT(*) as n FROM core_memory").get() as {
-        n: number;
-      }
-    ).n;
+      this.db.query("SELECT COUNT(*) as count FROM core_memory").get() as CountRow
+    ).count;
 
     if (count <= MemoryStore.MAX_CORE_MEMORIES) return 0;
 
@@ -416,7 +413,7 @@ export class MemoryStore {
 
     const cached = this.db
       .query(
-        `SELECT memory_id as memoryId, embedding, dimension
+        `SELECT embedding, dimension
          FROM archival_memory_embeddings
          WHERE memory_id = ? AND provider = ? AND model = ?`
       )

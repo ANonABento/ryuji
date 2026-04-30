@@ -23,13 +23,17 @@ export interface TweetResult {
   url: string;
 }
 
+type RettiwtClient = InstanceType<typeof Rettiwt> & {
+  auth?: {
+    login(email: string, username: string, password: string): Promise<string>;
+  };
+};
+
 // --- Twitter Client ---
 
 export class TwitterClient {
-  private rettiwt: InstanceType<typeof Rettiwt> | null = null;
+  private rettiwt: RettiwtClient | null = null;
   private username: string = "";
-
-  constructor() {}
 
   // --- Auth ---
 
@@ -39,12 +43,15 @@ export class TwitterClient {
     try {
       // Rettiwt LOGIN auth — pass credentials to constructor,
       // authenticates on first API call
-      this.rettiwt = new Rettiwt({
-        authType: "LOGIN" as any,
-        email: config.email,
-        userName: config.username,
-        password: config.password,
-      });
+      this.rettiwt = new Rettiwt() as RettiwtClient;
+      const apiKey = await this.rettiwt.auth?.login(
+        config.email,
+        config.username,
+        config.password
+      );
+      if (apiKey) {
+        this.rettiwt.apiKey = apiKey;
+      }
 
       // Test the session by fetching own profile
       const me = await this.rettiwt.user.details(config.username);
@@ -68,7 +75,7 @@ export class TwitterClient {
     };
   }
 
-  private ensureClient(): InstanceType<typeof Rettiwt> {
+  private ensureClient(): RettiwtClient {
     if (!this.rettiwt) {
       throw new Error("Not logged in. Run twitter_auth first.");
     }
@@ -81,24 +88,27 @@ export class TwitterClient {
     const client = this.ensureClient();
 
     const result = await client.tweet.post({ text: tweetText });
+    const id = result ?? "unknown";
 
     return {
-      id: result?.id ?? "unknown",
-      url: `https://x.com/${this.username}/status/${result?.id ?? "unknown"}`,
+      id,
+      url: `https://x.com/${this.username}/status/${id}`,
     };
   }
 
   async postTweetWithMedia(tweetText: string, mediaPath: string): Promise<TweetResult> {
     const client = this.ensureClient();
 
+    const mediaId = await client.tweet.upload(mediaPath);
     const result = await client.tweet.post({
       text: tweetText,
-      media: [{ path: mediaPath }],
+      media: [{ id: mediaId }],
     });
+    const id = result ?? "unknown";
 
     return {
-      id: result?.id ?? "unknown",
-      url: `https://x.com/${this.username}/status/${result?.id ?? "unknown"}`,
+      id,
+      url: `https://x.com/${this.username}/status/${id}`,
     };
   }
 
@@ -110,9 +120,10 @@ export class TwitterClient {
 
     // First tweet
     const first = await client.tweet.post({ text: tweets[0] });
+    const firstId = first ?? "unknown";
     results.push({
-      id: first?.id ?? "unknown",
-      url: `https://x.com/${this.username}/status/${first?.id ?? "unknown"}`,
+      id: firstId,
+      url: `https://x.com/${this.username}/status/${firstId}`,
     });
 
     // Reply chain
@@ -124,10 +135,11 @@ export class TwitterClient {
         text: tweets[i],
         replyTo: results[i - 1].id,
       });
+      const replyId = reply ?? "unknown";
 
       results.push({
-        id: reply?.id ?? "unknown",
-        url: `https://x.com/${this.username}/status/${reply?.id ?? "unknown"}`,
+        id: replyId,
+        url: `https://x.com/${this.username}/status/${replyId}`,
       });
     }
 
