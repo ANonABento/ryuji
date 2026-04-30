@@ -204,7 +204,7 @@ export const frenchLessons: Lesson[] = [
         { word: "Je m'appelle Ana.", reading: "zhuh mah-pel Ana", meaning: "My name is Ana." },
         { word: "Je suis étudiant.", reading: "zhuh swee ay-too-dyahn", meaning: "I am a student." },
         { word: "J'habite à Paris.", reading: "zhah-beet ah pah-ree", meaning: "I live in Paris." },
-        { word: "Je parle francais.", reading: "zhuh parl frahn-seh", meaning: "I speak French." },
+        { word: "Je parle français.", reading: "zhuh parl frahn-seh", meaning: "I speak French." },
       ],
     },
     exercises: [
@@ -217,7 +217,7 @@ export const frenchLessons: Lesson[] = [
       mc("Which answer fits **Où habitez-vous ?**", "J'habite à Paris.", ["Je m'appelle Ana.", "Merci beaucoup.", "Je voudrais de l'eau."]),
       cloze("Type the French pronoun for **I**.", "je"),
       mc("In a formal first meeting, use:", "vous", ["tu", "toi", "moi"]),
-      cloze("Complete: Je ____ francais.", "parle", "Say what language you speak."),
+      cloze("Complete: Je ____ français.", "parle", "Say what language you speak."),
     ],
     srsItems: [],
     skillsTaught: ["introductions"],
@@ -261,7 +261,7 @@ export const frenchLessons: Lesson[] = [
     title: "Asking for Directions and Prices",
     prerequisites: ["3.2"],
     introduction: {
-      text: "A1 travel exchanges rely on ou, combien, c'est, and place words. Use excusez-moi before asking a stranger for help.",
+      text: "A1 travel exchanges rely on où, combien, c'est, and place words. Use excusez-moi before asking a stranger for help.",
       items: [
         { word: "Où est la gare ?", reading: "oo eh lah gahr", meaning: "Where is the train station?" },
         { word: "C'est ici.", reading: "seh tee-see", meaning: "It is here." },
@@ -276,7 +276,7 @@ export const frenchLessons: Lesson[] = [
       cloze("Complete: ____ est la gare ?", "Où", "Ask where.", undefined, ["ou"]),
       cloze("Complete: C'est ____.", "ici", "Say it is here."),
       cloze("Complete: Combien ça ____ ?", "coûte", "Ask price.", undefined, ["coute"]),
-      mc("Which word means **street**?", "rue", ["ville", "pays", "hotel"]),
+      mc("Which word means **street**?", "rue", ["ville", "pays", "hôtel"]),
       mc("Which word means **over there**?", "là-bas", ["ici", "aujourd'hui", "demain"]),
       mc("Which adjective can describe a high price?", "cher", ["gratuit", "facile", "froid"]),
       cloze("Type the French question word for **how much/how many**.", "combien"),
