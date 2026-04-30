@@ -28,6 +28,7 @@ export async function writeDaemonState(state: MetaState): Promise<void> {
       lastHealthyAt: state.workerHealth.lastHealthyAt || null,
       consecutiveFailures: state.workerHealth.consecutiveFailures,
     },
+    activeProvider: state.activeProvider,
     updatedAt: new Date().toISOString(),
   };
 

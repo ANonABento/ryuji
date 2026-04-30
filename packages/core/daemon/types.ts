@@ -6,6 +6,8 @@ import type {
 
 export type SessionState = "STARTING" | "ACTIVE" | "DRAINING" | "CYCLING";
 
+export type ModelProvider = "anthropic" | "ollama";
+
 export type HandoffEntry = {
   sessionId: string;
   timestamp: string;
@@ -41,4 +43,8 @@ export type MetaState = {
   workerHealthTimer: ReturnType<typeof setInterval> | null;
   totalCycles: number;
   lastCycleReason: string | null;
+  /** Current model provider — switches to "ollama" on repeated Anthropic failures. */
+  activeProvider: ModelProvider;
+  /** Consecutive Anthropic API failures used to trigger the fallback threshold. */
+  anthropicFailureCount: number;
 };
