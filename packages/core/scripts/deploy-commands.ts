@@ -14,6 +14,7 @@ import { getCommandDefs } from "../lib/interactions.ts";
 import { deployGuildCommands } from "../lib/command-deploy.ts";
 import { readFile } from "node:fs/promises";
 import "@choomfie/tutor";
+import "@choomfie/rss";
 
 const DATA_DIR =
   process.env.CHOOMFIE_DATA_DIR ||

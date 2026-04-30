@@ -11,6 +11,7 @@ const PLUGIN_PACKAGES: Record<string, string> = {
   browser: "@choomfie/browser",
   tutor: "@choomfie/tutor",
   socials: "@choomfie/socials",
+  rss: "@choomfie/rss",
 };
 
 /** Return names of all available plugins. */
