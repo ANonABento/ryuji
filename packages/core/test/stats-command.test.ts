@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { MessageFlags } from "discord.js";
 import { buildStatsEmbed, getTokenUsageToday, getTopTools, trackToolCall } from "../lib/stats.ts";
 
 function makeCtx() {
@@ -56,6 +57,26 @@ test("buildStatsEmbed includes required stats fields", async () => {
   expect(fields.find((field) => field.name === "Token Usage Today")?.value).toContain("0 input tokens");
   expect(fields.find((field) => field.name === "Active Plugins")?.value).toContain("voice (2 tools)");
   expect(fields.find((field) => field.name === "Top Tools")?.value).toContain("`reply`");
+});
+
+test("/stats command replies ephemerally with the stats embed", async () => {
+  const { commands } = await import("../lib/interactions.ts");
+  const stats = commands.get("stats");
+  let reply: any;
+
+  await stats?.handler(
+    {
+      reply(payload: any) {
+        reply = payload;
+        return Promise.resolve();
+      },
+    } as any,
+    makeCtx()
+  );
+
+  expect(stats?.data.name).toBe("stats");
+  expect(reply.flags).toBe(MessageFlags.Ephemeral);
+  expect(reply.embeds).toHaveLength(1);
 });
 
 test("reads token usage only for the current day", async () => {
