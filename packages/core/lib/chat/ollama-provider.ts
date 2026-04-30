@@ -1,5 +1,7 @@
 import type { ChatMessage, ChatProvider } from "./types.ts";
 
+export const DEFAULT_OLLAMA_CHAT_ENDPOINT = "http://localhost:11434/api/chat";
+
 interface OllamaChatChunk {
   message?: {
     role?: string;
@@ -14,7 +16,7 @@ export class OllamaProvider implements ChatProvider {
 
   constructor(
     private readonly model: string,
-    private readonly endpoint = "http://localhost:11434/api/chat"
+    private readonly endpoint = DEFAULT_OLLAMA_CHAT_ENDPOINT
   ) {}
 
   async *stream(messages: ChatMessage[]): AsyncIterable<string> {
@@ -55,10 +57,8 @@ export class OllamaProvider implements ChatProvider {
         for (const line of lines) {
           const trimmed = line.trim();
           if (!trimmed) continue;
-          const chunk = JSON.parse(trimmed) as OllamaChatChunk;
-          if (chunk.error) throw new Error(chunk.error);
-          const content = chunk.message?.content;
-          if (content) yield content;
+          const chunk = parseOllamaChatChunk(trimmed);
+          yield* chunkContent(chunk);
           if (chunk.done) return;
         }
       }
@@ -66,12 +66,33 @@ export class OllamaProvider implements ChatProvider {
       buffer += decoder.decode();
       const trailing = buffer.trim();
       if (trailing) {
-        const chunk = JSON.parse(trailing) as OllamaChatChunk;
-        if (chunk.error) throw new Error(chunk.error);
-        if (chunk.message?.content) yield chunk.message.content;
+        yield* chunkContent(parseOllamaChatChunk(trailing));
       }
     } finally {
       reader.releaseLock();
     }
   }
+}
+
+function parseOllamaChatChunk(line: string): OllamaChatChunk {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(line);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Invalid Ollama stream JSON: ${message}`);
+  }
+
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Invalid Ollama stream chunk");
+  }
+
+  const chunk = parsed as OllamaChatChunk;
+  if (chunk.error) throw new Error(chunk.error);
+  return chunk;
+}
+
+function* chunkContent(chunk: OllamaChatChunk): Iterable<string> {
+  const content = chunk.message?.content;
+  if (content) yield content;
 }

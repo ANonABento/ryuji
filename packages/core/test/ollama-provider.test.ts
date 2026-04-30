@@ -1,15 +1,22 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdir, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ConfigManager } from "../lib/config.ts";
+import { ConfigManager, DEFAULT_OLLAMA_MODEL } from "../lib/config.ts";
 import { OllamaProvider } from "../lib/chat/ollama-provider.ts";
 import {
+  formatDiscordUserMessage,
   formatProviderError,
   splitDiscordContent,
 } from "../lib/chat/discord-chat.ts";
 
 const originalFetch = globalThis.fetch;
+
+interface OllamaChatRequest {
+  model: string;
+  stream: boolean;
+  messages: Array<{ role: string; content: string }>;
+}
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
@@ -21,13 +28,13 @@ test("OllamaProvider maps chat messages and streams response chunks", async () =
     JSON.stringify({ message: { role: "assistant", content: "lo" }, done: true }),
   ].join("\n");
 
-  let requestBody: any;
+  let requestBody: OllamaChatRequest | undefined;
   globalThis.fetch = (async (_url, init) => {
-    requestBody = JSON.parse(init?.body as string);
+    requestBody = JSON.parse(String(init?.body)) as OllamaChatRequest;
     return new Response(body, { status: 200 });
   }) as typeof fetch;
 
-  const provider = new OllamaProvider("llama3.1:8b");
+  const provider = new OllamaProvider(DEFAULT_OLLAMA_MODEL);
   let result = "";
   for await (const chunk of provider.stream([
     { role: "system", content: "Be concise." },
@@ -37,7 +44,7 @@ test("OllamaProvider maps chat messages and streams response chunks", async () =
   }
 
   expect(requestBody).toEqual({
-    model: "llama3.1:8b",
+    model: DEFAULT_OLLAMA_MODEL,
     stream: true,
     messages: [
       { role: "system", content: "Be concise." },
@@ -73,7 +80,7 @@ test("OllamaProvider handles UTF-8 bytes split across stream chunks", async () =
   globalThis.fetch = (async () =>
     new Response(stream, { status: 200 })) as typeof fetch;
 
-  const provider = new OllamaProvider("llama3.1:8b");
+  const provider = new OllamaProvider(DEFAULT_OLLAMA_MODEL);
   let result = "";
   for await (const chunk of provider.stream([
     { role: "user", content: "Say hi." },
@@ -85,15 +92,45 @@ test("OllamaProvider handles UTF-8 bytes split across stream chunks", async () =
 });
 
 test("ConfigManager defaults Ollama model while preserving Claude provider default", async () => {
-  const dir = join(tmpdir(), `choomfie-config-${Date.now()}-${Math.random()}`);
-  await mkdir(dir, { recursive: true });
+  const dir = await mkdtemp(join(tmpdir(), "choomfie-config-"));
   try {
     const config = new ConfigManager(dir);
     expect(config.getProvider()).toBe("claude");
-    expect(config.getOllamaModel()).toBe("llama3.1:8b");
+    expect(config.getOllamaModel()).toBe(DEFAULT_OLLAMA_MODEL);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("ConfigManager trims saved Ollama model names", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "choomfie-config-"));
+  try {
+    await Bun.write(
+      join(dir, "config.json"),
+      JSON.stringify({ provider: "ollama", ollama_model: "  qwen2.5:7b  " })
+    );
+
+    const config = new ConfigManager(dir);
+
+    expect(config.getProvider()).toBe("ollama");
+    expect(config.getOllamaModel()).toBe("qwen2.5:7b");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("Discord provider chat escapes metadata attributes", () => {
+  const message = formatDiscordUserMessage("hello", {
+    chat_id: "channel&<1>",
+    message_id: "message-1",
+    user: 'A "quoted" user',
+    user_id: "user-1",
+    role: "user",
+    is_dm: "false",
+  });
+
+  expect(message).toContain('chat_id="channel&amp;&lt;1&gt;"');
+  expect(message).toContain('user="A &quot;quoted&quot; user"');
 });
 
 test("Discord provider chat splits long responses within message limits", () => {
@@ -107,6 +144,6 @@ test("Discord provider chat splits long responses within message limits", () => 
 test("Discord provider chat caps error edits within message limits", () => {
   const message = formatProviderError(new Error("x".repeat(5000)));
 
-  expect(message.startsWith("Ollama error: ")).toBe(true);
+  expect(message.startsWith("Chat provider error: ")).toBe(true);
   expect(message.length).toBeLessThanOrEqual(2000);
 });

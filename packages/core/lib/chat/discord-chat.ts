@@ -7,7 +7,7 @@ import { createChatProvider, type ChatMessage } from "./index.ts";
 const DISCORD_LIMIT = 2000;
 const STREAM_EDIT_INTERVAL_MS = 1200;
 const STREAM_PREVIEW_LIMIT = 1900;
-const ERROR_PREFIX = "Ollama error: ";
+const ERROR_PREFIX = "Chat provider error: ";
 
 function buildSystemPrompt(ctx: AppContext): string {
   const activePersona = ctx.config.getActivePersona();
@@ -25,9 +25,37 @@ function buildSystemPrompt(ctx: AppContext): string {
     .join("\n");
 }
 
-function buildUserMessage(content: string, meta: Record<string, string>): string {
+function escapeDiscordAttribute(value: string | undefined): string {
+  return (value ?? "").replace(/[&"<>]/g, (char) => {
+    switch (char) {
+      case "&":
+        return "&amp;";
+      case "\"":
+        return "&quot;";
+      case "<":
+        return "&lt;";
+      default:
+        return "&gt;";
+    }
+  });
+}
+
+export function formatDiscordUserMessage(
+  content: string,
+  meta: Record<string, string>
+): string {
+  const attributes = [
+    ["chat_id", meta.chat_id],
+    ["message_id", meta.message_id],
+    ["user", meta.user],
+    ["user_id", meta.user_id],
+    ["role", meta.role],
+    ["is_dm", meta.is_dm],
+  ]
+    .map(([key, value]) => `${key}="${escapeDiscordAttribute(value)}"`)
+    .join(" ");
   const lines = [
-    `<discord_message chat_id="${meta.chat_id}" message_id="${meta.message_id}" user="${meta.user}" user_id="${meta.user_id}" role="${meta.role}" is_dm="${meta.is_dm}">`,
+    `<discord_message ${attributes}>`,
     content,
     "</discord_message>",
   ];
@@ -65,7 +93,11 @@ function previewContent(content: string): string {
 
 export function formatProviderError(error: unknown): string {
   const message =
-    error instanceof Error ? error.message : String(error || "unknown error");
+    error instanceof Error
+      ? error.message
+      : error == null
+        ? "unknown error"
+        : String(error);
   const limit = DISCORD_LIMIT - ERROR_PREFIX.length;
   const detail =
     message.length <= limit ? message : `${message.slice(0, limit - 3).trimEnd()}...`;
@@ -89,7 +121,7 @@ export async function handleProviderChat(
 
   const messages: ChatMessage[] = [
     { role: "system", content: buildSystemPrompt(ctx) },
-    { role: "user", content: buildUserMessage(content, meta) },
+    { role: "user", content: formatDiscordUserMessage(content, meta) },
   ];
 
   let sent = await message.reply({
@@ -122,8 +154,8 @@ export async function handleProviderChat(
     ctx.messageStats.sent += chunks.length;
     refreshChannel(ctx.activeChannels, message.channelId);
     onReplySent(message.channelId);
-  } catch (e: any) {
-    await sent.edit(formatProviderError(e));
+  } catch (error) {
+    await sent.edit(formatProviderError(error));
     onReplySent(message.channelId);
   }
 

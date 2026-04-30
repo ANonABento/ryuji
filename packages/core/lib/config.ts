@@ -50,9 +50,11 @@ export interface Config {
   socials?: SocialsConfig;
 }
 
+export const DEFAULT_OLLAMA_MODEL = "llama3.1:8b";
+
 const DEFAULT_CONFIG: Config = {
   provider: "claude",
-  ollama_model: "llama3.1:8b",
+  ollama_model: DEFAULT_OLLAMA_MODEL,
   activePersona: "choomfie",
   personas: {
     choomfie: {
@@ -84,7 +86,7 @@ function mergeConfig(saved: Partial<Config>): Config {
     provider: saved.provider === "ollama" ? "ollama" : DEFAULT_CONFIG.provider,
     ollama_model:
       typeof saved.ollama_model === "string" && saved.ollama_model.trim()
-        ? saved.ollama_model
+        ? saved.ollama_model.trim()
         : DEFAULT_CONFIG.ollama_model,
     personas: {
       ...DEFAULT_CONFIG.personas,
