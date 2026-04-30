@@ -22,5 +22,4 @@ export function createChatProvider(cfg: LlmConfig): ChatProvider {
   }
 }
 
-export type { ChatProvider } from "./types.ts";
-export type { ChatMessage, ChatResponse } from "./types.ts";
+export type { ChatMessage, ChatResponse, ChatProvider } from "./types.ts";

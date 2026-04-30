@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-nocheck -- rettiwt-api types don't match runtime behavior (authType, tweet result shape)
 /**
  * Twitter/X provider — posting via rettiwt-api (unofficial, no API key needed).
  *
