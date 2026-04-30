@@ -18,6 +18,11 @@ function normalizeLevel(input: string, levels: string[]): string | null {
   ) ?? null;
 }
 
+function resolveModuleLevel(userId: string, moduleName: string, mod: ReturnType<typeof getModule>): string {
+  const currentLevel = getModuleLevel(userId, moduleName);
+  return normalizeLevel(currentLevel, mod.levels) ?? mod.defaultLevel;
+}
+
 export const tutorTools: ToolDef[] = [
   {
     definition: {
@@ -39,7 +44,7 @@ export const tutorTools: ToolDef[] = [
       if (!mod.buildTutorPrompt) {
         return err(`Module "${mod.displayName}" does not have a tutor prompt`);
       }
-      const level = getModuleLevel(userId, moduleName);
+      const level = resolveModuleLevel(userId, moduleName, mod);
       const activeSession = getActiveSession(userId);
       const promptCtx = activeSession?.module === moduleName && activeSession.lesson.furiganaLevel
         ? { furiganaLevel: activeSession.lesson.furiganaLevel }
@@ -145,7 +150,7 @@ export const tutorTools: ToolDef[] = [
         (args.type as string) ||
         quizTypes[Math.floor(Math.random() * quizTypes.length)];
 
-      const q = mod.generateQuiz(getModuleLevel(userId, moduleName), quizType);
+      const q = mod.generateQuiz(resolveModuleLevel(userId, moduleName, mod), quizType);
 
       const optionLines = q.options
         .map((o, i) => `${["A", "B", "C", "D"][i]}. ${o}`)
@@ -192,7 +197,7 @@ export const tutorTools: ToolDef[] = [
 
       if (!level) {
         return err(
-          `Invalid level "${requestedLevel.toUpperCase()}" for ${mod.displayName}. Available: ${mod.levels.join(", ")}`
+          `Invalid level "${requestedLevel.trim().toUpperCase()}" for ${mod.displayName}. Available: ${mod.levels.join(", ")}`
         );
       }
 
