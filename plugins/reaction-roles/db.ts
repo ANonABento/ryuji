@@ -67,14 +67,19 @@ export class ReactionRoleDB {
       );
   }
 
-  get(guildId: string, messageId: string, emojiKey: string): ReactionRole | null {
+  get(
+    guildId: string,
+    channelId: string,
+    messageId: string,
+    emojiKey: string
+  ): ReactionRole | null {
     const row = this.db
       .query(
         `SELECT guild_id, channel_id, message_id, emoji_key, role_id
          FROM reaction_roles
-         WHERE guild_id = ? AND message_id = ? AND emoji_key = ?`
+         WHERE guild_id = ? AND channel_id = ? AND message_id = ? AND emoji_key = ?`
       )
-      .get(guildId, messageId, emojiKey) as ReactionRoleRow | null;
+      .get(guildId, channelId, messageId, emojiKey) as ReactionRoleRow | null;
 
     return row ? rowToReactionRole(row) : null;
   }
