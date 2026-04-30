@@ -3,7 +3,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SlashCommandBuilder } from "discord.js";
-import { buildCustomCommandDefs, mergeCommandDefs } from "../lib/custom-commands.ts";
+import {
+  buildCustomCommandDefs,
+  isValidCustomCommandName,
+  mergeCommandDefs,
+  normalizeCustomCommandName,
+} from "../lib/custom-commands.ts";
 import { MemoryStore } from "../lib/memory.ts";
 
 const tempDirs: string[] = [];
@@ -47,4 +52,14 @@ test("buildCustomCommandDefs creates slash commands and merge skips built-in col
   expect(buildCustomCommandDefs([{ name: "hello" }])[0].name).toBe("hello");
   expect(mergeCommandDefs(staticCommands, [{ name: "help" }, { name: "hello" }]).map((c) => c.name))
     .toEqual(["help", "hello"]);
+});
+
+test("custom command name normalization and validation", () => {
+  expect(normalizeCustomCommandName("  Hello-World  ")).toBe("hello-world");
+  expect(isValidCustomCommandName("hello-world")).toBe(true);
+  expect(isValidCustomCommandName("hello_world")).toBe(true);
+  expect(isValidCustomCommandName("hello123")).toBe(true);
+  expect(isValidCustomCommandName("Hello")).toBe(false);
+  expect(isValidCustomCommandName("hello world")).toBe(false);
+  expect(isValidCustomCommandName("!hello")).toBe(false);
 });
