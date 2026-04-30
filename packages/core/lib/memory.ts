@@ -187,6 +187,7 @@ export class MemoryStore {
         ? options.embeddingProvider ?? null
         : createDefaultEmbeddingProvider();
     this.db.exec("PRAGMA journal_mode = WAL");
+    this.db.exec("PRAGMA foreign_keys = ON");
     this.init();
   }
 
