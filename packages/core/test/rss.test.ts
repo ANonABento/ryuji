@@ -6,6 +6,31 @@ import { RssDb } from "../../../plugins/rss/db.ts";
 import { parseFeed } from "../../../plugins/rss/feed.ts";
 import { pollFeeds } from "../../../plugins/rss/index.ts";
 
+type PollChannel = {
+  send: (payload: { content: string }) => Promise<void>;
+};
+
+type PollClient = {
+  channels: {
+    fetch: (channelId: string) => Promise<PollChannel | null>;
+  };
+};
+
+function createMockPollClient(targetChannelId: string, sent: string[]): PollClient {
+  return {
+    channels: {
+      fetch: async (channelId: string) =>
+        channelId === targetChannelId
+          ? {
+              send: async ({ content }) => {
+                sent.push(content);
+              },
+            }
+          : null,
+    },
+  };
+}
+
 test("parseFeed reads RSS channel title and items", () => {
   const feed = parseFeed(`
     <rss version="2.0">
@@ -89,6 +114,7 @@ test("pollFeeds posts newest unseen batch in chronological order", async () => {
   const dir = mkdtempSync(join(tmpdir(), "choomfie-rss-"));
   const db = new RssDb(join(dir, "rss.db"));
   const sent: string[] = [];
+  const client = createMockPollClient("123", sent);
 
   const server = Bun.serve({
     port: 0,
@@ -120,20 +146,7 @@ test("pollFeeds posts newest unseen batch in chronological order", async () => {
       title: "Example",
     });
 
-    const client = {
-      channels: {
-        fetch: async (channelId: string) =>
-          channelId === "123"
-            ? {
-                send: async ({ content }: { content: string }) => {
-                  sent.push(content);
-                },
-              }
-            : null,
-      },
-    };
-
-    await pollFeeds(client as any, db);
+    await pollFeeds(client, db);
 
     expect(sent.map((message) => message.match(/Item \d+/)?.[0])).toEqual([
       "Item 3",
@@ -158,6 +171,7 @@ test("pollFeeds orders unseen items by publication date when feed order is oldes
   const dir = mkdtempSync(join(tmpdir(), "choomfie-rss-"));
   const db = new RssDb(join(dir, "rss.db"));
   const sent: string[] = [];
+  const client = createMockPollClient("123", sent);
 
   const server = Bun.serve({
     port: 0,
@@ -199,20 +213,7 @@ test("pollFeeds orders unseen items by publication date when feed order is oldes
       title: "Example",
     });
 
-    const client = {
-      channels: {
-        fetch: async (channelId: string) =>
-          channelId === "123"
-            ? {
-                send: async ({ content }: { content: string }) => {
-                  sent.push(content);
-                },
-              }
-            : null,
-      },
-    };
-
-    await pollFeeds(client as any, db);
+    await pollFeeds(client, db);
 
     expect(sent.map((message) => message.match(/Item [A-Za-z]+/)?.[0])).toEqual([
       "Item Old",

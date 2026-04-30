@@ -27,6 +27,12 @@ const LEVEL_GUIDES: Record<string, string> = {
 - Encourage longer answers and simple paragraph-level explanations`,
 };
 
+const LEVELS = ["HSK1", "HSK2", "HSK3"] as const;
+
+function normalizeLevel(level: string): string {
+  return level.replace(/\s+/g, "").toUpperCase();
+}
+
 const TONE_QUESTIONS: QuizQuestion[] = [
   {
     question: "Which pinyin marks the first tone?",
@@ -63,8 +69,8 @@ export const chineseModule: TutorModule = {
   displayName: "Chinese",
   description: "Mandarin Chinese learning with tones, hanzi, and HSK vocabulary",
   icon: "🇨🇳",
-  levels: ["HSK 1", "HSK 2", "HSK 3", "HSK 4", "HSK 5", "HSK 6"],
-  defaultLevel: "HSK 1",
+  levels: [...LEVELS],
+  defaultLevel: LEVELS[0],
   quizTypes: ["tones", "hanzi", "vocab"],
   tools: chineseTools,
 
@@ -85,6 +91,7 @@ export const chineseModule: TutorModule = {
   },
 
   buildTutorPrompt(level: string, ctx?: TutorPromptContext): string {
+    const levelKey = normalizeLevel(level);
     const pinyinDirective = (() => {
       const fl = ctx?.furiganaLevel;
       if (fl === "full") return "\nPinyin: ALWAYS include pinyin with tone numbers for hanzi, e.g. 你好 (ni3 hao3).";
@@ -93,7 +100,7 @@ export const chineseModule: TutorModule = {
       return "";
     })();
 
-    return `You are a Mandarin Chinese tutor. ${LEVEL_GUIDES[level] || LEVEL_GUIDES.HSK1}${pinyinDirective}
+    return `You are a Mandarin Chinese tutor. ${LEVEL_GUIDES[levelKey] || LEVEL_GUIDES.HSK1}${pinyinDirective}
 
 When the student writes in Chinese or pinyin, respond with a JSON block:
 \`\`\`json

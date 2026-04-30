@@ -5,7 +5,6 @@ import {
   EmbedBuilder,
   MessageFlags,
   SlashCommandBuilder,
-  type Client,
   type TextBasedChannel,
 } from "discord.js";
 import { RssDb, getRssDb, setRssDb, type RssSubscription } from "./db.ts";
@@ -13,6 +12,16 @@ import { fetchFeed, type FeedItem } from "./feed.ts";
 
 const POLL_INTERVAL_MS = 15 * 60 * 1000;
 const MAX_ITEMS_PER_POLL = 10;
+
+type PollChannel = {
+  send: (payload: { content: string }) => Promise<unknown>;
+};
+
+type PollDiscordClient = {
+  channels: {
+    fetch: (channelId: string) => Promise<PollChannel | null>;
+  };
+};
 
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 let isPolling = false;
@@ -45,7 +54,7 @@ function sortUnseenChronologically(items: FeedItem[]): FeedItem[] {
 }
 
 async function sendToChannel(
-  client: Client,
+  client: PollDiscordClient,
   channelId: string,
   content: string
 ): Promise<boolean> {
@@ -55,7 +64,7 @@ async function sendToChannel(
   return true;
 }
 
-async function pollFeeds(client: Client, db: RssDb) {
+async function pollFeeds(client: PollDiscordClient, db: RssDb) {
   if (isPolling) return;
   isPolling = true;
   try {
