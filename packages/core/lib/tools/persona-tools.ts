@@ -34,12 +34,20 @@ export const personaTools: ToolDef[] = [
           `Persona "${args.key}" not found. Available: ${available}`
         );
       }
+      const localFirst = ctx.config.getLocalFirst();
+      const compatNote = persona.model && !localFirst
+        ? ` (⚠️ model \`${persona.model}\` set but \`localFirst\` is off — override won't apply)`
+        : !persona.model && localFirst
+        ? " (ℹ️ localFirst on but no model override — using default local hints)"
+        : persona.model
+        ? ` (model: \`${persona.model}\`)`
+        : "";
       // Auto-restart so the new persona's system prompt takes effect
       if (ctx.mcp instanceof McpProxy) {
         ctx.mcp.requestRestart(`persona switch: ${args.key}`);
       }
       return text(
-        `Switched to **${persona.name}**. Restarting to apply new personality...`
+        `Switched to **${persona.name}**${compatNote}. Restarting to apply new personality...`
       );
     },
   },
@@ -64,18 +72,26 @@ export const personaTools: ToolDef[] = [
             description:
               "Personality description (e.g. 'Talk like a pirate, arrr.')",
           },
+          model: {
+            type: "string",
+            description:
+              "Optional local model override (e.g. 'llama3.1:8b', 'mistral:7b'). Activates local-model prompt hints when localFirst is enabled.",
+          },
         },
         required: ["key", "name", "personality"],
       },
     },
     handler: async (args, ctx) => {
+      const model = args.model as string | undefined;
       ctx.config.savePersona(
         args.key as string,
         args.name as string,
-        args.personality as string
+        args.personality as string,
+        model
       );
+      const modelNote = model ? ` (model: \`${model}\`)` : "";
       return text(
-        `Persona "${args.key}" saved: ${args.name} — ${args.personality}`
+        `Persona "${args.key}" saved: ${args.name} — ${args.personality}${modelNote}`
       );
     },
   },
@@ -90,13 +106,15 @@ export const personaTools: ToolDef[] = [
     },
     handler: async (_args, ctx) => {
       const personas = ctx.config.listPersonas();
+      const localFirst = ctx.config.getLocalFirst();
       const formatted = personas
         .map(
           (p) =>
-            `${p.active ? "**→** " : "  "}**${p.persona.name}** (\`${p.key}\`): ${p.persona.personality}`
+            `${p.active ? "**→** " : "  "}**${p.persona.name}** (\`${p.key}\`)${p.persona.model ? ` [model: \`${p.persona.model}\`]` : ""}: ${p.persona.personality}`
         )
         .join("\n");
-      return text(formatted);
+      const footer = localFirst ? "\n\n🔧 `localFirst` mode is **on**." : "";
+      return text(formatted + footer);
     },
   },
   {

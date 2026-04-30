@@ -11,6 +11,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 export interface Persona {
   name: string;
   personality: string;
+  /** Local model override (e.g. "llama3.1:8b", "mistral:7b"). Activates local-model prompt hints. */
+  model?: string;
 }
 
 export interface VoiceConfig {
@@ -45,6 +47,8 @@ export interface Config {
   autoSummarize: boolean;
   plugins: string[];
   voice: VoiceConfig;
+  /** When true, personas with a model field use local-model prompt hints. */
+  localFirst?: boolean;
   socials?: SocialsConfig;
 }
 
@@ -137,8 +141,23 @@ export class ConfigManager {
     return persona;
   }
 
-  savePersona(key: string, name: string, personality: string) {
-    this.config.personas[key.toLowerCase()] = { name, personality };
+  savePersona(key: string, name: string, personality: string, model?: string) {
+    const persona: Persona = { name, personality };
+    if (model) persona.model = model;
+    this.config.personas[key.toLowerCase()] = persona;
+    this.save();
+  }
+
+  getActivePersonaModel(): string | undefined {
+    return this.getActivePersona().model;
+  }
+
+  getLocalFirst(): boolean {
+    return this.config.localFirst ?? false;
+  }
+
+  setLocalFirst(enabled: boolean) {
+    this.config.localFirst = enabled;
     this.save();
   }
 

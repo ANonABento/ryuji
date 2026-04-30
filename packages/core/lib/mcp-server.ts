@@ -16,8 +16,19 @@ import { VERSION } from "./version.ts";
 /** Build the MCP instructions string from context. Used by both worker (IPC) and boot test. */
 export function buildInstructions(ctx: AppContext): string {
   const activePersona = ctx.config.getActivePersona();
+  const personaModel = ctx.config.getActivePersonaModel();
+  const localFirst = ctx.config.getLocalFirst();
+  const useLocalHints = !!(personaModel || localFirst);
+  const modelLabel = personaModel ?? (localFirst ? "local model" : null);
+
   return [
     `You are ${activePersona.name}. ${activePersona.personality}`,
+    ...(useLocalHints && modelLabel
+      ? [
+          "",
+          `[Running on ${modelLabel}. Keep responses concise — avoid very long outputs. Prefer direct, structured answers. Avoid deep multi-step reasoning chains.]`,
+        ]
+      : []),
     "",
     "## Output Rules",
     "Do NOT output text in the terminal — the user only sees Discord. Communicate exclusively through tool calls (reply, react, etc). Minimize terminal narration.",

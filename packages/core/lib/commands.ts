@@ -376,19 +376,30 @@ registerCommand("persona", {
         });
         return;
       }
+      const localFirst = ctx.config.getLocalFirst();
+      const compatNote = persona.model && !localFirst
+        ? `\n⚠️ This persona has model \`${persona.model}\` but \`localFirst\` is off — model override won't apply.`
+        : !persona.model && localFirst
+        ? `\nℹ️ \`localFirst\` is on but this persona has no model override — using default local model hints.`
+        : persona.model
+        ? `\n✓ Model: \`${persona.model}\``
+        : "";
       if (ctx.mcp instanceof McpProxy) {
         ctx.mcp.requestRestart(`persona switch: ${switchTo}`, interaction.channelId);
       }
       await interaction.reply({
-        content: `Switched to **${persona.name}**. Restarting...`,
+        content: `Switched to **${persona.name}**. Restarting...${compatNote}`,
       });
     } else {
       const personas = ctx.config.listPersonas();
+      const localFirst = ctx.config.getLocalFirst();
       const lines = personas.map(
-        (p) => `${p.active ? "→ " : "  "}\`${p.key}\` — **${p.persona.name}**`
+        (p) =>
+          `${p.active ? "→ " : "  "}\`${p.key}\` — **${p.persona.name}**${p.persona.model ? ` (\`${p.persona.model}\`)` : ""}`
       );
+      const footer = localFirst ? "\n\n🔧 `localFirst` mode is **on**." : "";
       await interaction.reply({
-        content: `**Personas:**\n${lines.join("\n")}`,
+        content: `**Personas:**\n${lines.join("\n")}${footer}`,
         flags: MessageFlags.Ephemeral,
       });
     }
