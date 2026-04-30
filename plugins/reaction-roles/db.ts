@@ -40,7 +40,7 @@ export class ReactionRoleDB {
       );
 
       CREATE INDEX IF NOT EXISTS idx_reaction_roles_lookup
-        ON reaction_roles(guild_id, message_id, emoji_key);
+        ON reaction_roles(guild_id, channel_id, message_id, emoji_key);
     `);
   }
 

@@ -12,26 +12,28 @@ import {
   type User,
 } from "discord.js";
 import type { Plugin, PluginContext } from "@choomfie/shared";
-import { registerCommand } from "@choomfie/shared";
+import { errorMessage, registerCommand } from "@choomfie/shared";
 import { ReactionRoleDB } from "./db.ts";
 import { emojiKeyFromInput, emojiKeyFromReaction } from "./emoji.ts";
 
 type ReactionRoleAction = "add" | "remove";
 type ReactionRoleStore = Pick<ReactionRoleDB, "get">;
+type ReactionRoleEvent = MessageReaction | PartialMessageReaction;
+type ReactionRoleUser = User | PartialUser;
+type ReactionRoleHandler = (
+  reaction: ReactionRoleEvent,
+  user: ReactionRoleUser
+) => Promise<void>;
+type ReactionRoleReasonByAction = Record<ReactionRoleAction, string>;
+
+const REACTION_ROLE_REASONS: ReactionRoleReasonByAction = {
+  add: "Reaction role added",
+  remove: "Reaction role removed",
+};
 
 let db: ReactionRoleDB | null = null;
-let reactionAddHandler:
-  | ((
-      reaction: MessageReaction | PartialMessageReaction,
-      user: User | PartialUser
-    ) => Promise<void>)
-  | null = null;
-let reactionRemoveHandler:
-  | ((
-      reaction: MessageReaction | PartialMessageReaction,
-      user: User | PartialUser
-    ) => Promise<void>)
-  | null = null;
+let reactionAddHandler: ReactionRoleHandler | null = null;
+let reactionRemoveHandler: ReactionRoleHandler | null = null;
 let discordClient: Client | null = null;
 
 registerCommand("reactionrole", {
@@ -63,27 +65,21 @@ registerCommand("reactionrole", {
     )
     .toJSON(),
   handler: async (interaction, ctx) => {
+    const replyEphemeral = async (content: string): Promise<void> =>
+      interaction.reply({ content, flags: MessageFlags.Ephemeral });
+
     if (!interaction.guild || !interaction.channel) {
-      await interaction.reply({
-        content: "Reaction roles can only be configured in a server channel.",
-        flags: MessageFlags.Ephemeral,
-      });
+      await replyEphemeral("Reaction roles can only be configured in a server channel.");
       return;
     }
 
     if (!ctx.ownerUserId || interaction.user.id !== ctx.ownerUserId) {
-      await interaction.reply({
-        content: "Only the Choomfie owner can configure reaction roles.",
-        flags: MessageFlags.Ephemeral,
-      });
+      await replyEphemeral("Only the Choomfie owner can configure reaction roles.");
       return;
     }
 
     if (!db) {
-      await interaction.reply({
-        content: "Reaction roles plugin is not initialized.",
-        flags: MessageFlags.Ephemeral,
-      });
+      await replyEphemeral("Reaction roles plugin is not initialized.");
       return;
     }
 
@@ -96,36 +92,30 @@ registerCommand("reactionrole", {
     const emojiKey = emojiKeyFromInput(emojiInput);
 
     if (role.id === interaction.guild.id || role.managed) {
-      await interaction.reply({
-        content: "Choose a normal assignable server role.",
-        flags: MessageFlags.Ephemeral,
-      });
+      await replyEphemeral("Choose a normal assignable server role.");
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember?.permissions.has(PermissionFlagsBits.ManageRoles)) {
-      await interaction.reply({
-        content: "I need the Manage Roles permission before I can assign reaction roles.",
-        flags: MessageFlags.Ephemeral,
-      });
+      await replyEphemeral(
+        "I need the Manage Roles permission before I can assign reaction roles."
+      );
       return;
     }
 
     if (botMember.roles.highest.comparePositionTo(role) <= 0) {
-      await interaction.reply({
-        content: `Move my highest role above ${role} before using it for reaction roles.`,
-        flags: MessageFlags.Ephemeral,
-      });
+      await replyEphemeral(
+        `Move my highest role above ${role} before using it for reaction roles.`
+      );
       return;
     }
 
     const channel = interaction.channel;
     if (!channel.isTextBased() || !("messages" in channel)) {
-      await interaction.reply({
-        content: "Run this command in the text channel that contains the target message.",
-        flags: MessageFlags.Ephemeral,
-      });
+      await replyEphemeral(
+        "Run this command in the text channel that contains the target message."
+      );
       return;
     }
 
@@ -133,10 +123,9 @@ registerCommand("reactionrole", {
       const message = await channel.messages.fetch(messageId);
       await message.react(emojiInput);
     } catch {
-      await interaction.reply({
-        content: "I could not find that message in this channel or react with that emoji.",
-        flags: MessageFlags.Ephemeral,
-      });
+      await replyEphemeral(
+        "I could not find that message in this channel or react with that emoji."
+      );
       return;
     }
 
@@ -148,15 +137,14 @@ registerCommand("reactionrole", {
       roleId: role.id,
     });
 
-    await interaction.reply({
-      content: `Reaction role configured: ${emojiInput} on message \`${messageId}\` assigns ${role}.`,
-      flags: MessageFlags.Ephemeral,
-    });
+    await replyEphemeral(
+      `Reaction role configured: ${emojiInput} on message \`${messageId}\` assigns ${role}.`
+    );
   },
 });
 
 async function resolveReaction(
-  reaction: MessageReaction | PartialMessageReaction
+  reaction: ReactionRoleEvent
 ): Promise<MessageReaction | null> {
   try {
     if (reaction.partial) {
@@ -168,7 +156,7 @@ async function resolveReaction(
   }
 }
 
-async function resolveUser(user: User | PartialUser): Promise<User | null> {
+async function resolveUser(user: ReactionRoleUser): Promise<User | null> {
   try {
     if (user.partial) {
       return (await user.fetch()) as User;
@@ -180,20 +168,20 @@ async function resolveUser(user: User | PartialUser): Promise<User | null> {
 }
 
 async function handleReaction(
-  reaction: MessageReaction | PartialMessageReaction,
-  user: User | PartialUser,
+  reaction: ReactionRoleEvent,
+  user: ReactionRoleUser,
   action: ReactionRoleAction
-) {
+): Promise<void> {
   if (!db) return;
   await applyReactionRole(db, reaction, user, action);
 }
 
 export async function applyReactionRole(
   store: ReactionRoleStore,
-  reaction: MessageReaction | PartialMessageReaction,
-  user: User | PartialUser,
+  reaction: ReactionRoleEvent,
+  user: ReactionRoleUser,
   action: ReactionRoleAction
-) {
+): Promise<void> {
   const resolvedUser = await resolveUser(user);
   if (!resolvedUser || resolvedUser.bot) return;
 
@@ -213,12 +201,14 @@ export async function applyReactionRole(
   try {
     const member = await guild.members.fetch(resolvedUser.id);
     if (action === "add") {
-      await member.roles.add(mapping.roleId, "Reaction role added");
+      await member.roles.add(mapping.roleId, REACTION_ROLE_REASONS.add);
     } else {
-      await member.roles.remove(mapping.roleId, "Reaction role removed");
+      await member.roles.remove(mapping.roleId, REACTION_ROLE_REASONS.remove);
     }
   } catch (e) {
-    console.error(`Reaction roles: failed to ${action} role ${mapping.roleId}: ${e}`);
+    console.error(
+      `Reaction roles: failed to ${action} role ${mapping.roleId}: ${errorMessage(e)}`
+    );
   }
 }
 
