@@ -14,11 +14,15 @@ import { setModule } from "../../../plugins/tutor/core/session.ts";
 import { srsTools } from "../../../plugins/tutor/tools/srs-tools.ts";
 import { buildAddCardModal } from "../../../plugins/tutor/srs-interactions.ts";
 
+const SRS_NOT_INITIALIZED_MESSAGE = "SRS is not initialized.";
+const UNSUPPORTED_DECK_SUBCOMMAND_MESSAGE = "Unsupported /decks subcommand.";
+const ADD_CARD_MODAL_PREFIX = "srs-add-card:";
+
 const tempDirs: string[] = [];
 const emptyContext = {} as PluginContext;
 
 interface ReplyPayload {
-  content?: string;
+  content?: string | null;
   embeds?: EmbedBuilder[];
 }
 
@@ -154,7 +158,7 @@ test("/add_card modal saves a manual card to the selected deck", async () => {
 
   const modalHandler = modalHandlers.get("srs-add-card");
   expect(modalHandler).toBeDefined();
-  expect(modalCustomId).toStartWith("srs-add-card:");
+  expect(modalCustomId).toStartWith(ADD_CARD_MODAL_PREFIX);
 
   let replyContent = "";
   await modalHandler!(
@@ -243,6 +247,72 @@ test("/decks command can create, list stats, and delete a deck", async () => {
   srs.close();
 });
 
+test("/decks command can show all-deck stats when no deck is provided", async () => {
+  const userId = "deck-stats-user";
+  const srs = await createSRS();
+  setSRS(srs);
+
+  const decks = commands.get("decks");
+  expect(decks).toBeDefined();
+
+  srs.addCard(userId, "見", "to see", "みる", "manual");
+  srs.addCard(userId, "聞", "to listen", "きく", "manual");
+  srs.addCard(userId, "你好", "hello", "ni3 hao3", "lesson-chinese");
+
+  const replies: ReplyPayload[] = [];
+  await decks!.handler(
+    commandInteraction({
+      user: { id: userId },
+      options: {
+        getSubcommand: () => "stats",
+        getString: () => null,
+      },
+      reply: async (payload: ReplyPayload) => {
+        replies.push(payload);
+      },
+    }),
+    emptyContext
+  );
+
+  const fields = replies.at(-1)?.embeds?.[0]?.toJSON().fields ?? [];
+  expect(fields).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ name: "Total", value: "3" }),
+      expect.objectContaining({ name: "Due", value: "3" }),
+      expect.objectContaining({ name: "Learned", value: "0" }),
+    ])
+  );
+
+  srs.close();
+});
+
+test("/decks unknown subcommand returns explicit fallback response", async () => {
+  const userId = "deck-fallback-user";
+  const srs = await createSRS();
+  setSRS(srs);
+
+  const decks = commands.get("decks");
+  expect(decks).toBeDefined();
+
+  let replyContent = "";
+  await decks!.handler(
+    commandInteraction({
+      user: { id: userId },
+      options: {
+        getSubcommand: () => "invalid-subcommand",
+        getString: () => null,
+      },
+      reply: async (payload: ReplyPayload) => {
+        replyContent = payload.content ?? "";
+      },
+    }),
+    emptyContext
+  );
+
+  expect(replyContent).toBe(UNSUPPORTED_DECK_SUBCOMMAND_MESSAGE);
+  srs.close();
+});
+
 test("/add_card rejects unavailable SRS and expired modal submissions", async () => {
   const addCard = commands.get("add_card");
   expect(addCard).toBeDefined();
@@ -260,7 +330,7 @@ test("/add_card rejects unavailable SRS and expired modal submissions", async ()
     }),
     emptyContext
   );
-  expect(replyContent).toBe("SRS is not initialized.");
+  expect(replyContent).toBe(SRS_NOT_INITIALIZED_MESSAGE);
 
   const srs = await createSRS();
   setSRS(srs);
