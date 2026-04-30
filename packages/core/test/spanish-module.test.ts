@@ -1,7 +1,16 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { LessonDB } from "../../../plugins/tutor/core/lesson-db.ts";
+import { registerLessons } from "../../../plugins/tutor/core/lesson-engine.ts";
+import { setLessonDB } from "../../../plugins/tutor/core/lesson-db-instance.ts";
+import { spanishLessons, spanishUnits } from "../../../plugins/tutor/modules/spanish/lessons/index.ts";
 import { getAllModuleTools, getModule, listModules } from "../../../plugins/tutor/modules/index.ts";
 import { spanishModule } from "../../../plugins/tutor/modules/spanish/index.ts";
 import { spanishToIpa } from "../../../plugins/tutor/modules/spanish/pronunciation.ts";
+import { lessonTools } from "../../../plugins/tutor/tools/lesson-tools.ts";
+import { moduleTools } from "../../../plugins/tutor/tools/module-tools.ts";
 
 describe("Spanish tutor module", () => {
   test("is registered as a tutor module", () => {
@@ -35,8 +44,39 @@ describe("Spanish tutor module", () => {
     expect(toolNames).toContain("spanish_pronunciation");
   });
 
+  test("switch_module spanish makes lesson_status report Spanish progress", async () => {
+    registerLessons("spanish", spanishLessons, spanishUnits);
+    const userId = "spanish-module-test-user";
+    const dir = mkdtempSync(join(tmpdir(), "spanish-module-"));
+    const db = new LessonDB(join(dir, "lessons.db"));
+    setLessonDB(db);
+
+    try {
+      const switchModule = moduleTools.find((tool) => tool.definition.name === "switch_module")!;
+      const switchResult = await switchModule.handler(
+        { user_id: userId, module: "SPANISH" },
+        undefined as never,
+      );
+      expect(switchResult.isError).toBeUndefined();
+      expect(switchResult.content[0].text).toContain("**Spanish**");
+      expect(switchResult.content[0].text).toContain("A1");
+
+      const lessonStatus = lessonTools.find((tool) => tool.definition.name === "lesson_status")!;
+      const statusResult = await lessonStatus.handler({ user_id: userId }, undefined as never);
+      expect(statusResult.isError).toBeUndefined();
+      expect(statusResult.content[0].text).toContain("**Spanish Progress**");
+      expect(statusResult.content[0].text).toContain("Pronunciation");
+      expect(statusResult.content[0].text).toContain("0/17 lessons completed");
+      expect(statusResult.content[0].text).toContain("Next:** Lesson 1.1");
+    } finally {
+      db.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test("generates practical IPA for basic words", () => {
     expect(spanishToIpa("hola")).toBe("ˈola");
     expect(spanishToIpa("gracias")).toBe("ˈɡɾasjas");
+    expect(spanishToIpa("niño")).toBe("ˈni.ɲo");
   });
 });

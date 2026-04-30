@@ -39,13 +39,13 @@ const GRAMMAR_QUESTIONS: QuizQuestion[] = [
     question: "Choose the Spanish for **I am here**.",
     options: ["Estoy aquí.", "Soy aquí.", "Tengo aquí.", "Hago aquí."],
     correctIndex: 0,
-    explanation: "Use estar for location: Estoy aqui.",
+    explanation: "Use estar for location: Estoy aquí.",
   },
   {
     question: "Which question word means **where**?",
     options: ["dónde", "cuándo", "quién", "cuánto"],
     correctIndex: 0,
-    explanation: "Donde asks where.",
+    explanation: "Dónde asks where.",
   },
 ];
 
@@ -86,9 +86,9 @@ function exampleSentences(term: string): string[] | undefined {
     hola: ["Hola, soy Ana. — Hello, I am Ana."],
     gracias: ["Gracias por el café. — Thank you for the coffee."],
     casa: ["Estoy en casa. — I am at home."],
-    escuela: ["La escuela esta alli. — The school is there."],
+    escuela: ["La escuela está allí. — The school is there."],
     agua: ["Quiero agua, por favor. — I want water, please."],
-    hablar: ["Hablo espanol. — I speak Spanish."],
+    hablar: ["Hablo español. — I speak Spanish."],
     comer: ["Quiero comer pan. — I want to eat bread."],
     tener: ["Tengo un libro. — I have a book."],
     ser: ["Soy estudiante. — I am a student."],

@@ -20,7 +20,12 @@ const WORD_EXCEPTIONS = new Map<string, string>([
 const VOWELS = "aeiouáéíóúü";
 
 function stripAccents(input: string): string {
-  return input.normalize("NFD").replace(/\p{Diacritic}/gu, "");
+  return input
+    .replace(/[áÁ]/g, "a")
+    .replace(/[éÉ]/g, "e")
+    .replace(/[íÍ]/g, "i")
+    .replace(/[óÓ]/g, "o")
+    .replace(/[úÚüÜ]/g, "u");
 }
 
 function isVowel(char: string): boolean {
