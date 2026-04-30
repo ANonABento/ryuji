@@ -3,6 +3,7 @@ import { getAllModuleTools, getModule, listModules } from "../../../plugins/tuto
 import { japaneseModule } from "../../../plugins/tutor/modules/japanese/index.ts";
 import { getActiveModule, getModuleLevel } from "../../../plugins/tutor/core/session.ts";
 import { moduleTools } from "../../../plugins/tutor/tools/module-tools.ts";
+import { testPluginContext } from "./helpers/plugin-context.ts";
 
 describe("Japanese tutor module", () => {
   test("is registered as a tutor module", () => {
@@ -44,7 +45,7 @@ describe("Japanese tutor module", () => {
     const userId = "test-switch-japanese";
     const result = await switchModuleTool!.handler(
       { user_id: userId, module: "japanese" },
-      {} as any
+      testPluginContext
     );
 
     expect(result.isError).toBeUndefined();

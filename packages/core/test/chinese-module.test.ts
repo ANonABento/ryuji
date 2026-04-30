@@ -3,6 +3,7 @@ import { getAllModuleTools, getModule, listModules } from "../../../plugins/tuto
 import { chineseModule } from "../../../plugins/tutor/modules/chinese/index.ts";
 import { getModuleLevel, setModule } from "../../../plugins/tutor/core/session.ts";
 import { tutorTools } from "../../../plugins/tutor/tools/tutor-tools.ts";
+import { testPluginContext } from "./helpers/plugin-context.ts";
 
 describe("Chinese tutor module", () => {
   test("is registered as a tutor module", () => {
@@ -49,7 +50,10 @@ describe("Chinese tutor module", () => {
     const setLevelTool = tutorTools.find((tool) => tool.definition.name === "set_level");
     expect(setLevelTool).toBeDefined();
 
-    const result = await setLevelTool!.handler({ user_id: userId, level: "hsk2" }, {} as any);
+    const result = await setLevelTool!.handler(
+      { user_id: userId, level: "hsk2" },
+      testPluginContext
+    );
 
     expect(result.isError).toBeUndefined();
     expect(result.content[0].text).toContain("HSK 2");

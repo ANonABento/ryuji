@@ -6,12 +6,14 @@
  * introduced.
  */
 
-import type { HanziInfo } from "../chinese/hanzi.ts";
-
-export type KanjiInfo = HanziInfo & {
+export interface KanjiInfo {
+  character: string;
+  strokes: number;
+  radical: string;
+  meaning: string;
   onyomi?: string;
   kunyomi?: string;
-};
+}
 
 export const BASIC_N5_KANJI: KanjiInfo[] = [
   { character: "一", strokes: 1, radical: "一", meaning: "one", onyomi: "ichi, itsu", kunyomi: "hito" },

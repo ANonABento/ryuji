@@ -8,7 +8,7 @@ import { initFurigana } from "./furigana.ts";
 import { japaneseTools } from "./tools.ts";
 import { pick, pickN, shuffle } from "../../core/random.ts";
 import { BASIC_N5_KANJI } from "./kanji.ts";
-import n5VocabJson from "./data/n5-vocab.json";
+import { n5Vocab } from "./vocab.ts";
 
 const HIRAGANA = [
   ["あ", "a"], ["い", "i"], ["う", "u"], ["え", "e"], ["お", "o"],
@@ -35,17 +35,6 @@ const KATAKANA = [
   ["ラ", "ra"], ["リ", "ri"], ["ル", "ru"], ["レ", "re"], ["ロ", "ro"],
   ["ワ", "wa"], ["ヲ", "wo"], ["ン", "n"],
 ];
-
-interface JapaneseVocabItem {
-  front: string;
-  reading: string;
-  back: string;
-  tags: string;
-}
-
-const N5_VOCAB = (n5VocabJson as JapaneseVocabItem[]).filter(
-  (item) => item.front.trim() && item.reading.trim() && item.back.trim()
-);
 
 const LEVEL_GUIDES: Record<string, string> = {
   N5: `Student is a COMPLETE BEGINNER (JLPT N5).
@@ -184,9 +173,9 @@ Always be encouraging and patient. Language learning is hard!`;
     }
 
     if (type === "vocab") {
-      const correct = pick(N5_VOCAB);
+      const correct = pick(n5Vocab);
       const wrongOptions = pickN(
-        N5_VOCAB.filter((item) => item.back !== correct.back),
+        n5Vocab.filter((item) => item.back !== correct.back),
         3
       );
       const options = shuffle([correct.back, ...wrongOptions.map((item) => item.back)]);
