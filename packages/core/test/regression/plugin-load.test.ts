@@ -2,11 +2,10 @@
  * Regression test — verifies all plugins load and have correct interface.
  */
 import { test, expect, describe } from "bun:test";
-
-const PLUGIN_NAMES = ["automod", "voice", "browser", "tutor", "socials"];
+import { REGRESSION_PLUGIN_NAMES } from "./plugin-names.ts";
 
 describe("plugin interface", () => {
-  for (const name of PLUGIN_NAMES) {
+  for (const name of REGRESSION_PLUGIN_NAMES) {
     test(`${name} plugin exports valid Plugin interface`, async () => {
       const mod = await import(`@choomfie/${name}`);
       const plugin = mod.default;

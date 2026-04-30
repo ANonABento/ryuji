@@ -4,11 +4,10 @@
 import { test, expect, describe } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { REGRESSION_PLUGIN_NAMES } from "./plugin-names.ts";
 
 // plugins/ directory — each plugin is a workspace package
 const PLUGINS_DIR = join(import.meta.dir, "../../../..", "plugins");
-const PLUGIN_NAMES = ["automod", "voice", "browser", "tutor", "socials"];
-
 /** Recursively get all .ts files in a directory */
 function getTsFiles(dir: string): string[] {
   const files: string[] = [];
@@ -27,13 +26,13 @@ describe("import validation", () => {
   test("no plugin imports from another plugin package", () => {
     const violations: string[] = [];
 
-    for (const pluginName of PLUGIN_NAMES) {
+    for (const pluginName of REGRESSION_PLUGIN_NAMES) {
       const pluginDir = join(PLUGINS_DIR, pluginName);
       const files = getTsFiles(pluginDir);
 
       for (const file of files) {
         const content = readFileSync(file, "utf-8");
-        for (const otherPlugin of PLUGIN_NAMES) {
+        for (const otherPlugin of REGRESSION_PLUGIN_NAMES) {
           if (otherPlugin === pluginName) continue;
           // Check both old plugins/ path and new @choomfie/ cross-import
           const patterns = [
@@ -55,10 +54,10 @@ describe("import validation", () => {
     expect(violations).toEqual([]);
   });
 
-  test("no plugin imports from core lib/ via relative paths", () => {
+ test("no plugin imports from core lib/ via relative paths", () => {
     const violations: string[] = [];
 
-    for (const pluginName of PLUGIN_NAMES) {
+    for (const pluginName of REGRESSION_PLUGIN_NAMES) {
       const pluginDir = join(PLUGINS_DIR, pluginName);
       const files = getTsFiles(pluginDir);
 

@@ -1,113 +1,172 @@
-import { commands } from "@choomfie/shared";
+import {
+  commands,
+  type AutomodAction,
+  type AutomodConfig,
+  type PluginConfig,
+} from "@choomfie/shared";
 import { expect, test } from "bun:test";
 import automodPlugin from ".";
 
-interface FakeConfig {
-  getAutomodConfig: () => {
-    maxMessagesPerMinute: number;
-    bannedWords: string[];
-    action: "warn" | "timeout" | "kick";
+type FakeAutomodConfig = Pick<
+  PluginConfig,
+  "getAutomodConfig" | "setAutomodConfig"
+>;
+
+interface FakeMessage {
+  guild: {
+    members: {
+      fetch: (userId: string) => Promise<FakeGuildMember | null>;
+    };
   };
-  setAutomodConfig: (next: {
-    maxMessagesPerMinute?: number;
-    bannedWords?: string[];
-    action?: "warn" | "timeout" | "kick";
-  }) => void;
+  member: FakeGuildMember | null;
+  author: {
+    id: string;
+  };
+  content: string;
+  reply: (payload: { content: string }) => Promise<void>;
+}
+
+interface FakeGuildMember {
+  timeout: () => Promise<void>;
+  kick: () => Promise<void>;
+}
+
+interface FakeCommandInteraction {
+  user: {
+    id: string;
+  };
+  options: {
+    getInteger: () => number | null;
+    getString: () => string | null;
+  };
+  reply: (payload: { content: string }) => Promise<void>;
+}
+
+interface FakePluginContext {
+  ownerUserId?: string;
+  config: FakeAutomodConfig;
+}
+
+const OWNER_USER_ID = "owner-user";
+
+function createFakeAutomodConfig(
+  seed: Omit<AutomodConfig, "action"> & {
+    action: AutomodAction;
+  }
+): FakeAutomodConfig {
+  let state: AutomodConfig = {
+    ...seed,
+    bannedWords: [...seed.bannedWords],
+  };
+
+  return {
+    getAutomodConfig() {
+      return { ...state, bannedWords: [...state.bannedWords] };
+    },
+    setAutomodConfig(next) {
+      state = { ...state, ...next };
+    },
+  };
 }
 
 function fakePluginContext(overrides: {
-  config: FakeConfig;
+  config: FakeAutomodConfig;
   ownerUserId?: string;
-}) {
+}): FakePluginContext {
   return {
-    ownerUserId: overrides.ownerUserId ?? "owner-user",
+    ownerUserId: overrides.ownerUserId ?? OWNER_USER_ID,
     config: overrides.config,
+  };
+}
+
+function makeCommandInteraction(overrides: {
+  userId?: string;
+  onReply: (content: string) => void;
+}): FakeCommandInteraction {
+  return {
+    user: { id: overrides.userId ?? OWNER_USER_ID },
+    options: {
+      getInteger: () => null,
+      getString: () => null,
+    },
+    reply: async ({ content }) => {
+      overrides.onReply(content);
+    },
+  };
+}
+
+function makeMessage(
+  member: FakeGuildMember | null,
+  authorId: string,
+  content: string,
+  onFetch?: (userId: string) => void,
+  fetchResult?: FakeGuildMember | null
+): FakeMessage {
+  return {
+    guild: {
+      members: {
+        fetch: async (userId) => {
+          onFetch?.(userId);
+          return fetchResult ?? member;
+        },
+      },
+    },
+    member,
+    author: { id: authorId },
+    content,
+    reply: async () => undefined,
   };
 }
 
 test("automod command is owner-only", async () => {
   const replies: string[] = [];
-  const cfg = {
-    automod: {
-      maxMessagesPerMinute: 20,
-      bannedWords: ["bad"],
-      action: "warn" as const,
-    },
-    setAutomodConfig(next: any) {
-      this.automod = { ...this.automod, ...next };
-    },
-    getAutomodConfig() {
-      return { ...this.automod, bannedWords: [...this.automod.bannedWords] };
-    },
-  };
+  const cfg = createFakeAutomodConfig({
+    maxMessagesPerMinute: 20,
+    bannedWords: ["bad"],
+    action: "warn",
+  });
 
   await automodPlugin.init(fakePluginContext({ config: cfg }));
 
   const handler = commands.get("automod_config")?.handler;
   expect(handler).toBeDefined();
 
-  const denied = {
-    user: { id: "other-user" },
-    options: {
-      getInteger: () => null,
-      getString: () => null,
-    },
-    reply: async ({ content }: { content: string }) => {
-      replies.push(content);
-    },
-  };
+  const denied = makeCommandInteraction({
+    userId: "other-user",
+    onReply: (content) => replies.push(content),
+  });
 
-  await handler!(denied as any, fakePluginContext({ config: cfg, ownerUserId: "owner-user" }));
+  await handler!(denied, fakePluginContext({ config: cfg, ownerUserId: OWNER_USER_ID }));
   expect(replies.at(-1)).toContain("owner-only");
 });
 
 test("rate limit and cooldown apply warn action", async () => {
-  const member = {
+  let fetchCalls = 0;
+  const replies: string[] = [];
+  const member: FakeGuildMember = {
     timeout: async () => {},
     kick: async () => {},
   };
+  const config = createFakeAutomodConfig({
+    maxMessagesPerMinute: 1,
+    bannedWords: [],
+    action: "warn",
+  });
 
-  let fetchCalls = 0;
-  const replies: string[] = [];
-  const config: FakeConfig = {
-    automod: {
-      maxMessagesPerMinute: 1,
-      bannedWords: [],
-      action: "warn" as const,
-    },
-    getAutomodConfig() {
-      return { ...this.automod, bannedWords: [...this.automod.bannedWords] };
-    },
-    setAutomodConfig(next: any) {
-      this.automod = { ...this.automod, ...next };
-    },
-  };
-
-  const ctx = {
-    ownerUserId: "owner-user",
+  const ctx: FakePluginContext = {
+    ownerUserId: OWNER_USER_ID,
     config,
   };
-
-  const message = {
-    guild: {
-      members: {
-        fetch: async () => {
-          fetchCalls++;
-          return member;
-        },
-      },
-    },
-    member: null,
-    author: { id: "spammer" },
-    content: "hello",
-    reply: async ({ content }: { content: string }) => {
-      replies.push(content);
-    },
+  const message = makeMessage(null, "spammer", "hello", () => {
+    fetchCalls += 1;
+  }, member);
+  message.reply = async ({ content }) => {
+    replies.push(content);
   };
 
-  await automodPlugin.onMessage!(message as any, ctx as any);
-  await automodPlugin.onMessage!(message as any, ctx as any);
-  await automodPlugin.onMessage!(message as any, ctx as any);
+  await automodPlugin.onMessage!(message, ctx);
+  await automodPlugin.onMessage!(message, ctx);
+  await automodPlugin.onMessage!(message, ctx);
 
   expect(fetchCalls).toBe(1);
   expect(replies).toHaveLength(1);
@@ -116,51 +175,39 @@ test("rate limit and cooldown apply warn action", async () => {
 
 test("banned words trigger the configured timeout action", async () => {
   const timeoutCalls: string[] = [];
-  const member = {
+  const replies: string[] = [];
+  const member: FakeGuildMember = {
     timeout: async () => {
       timeoutCalls.push("timeout");
     },
     kick: async () => {},
   };
-  const replies: string[] = [];
-  const config: FakeConfig = {
-    automod: {
-      maxMessagesPerMinute: 100,
-      bannedWords: ["forbidden"],
-      action: "timeout" as const,
-    },
-    getAutomodConfig() {
-      return { ...this.automod, bannedWords: [...this.automod.bannedWords] };
-    },
-    setAutomodConfig(next: any) {
-      this.automod = { ...this.automod, ...next };
-    },
-  };
+  const config = createFakeAutomodConfig({
+    maxMessagesPerMinute: 100,
+    bannedWords: ["forbidden"],
+    action: "timeout",
+  });
 
-  const ctx = {
-    ownerUserId: "owner-user",
+  const ctx: FakePluginContext = {
+    ownerUserId: OWNER_USER_ID,
     config,
   };
 
-  const message = {
-    guild: {
-      members: {
-        fetch: async () => {
-          timeoutCalls.push("fetch");
-          return member;
-        },
-      },
+  const message = makeMessage(
+    member,
+    "spammer-timeout",
+    "This contains FORBIDDEN text",
+    () => {
+      timeoutCalls.push("fetch");
     },
-    member: null,
-    author: { id: "spammer-timeout" },
-    content: "This contains FORBIDDEN text",
-    reply: async ({ content }: { content: string }) => {
-      replies.push(content);
-    },
+    member
+  );
+  message.reply = async ({ content }) => {
+    replies.push(content);
   };
 
-  await automodPlugin.onMessage!(message as any, ctx as any);
+  await automodPlugin.onMessage!(message, ctx);
 
-  expect(timeoutCalls).toHaveLength(1);
+  expect(timeoutCalls).toHaveLength(2);
   expect(replies.join("")).toContain("User timed out for 1 minute");
 });
