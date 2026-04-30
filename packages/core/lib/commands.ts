@@ -11,6 +11,7 @@ import {
   SlashCommandBuilder,
   EmbedBuilder,
   MessageFlags,
+  AttachmentBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
@@ -28,6 +29,7 @@ import {
   buildPersonaModal,
   buildMemoryModal,
 } from "./handlers/modals.ts";
+import { generateImage } from "./image-generation.ts";
 
 // --- Command definitions ---
 
@@ -237,6 +239,7 @@ registerCommand("help", {
         {
           name: "Other",
           value: [
+            "`/imagine <prompt>` — generate an image",
             "`/github <check>` — PRs, issues, notifications",
             "`/status` — bot status and stats",
           ].join("\n"),
@@ -252,6 +255,43 @@ registerCommand("help", {
       .setFooter({ text: "@ me in a server or DM me directly" });
 
     await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+  },
+});
+
+// /imagine <prompt> — generate an image and attach it
+registerCommand("imagine", {
+  data: new SlashCommandBuilder()
+    .setName("imagine")
+    .setDescription("Generate an image from a prompt")
+    .addStringOption((o) =>
+      o
+        .setName("prompt")
+        .setDescription("What to generate")
+        .setRequired(true)
+        .setMaxLength(1000)
+    )
+    .toJSON(),
+  handler: async (interaction, ctx) => {
+    const prompt = interaction.options.getString("prompt", true).trim();
+    await interaction.deferReply();
+
+    try {
+      const image = await generateImage(prompt, ctx.DATA_DIR);
+      const attachment = new AttachmentBuilder(image.filePath);
+      const fallbackNote = image.fallbackReason
+        ? `\n\nFallback render used because ${image.fallbackReason.split("\n")[0]}`
+        : "";
+
+      await interaction.editReply({
+        content: `Image: ${prompt}${fallbackNote}`,
+        files: [attachment],
+      });
+      ctx.messageStats.sent++;
+    } catch (e: any) {
+      await interaction.editReply({
+        content: `I couldn't generate that image: ${e.message}`,
+      });
+    }
   },
 });
 

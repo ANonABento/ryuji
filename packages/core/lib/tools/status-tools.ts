@@ -179,7 +179,7 @@ export const statusTools: ToolDef[] = [
         "  /choomfie:status — this overview (detailed file-level version)",
         "",
         "## Tools (available in Discord & terminal)",
-        "  **Discord:** reply (with embeds), react, edit_message, fetch_messages, create_thread, create_poll, pin_message, unpin_message",
+        "  **Discord:** reply (with embeds), react, edit_message, fetch_messages, create_thread, create_poll, pin_message, unpin_message, imagine",
         "  **Memory:** save_memory, search_memory, list_memories, delete_memory, save_conversation_summary, memory_stats",
         "  **Reminders:** set_reminder, list_reminders, cancel_reminder, snooze_reminder, ack_reminder",
         "  **GitHub:** check_github (prs, issues, notifications, pr_status)",
