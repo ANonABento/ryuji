@@ -19,6 +19,9 @@ export interface VoiceConfig {
   ttsSpeed?: number; // 0.5 to 2.0 (default 1.0)
 }
 
+export type LlmProvider = "claude" | "ollama" | string;
+export type EmbeddingsProvider = "none" | "local" | string;
+
 export interface SocialsConfig {
   youtube?: {
     apiKey?: string;       // Optional — for YouTube Data API v3 reads (fallback to yt-dlp)
@@ -38,6 +41,11 @@ export interface SocialsConfig {
 }
 
 export interface Config {
+  localFirst: boolean;
+  provider: LlmProvider;
+  localModel: string;
+  ollamaUrl: string;
+  embeddings: EmbeddingsProvider;
   activePersona: string;
   personas: Record<string, Persona>;
   rateLimitMs: number;
@@ -49,6 +57,11 @@ export interface Config {
 }
 
 const DEFAULT_CONFIG: Config = {
+  localFirst: false,
+  provider: "claude",
+  localModel: "llama3.2",
+  ollamaUrl: "http://127.0.0.1:11434",
+  embeddings: "none",
   activePersona: "choomfie",
   personas: {
     choomfie: {
@@ -64,6 +77,20 @@ const DEFAULT_CONFIG: Config = {
   voice: { stt: "auto", tts: "auto", ttsSpeed: 0.7 },
 };
 
+function applyLocalFirst(config: Config): Config {
+  if (!config.localFirst) return config;
+  return {
+    ...config,
+    provider: "ollama",
+    embeddings: "local",
+    voice: {
+      ...config.voice,
+      stt: "whisper",
+      tts: "kokoro",
+    },
+  };
+}
+
 function mergeConfig(saved: Partial<Config>): Config {
   const savedPersonas =
     saved.personas && typeof saved.personas === "object"
@@ -74,7 +101,7 @@ function mergeConfig(saved: Partial<Config>): Config {
   const savedSocials =
     saved.socials && typeof saved.socials === "object" ? saved.socials : undefined;
 
-  return {
+  return applyLocalFirst({
     ...DEFAULT_CONFIG,
     ...saved,
     personas: {
@@ -86,7 +113,7 @@ function mergeConfig(saved: Partial<Config>): Config {
       ...savedVoice,
     },
     ...(savedSocials ? { socials: savedSocials } : {}),
-  };
+  });
 }
 
 export class ConfigManager {
@@ -188,14 +215,46 @@ export class ConfigManager {
     this.save();
   }
 
+  // --- Local-first ---
+
+  isLocalFirst(): boolean {
+    return this.config.localFirst === true;
+  }
+
+  getProvider(): LlmProvider {
+    return this.isLocalFirst() ? "ollama" : this.config.provider;
+  }
+
+  getLocalModel(): string {
+    return process.env.OLLAMA_MODEL || this.config.localModel || DEFAULT_CONFIG.localModel;
+  }
+
+  getOllamaUrl(): string {
+    return process.env.OLLAMA_URL || this.config.ollamaUrl || DEFAULT_CONFIG.ollamaUrl;
+  }
+
+  getEmbeddingsProvider(): EmbeddingsProvider {
+    return this.isLocalFirst() ? "local" : this.config.embeddings;
+  }
+
+  setLocalFirst(enabled: boolean) {
+    this.config.localFirst = enabled;
+    this.config = applyLocalFirst(this.config);
+    this.save();
+  }
+
   // --- Voice ---
 
   getVoiceConfig(): VoiceConfig {
+    if (this.isLocalFirst()) {
+      return { ...this.config.voice, stt: "whisper", tts: "kokoro" };
+    }
     return this.config.voice || { stt: "auto", tts: "auto" };
   }
 
   setVoiceConfig(voice: Partial<VoiceConfig>) {
     this.config.voice = { ...this.config.voice, ...voice };
+    this.config = applyLocalFirst(this.config);
     this.save();
   }
 
@@ -219,6 +278,6 @@ export class ConfigManager {
   // --- Full config ---
 
   getConfig(): Config {
-    return { ...this.config };
+    return applyLocalFirst({ ...this.config });
   }
 }

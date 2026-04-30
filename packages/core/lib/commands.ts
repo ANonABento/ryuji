@@ -239,6 +239,7 @@ registerCommand("help", {
           value: [
             "`/github <check>` — PRs, issues, notifications",
             "`/status` — bot status and stats",
+            "`/local_check` — validate local services for offline mode",
           ].join("\n"),
           inline: false,
         },
@@ -626,6 +627,106 @@ registerCommand("voice", {
       embeds: [embed],
       components: [sttRow, ttsRow],
     });
+  },
+});
+
+// /local_check — validate all local services are up
+registerCommand("local_check", {
+  data: new SlashCommandBuilder()
+    .setName("local_check")
+    .setDescription("Validate all local services required for offline operation")
+    .toJSON(),
+  handler: async (interaction, ctx) => {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+    const isLocalFirst = ctx.config.isLocalFirst();
+    const ollamaUrl = ctx.config.getOllamaUrl();
+    const model = ctx.config.getLocalModel();
+
+    // Check ollama
+    let ollamaOk = false;
+    let ollamaDetail = "not running";
+    try {
+      const res = await fetch(`${ollamaUrl}/api/tags`, {
+        signal: AbortSignal.timeout(3000),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { models?: { name: string }[] };
+        const models = data.models?.map((m) => m.name) ?? [];
+        ollamaOk = true;
+        ollamaDetail = models.length
+          ? `${models.length} model(s): ${models.slice(0, 3).join(", ")}`
+          : "running (no models loaded)";
+      } else {
+        ollamaDetail = `HTTP ${res.status}`;
+      }
+    } catch (e: any) {
+      ollamaDetail = e?.name === "TimeoutError" ? "timed out (3s)" : "not running";
+    }
+
+    // Check whisper-cpp
+    let whisperOk = false;
+    let whisperDetail = "not installed";
+    try {
+      const proc = Bun.spawn(["which", "whisper-cpp"], { stdout: "pipe", stderr: "pipe" });
+      await proc.exited;
+      whisperOk = proc.exitCode === 0;
+      whisperDetail = whisperOk ? "found" : "not installed — `brew install whisper-cpp`";
+    } catch {
+      whisperDetail = "detection failed";
+    }
+
+    // Check kokoro
+    let kokoroOk = false;
+    let kokoroDetail = "not installed";
+    try {
+      const proc = Bun.spawn(["python3", "-c", "import kokoro"], {
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      await proc.exited;
+      kokoroOk = proc.exitCode === 0;
+      kokoroDetail = kokoroOk ? "found" : "not installed — `pip install kokoro-onnx soundfile`";
+    } catch {
+      kokoroDetail = "detection failed";
+    }
+
+    const allOk = ollamaOk && whisperOk && kokoroOk;
+    const anyOk = ollamaOk || whisperOk || kokoroOk;
+    const color = allOk ? 0x57f287 : anyOk ? 0xf0883e : 0xed4245;
+
+    const embed = new EmbedBuilder()
+      .setColor(color)
+      .setTitle(`${allOk ? "✅" : "⚠️"} Local Service Check`)
+      .setDescription(
+        isLocalFirst
+          ? "Local-first mode is **enabled** — all API calls stay on-device."
+          : "Local-first mode is **disabled** — enable with `config.localFirst = true` to go fully offline."
+      )
+      .addFields(
+        {
+          name: `${ollamaOk ? "✅" : "❌"} Ollama (LLM)`,
+          value: `\`${ollamaUrl}\`\n${ollamaDetail}${ollamaOk ? ` · target model: \`${model}\`` : ""}`,
+          inline: false,
+        },
+        {
+          name: `${whisperOk ? "✅" : "❌"} whisper-cpp (STT)`,
+          value: whisperDetail,
+          inline: false,
+        },
+        {
+          name: `${kokoroOk ? "✅" : "❌"} kokoro-onnx (TTS)`,
+          value: kokoroDetail,
+          inline: false,
+        }
+      )
+      .setFooter({
+        text: allOk
+          ? "All local services ready — fully offline capable."
+          : "Fix the services above to enable full offline operation.",
+      });
+
+    await interaction.editReply({ embeds: [embed] });
   },
 });
 
