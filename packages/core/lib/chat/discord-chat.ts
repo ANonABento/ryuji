@@ -7,6 +7,7 @@ import { createChatProvider, type ChatMessage } from "./index.ts";
 const DISCORD_LIMIT = 2000;
 const STREAM_EDIT_INTERVAL_MS = 1200;
 const STREAM_PREVIEW_LIMIT = 1900;
+const ERROR_PREFIX = "Ollama error: ";
 
 function buildSystemPrompt(ctx: AppContext): string {
   const activePersona = ctx.config.getActivePersona();
@@ -38,7 +39,7 @@ function buildUserMessage(content: string, meta: Record<string, string>): string
   return lines.join("\n");
 }
 
-function splitDiscordContent(content: string): string[] {
+export function splitDiscordContent(content: string): string[] {
   const chunks: string[] = [];
   let remaining = content.trim() || "(no response)";
 
@@ -60,6 +61,15 @@ function splitDiscordContent(content: string): string[] {
 function previewContent(content: string): string {
   if (content.length <= STREAM_PREVIEW_LIMIT) return content;
   return `${content.slice(0, STREAM_PREVIEW_LIMIT - 3).trimEnd()}...`;
+}
+
+export function formatProviderError(error: unknown): string {
+  const message =
+    error instanceof Error ? error.message : String(error || "unknown error");
+  const limit = DISCORD_LIMIT - ERROR_PREFIX.length;
+  const detail =
+    message.length <= limit ? message : `${message.slice(0, limit - 3).trimEnd()}...`;
+  return `${ERROR_PREFIX}${detail}`;
 }
 
 function canSend(channel: Message["channel"]): channel is Message["channel"] & {
@@ -113,7 +123,7 @@ export async function handleProviderChat(
     refreshChannel(ctx.activeChannels, message.channelId);
     onReplySent(message.channelId);
   } catch (e: any) {
-    await sent.edit(`Ollama error: ${e.message || String(e)}`);
+    await sent.edit(formatProviderError(e));
     onReplySent(message.channelId);
   }
 

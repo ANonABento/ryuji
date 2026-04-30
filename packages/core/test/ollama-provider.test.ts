@@ -4,6 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ConfigManager } from "../lib/config.ts";
 import { OllamaProvider } from "../lib/chat/ollama-provider.ts";
+import {
+  formatProviderError,
+  splitDiscordContent,
+} from "../lib/chat/discord-chat.ts";
 
 const originalFetch = globalThis.fetch;
 
@@ -90,4 +94,19 @@ test("ConfigManager defaults Ollama model while preserving Claude provider defau
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("Discord provider chat splits long responses within message limits", () => {
+  const chunks = splitDiscordContent("a".repeat(4500));
+
+  expect(chunks).toHaveLength(3);
+  expect(chunks.every((chunk) => chunk.length <= 2000)).toBe(true);
+  expect(chunks.join("")).toBe("a".repeat(4500));
+});
+
+test("Discord provider chat caps error edits within message limits", () => {
+  const message = formatProviderError(new Error("x".repeat(5000)));
+
+  expect(message.startsWith("Ollama error: ")).toBe(true);
+  expect(message.length).toBeLessThanOrEqual(2000);
 });
