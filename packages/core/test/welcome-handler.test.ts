@@ -2,32 +2,46 @@ import { expect, test } from "bun:test";
 import { commands } from "@choomfie/shared";
 import type { AppContext } from "../lib/types.ts";
 import { handleGuildMemberAdd, renderWelcomeTemplate } from "../lib/handlers/welcome.ts";
+import { WelcomeConfig } from "../lib/config.ts";
 
-type Spy = ((...args: any[]) => any) & { calls: any[][] };
+type Spy = ((...args: unknown[]) => unknown) & { calls: unknown[][] };
 function spy(): Spy {
-  const fn: any = (...args: any[]) => {
+  const fn: Spy = (...args: unknown[]) => {
     fn.calls.push(args);
   };
   fn.calls = [];
   return fn;
 }
 
-function spyWithImpl<T extends (...args: any[]) => any>(impl: T): Spy {
-  const fn: any = (...args: any[]) => {
+function spyWithImpl<TArgs extends unknown[], TReturn>(
+  impl: (...args: TArgs) => TReturn
+): Spy & ((...args: TArgs) => TReturn) {
+  const fn = ((...args: TArgs) => {
     fn.calls.push(args);
     return impl(...args);
-  };
+  }) as Spy & ((...args: TArgs) => TReturn);
   fn.calls = [];
   return fn;
 }
 
-test("handleGuildMemberAdd sends welcome content to configured channel", async () => {
+function getWelcomeCommand() {
+  const command = commands.get("welcome_config");
+  expect(command).toBeTruthy();
+  return command!;
+}
+
+function makeTextChannel() {
   const send = spy();
-  const fetch = spyWithImpl(async () => channel);
   const channel = {
     isTextBased: () => true,
     send,
-  } as any;
+  };
+  const fetch = spyWithImpl(async () => channel);
+  return { channel, fetch, send };
+}
+
+test("handleGuildMemberAdd sends welcome content to configured channel", async () => {
+  const { channel, fetch, send } = makeTextChannel();
 
   const ctx = {
     config: {
@@ -65,9 +79,7 @@ test("handleGuildMemberAdd sends welcome content to configured channel", async (
 });
 
 test("welcome_config updates config and requires owner", async () => {
-  await import("../lib/handlers/welcome.ts");
-  const cmd = commands.get("welcome_config");
-  expect(cmd).toBeTruthy();
+  const cmd = getWelcomeCommand();
 
   const cfg = { channelId: "old-channel", template: "Welcome {user}!" };
   const setWelcomeConfig = spyWithImpl(() => {});
@@ -75,7 +87,7 @@ test("welcome_config updates config and requires owner", async () => {
     ownerUserId: "owner",
     config: {
       getWelcomeConfig: () => ({ ...cfg }),
-      setWelcomeConfig: (next: { channelId: string; template: string }) => {
+      setWelcomeConfig: (next: Partial<WelcomeConfig>) => {
         Object.assign(cfg, next);
         setWelcomeConfig(next);
       },
@@ -93,7 +105,6 @@ test("welcome_config updates config and requires owner", async () => {
       getBoolean: () => true,
     },
     reply: spy(),
-    deferReply: async () => {},
   } as any;
 
   await cmd!.handler(ownerInteraction, ctx);
@@ -115,9 +126,7 @@ test("welcome_config updates config and requires owner", async () => {
 });
 
 test("welcome_config blocks enabling without channel configured", async () => {
-  await import("../lib/handlers/welcome.ts");
-  const cmd = commands.get("welcome_config");
-  expect(cmd).toBeTruthy();
+  const cmd = getWelcomeCommand();
 
   const cfg = { channelId: null as string | null, template: "Welcome {user}!" };
   const setWelcomeConfig = spyWithImpl(() => {});
@@ -125,7 +134,7 @@ test("welcome_config blocks enabling without channel configured", async () => {
     ownerUserId: "owner",
     config: {
       getWelcomeConfig: () => ({ ...cfg }),
-      setWelcomeConfig: (next: any) => {
+      setWelcomeConfig: (next: Partial<WelcomeConfig>) => {
         Object.assign(cfg, next);
         setWelcomeConfig(next);
       },
@@ -143,7 +152,6 @@ test("welcome_config blocks enabling without channel configured", async () => {
       getBoolean: () => true,
     },
     reply: spy(),
-    deferReply: async () => {},
   } as any;
 
   await cmd!.handler(ownerInteraction, ctx);
@@ -156,12 +164,7 @@ test("welcome_config blocks enabling without channel configured", async () => {
 });
 
 test("handleGuildMemberAdd ignores bot users", async () => {
-  const send = spy();
-  const fetch = spyWithImpl(async () => channel);
-  const channel = {
-    isTextBased: () => true,
-    send,
-  } as any;
+  const { channel, fetch, send } = makeTextChannel();
 
   const ctx = {
     config: {

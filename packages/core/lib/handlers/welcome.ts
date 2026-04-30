@@ -8,12 +8,19 @@ import {
   SlashCommandBuilder,
   type GuildMember,
 } from "discord.js";
-import { DEFAULT_WELCOME_TEMPLATE } from "../config.ts";
+import {
+  DEFAULT_WELCOME_TEMPLATE,
+  type WelcomeConfig,
+} from "../config.ts";
 import { registerCommand } from "../interactions.ts";
 import type { AppContext } from "../types.ts";
 import { requireOwner } from "./shared.ts";
 
-const MAX_TEMPLATE_LENGTH = 1000;
+const WELCOME_TEMPLATE_MAX_LENGTH = 1000;
+
+function normalizeWelcomeTemplate(value: string | undefined | null): string {
+  return value?.trim() || DEFAULT_WELCOME_TEMPLATE;
+}
 
 export function renderWelcomeTemplate(
   template: string,
@@ -39,7 +46,7 @@ export async function handleGuildMemberAdd(
   const welcome = ctx.config.getWelcomeConfig();
   if (!welcome.channelId) return;
 
-  const template = welcome.template?.trim() || DEFAULT_WELCOME_TEMPLATE;
+  const template = normalizeWelcomeTemplate(welcome.template);
   const content = renderWelcomeTemplate(template, member);
 
   try {
@@ -70,7 +77,7 @@ registerCommand("welcome_config", {
       o
         .setName("template")
         .setDescription("Message template. Supports {user}, {username}, {displayName}, {server}, {memberCount}")
-        .setMaxLength(MAX_TEMPLATE_LENGTH)
+        .setMaxLength(WELCOME_TEMPLATE_MAX_LENGTH)
     )
     .addBooleanOption((o) =>
       o
@@ -93,13 +100,13 @@ registerCommand("welcome_config", {
     const enabled = interaction.options.getBoolean("enabled");
     const current = ctx.config.getWelcomeConfig();
 
-    const next = {
+    const next: WelcomeConfig = {
       channelId: current.channelId,
-      template: current.template || DEFAULT_WELCOME_TEMPLATE,
+      template: normalizeWelcomeTemplate(current.template),
     };
 
     if (channel) next.channelId = channel.id;
-    if (template !== null) next.template = template.trim() || DEFAULT_WELCOME_TEMPLATE;
+    if (template !== null) next.template = normalizeWelcomeTemplate(template);
     if (enabled === false) next.channelId = null;
 
     const hasChanges = channel !== null || template !== null || enabled !== null;
