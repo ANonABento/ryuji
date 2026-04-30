@@ -25,6 +25,25 @@ function formatItem(feedTitle: string, item: FeedItem): string {
   return `**${feedTitle}**\n${item.title}${itemUrl(item)}`;
 }
 
+function getItemTimestamp(item: FeedItem): number | null {
+  if (!item.publishedAt) return null;
+  const ts = Date.parse(item.publishedAt);
+  return Number.isNaN(ts) ? null : ts;
+}
+
+function sortUnseenChronologically(items: FeedItem[]): FeedItem[] {
+  return items
+    .map((item, index) => ({ item, index, publishedAt: getItemTimestamp(item) }))
+    .sort((a, b) => {
+      if (a.publishedAt === null && b.publishedAt === null) return a.index - b.index;
+      if (a.publishedAt === null) return 1;
+      if (b.publishedAt === null) return -1;
+      if (a.publishedAt === b.publishedAt) return a.index - b.index;
+      return b.publishedAt - a.publishedAt;
+    })
+    .map(({ item }) => item);
+}
+
 async function sendToChannel(
   client: Client,
   channelId: string,
@@ -43,12 +62,12 @@ async function pollFeeds(client: Client, db: RssDb) {
     for (const sub of db.listSubscriptions()) {
       try {
         const feed = await fetchFeed(sub.url);
-        const unseen = db.unseenItems(sub.id, feed.items);
+        const unseen = sortUnseenChronologically(db.unseenItems(sub.id, feed.items));
         if (unseen.length === 0) continue;
 
-        const toPost = unseen.slice(-MAX_ITEMS_PER_POLL);
+        const toPost = unseen.slice(0, MAX_ITEMS_PER_POLL);
         const posted: FeedItem[] = [];
-        for (const item of toPost.reverse()) {
+        for (const item of [...toPost].reverse()) {
           const sent = await sendToChannel(client, sub.channelId, formatItem(feed.title, item));
           if (!sent) break;
           posted.push(item);
@@ -261,3 +280,4 @@ const rssPlugin: Plugin = {
 
 export default rssPlugin;
 export { parseFeed } from "./feed.ts";
+export { pollFeeds };

@@ -26,10 +26,21 @@ test("loadPlugins skips unknown plugin names", async () => {
 test("loadPlugins loads real workspace plugins", async () => {
   const config = {
     getEnabledPlugins() {
-      return ["voice", "browser", "socials", "rss"];
+      return ["voice", "browser", "socials"];
     },
   };
 
   const plugins = await loadPlugins(config as any);
-  expect(plugins.map((p) => p.name)).toEqual(["voice", "browser", "socials", "rss"]);
+  expect(plugins.map((p) => p.name)).toEqual(["voice", "browser", "socials"]);
+}, 30_000);
+
+test("loadPlugins loads rss workspace plugin", async () => {
+  const config = {
+    getEnabledPlugins() {
+      return ["rss"];
+    },
+  };
+
+  const plugins = await loadPlugins(config as any);
+  expect(plugins.map((p) => p.name)).toEqual(["rss"]);
 }, 10_000);

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RssDb } from "../../../plugins/rss/db.ts";
 import { parseFeed } from "../../../plugins/rss/feed.ts";
+import { pollFeeds } from "../../../plugins/rss/index.ts";
 
 test("parseFeed reads RSS channel title and items", () => {
   const feed = parseFeed(`
@@ -79,6 +80,147 @@ test("RssDb stores subscriptions and tracks seen items", () => {
     expect(db.deleteSubscription(sub.id)).toEqual(sub);
     expect(db.listSubscriptions()).toEqual([]);
   } finally {
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("pollFeeds posts newest unseen batch in chronological order", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "choomfie-rss-"));
+  const db = new RssDb(join(dir, "rss.db"));
+  const sent: string[] = [];
+
+  const server = Bun.serve({
+    port: 0,
+    fetch() {
+      const items = Array.from({ length: 12 }, (_, index) => {
+        const id = 12 - index;
+        return `
+          <item>
+            <title>Item ${id}</title>
+            <link>https://example.com/${id}</link>
+            <guid>guid-${id}</guid>
+          </item>
+        `;
+      }).join("");
+
+      return new Response(
+        `<rss version="2.0"><channel><title>Example</title>${items}</channel></rss>`,
+        { headers: { "content-type": "application/rss+xml" } }
+      );
+    },
+  });
+
+  try {
+    db.addSubscription({
+      url: server.url.toString(),
+      channelId: "123",
+      guildId: "456",
+      createdBy: "789",
+      title: "Example",
+    });
+
+    const client = {
+      channels: {
+        fetch: async (channelId: string) =>
+          channelId === "123"
+            ? {
+                send: async ({ content }: { content: string }) => {
+                  sent.push(content);
+                },
+              }
+            : null,
+      },
+    };
+
+    await pollFeeds(client as any, db);
+
+    expect(sent.map((message) => message.match(/Item \d+/)?.[0])).toEqual([
+      "Item 3",
+      "Item 4",
+      "Item 5",
+      "Item 6",
+      "Item 7",
+      "Item 8",
+      "Item 9",
+      "Item 10",
+      "Item 11",
+      "Item 12",
+    ]);
+  } finally {
+    server.stop(true);
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("pollFeeds orders unseen items by publication date when feed order is oldest-first", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "choomfie-rss-"));
+  const db = new RssDb(join(dir, "rss.db"));
+  const sent: string[] = [];
+
+  const server = Bun.serve({
+    port: 0,
+    fetch() {
+      const items = `
+        <item>
+          <title>Item Old</title>
+          <link>https://example.com/old</link>
+          <guid>old</guid>
+          <pubDate>2026-01-01T00:00:00Z</pubDate>
+        </item>
+        <item>
+          <title>Item Middle</title>
+          <link>https://example.com/middle</link>
+          <guid>middle</guid>
+          <pubDate>2026-01-03T00:00:00Z</pubDate>
+        </item>
+        <item>
+          <title>Item New</title>
+          <link>https://example.com/new</link>
+          <guid>new</guid>
+          <pubDate>2026-01-02T00:00:00Z</pubDate>
+        </item>
+      `;
+
+      return new Response(
+        `<rss version="2.0"><channel><title>Example</title>${items}</channel></rss>`,
+        { headers: { "content-type": "application/rss+xml" } }
+      );
+    },
+  });
+
+  try {
+    db.addSubscription({
+      url: server.url.toString(),
+      channelId: "123",
+      guildId: "456",
+      createdBy: "789",
+      title: "Example",
+    });
+
+    const client = {
+      channels: {
+        fetch: async (channelId: string) =>
+          channelId === "123"
+            ? {
+                send: async ({ content }: { content: string }) => {
+                  sent.push(content);
+                },
+              }
+            : null,
+      },
+    };
+
+    await pollFeeds(client as any, db);
+
+    expect(sent.map((message) => message.match(/Item [A-Za-z]+/)?.[0])).toEqual([
+      "Item Old",
+      "Item New",
+      "Item Middle",
+    ]);
+  } finally {
+    server.stop(true);
     db.close();
     rmSync(dir, { recursive: true, force: true });
   }
