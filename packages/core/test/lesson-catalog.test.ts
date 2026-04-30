@@ -8,6 +8,11 @@ import {
   chineseLessons,
   chineseUnits,
 } from "../../../plugins/tutor/modules/chinese/lessons/index.ts";
+import {
+  frenchA1VocabularyItems,
+  frenchLessons,
+  frenchUnits,
+} from "../../../plugins/tutor/modules/french/lessons/index.ts";
 import { isButtonExercise } from "../../../plugins/tutor/core/lesson-types.ts";
 
 const EXPECTED_JAPANESE_UNIT_NAMES = [
@@ -18,6 +23,7 @@ const EXPECTED_JAPANESE_UNIT_NAMES = [
 ];
 
 const EXPECTED_CHINESE_UNIT_NAMES = ["Tones", "Hanzi", "HSK 1 Vocabulary"];
+const EXPECTED_FRENCH_UNIT_NAMES = ["Pronunciation", "A1 Vocabulary", "First Conversations"];
 
 describe("Japanese lesson catalog", () => {
   test("registers the four progress units from the same lesson registry", () => {
@@ -274,6 +280,144 @@ describe("Chinese lesson catalog", () => {
     for (const prompt of productionPrompts) {
       expect(prompt).toContain("Type the hanzi");
       expect(prompt).not.toContain("Type the Japanese");
+    }
+  });
+});
+
+describe("French lesson catalog", () => {
+  test("registers the three A1 progress units from the same lesson registry", () => {
+    expect(frenchUnits.map((unit) => unit.name)).toEqual(EXPECTED_FRENCH_UNIT_NAMES);
+
+    const lessonIds = new Set(frenchLessons.map((lesson) => lesson.id));
+    const unitLessonIds = new Set(frenchUnits.flatMap((unit) => unit.lessonIds));
+    const orphanLessonIds = [...lessonIds].filter((lessonId) => !unitLessonIds.has(lessonId));
+
+    expect(orphanLessonIds).toEqual([]);
+  });
+
+  test("has no duplicate lesson IDs", () => {
+    const seen = new Set<string>();
+    const duplicates: string[] = [];
+
+    for (const lesson of frenchLessons) {
+      if (seen.has(lesson.id)) duplicates.push(lesson.id);
+      seen.add(lesson.id);
+    }
+
+    expect(duplicates).toEqual([]);
+  });
+
+  test("all prerequisites and unit lesson references resolve", () => {
+    const lessonIds = new Set(frenchLessons.map((lesson) => lesson.id));
+    const missingPrereqs: string[] = [];
+    const missingUnitRefs: string[] = [];
+    const unitRefs = new Map<string, string[]>();
+
+    for (const lesson of frenchLessons) {
+      for (const prerequisite of lesson.prerequisites) {
+        if (!lessonIds.has(prerequisite)) {
+          missingPrereqs.push(`${lesson.id} -> ${prerequisite}`);
+        }
+      }
+    }
+
+    for (const unit of frenchUnits) {
+      for (const lessonId of unit.lessonIds) {
+        unitRefs.set(lessonId, [...(unitRefs.get(lessonId) ?? []), unit.id]);
+        if (!lessonIds.has(lessonId)) {
+          missingUnitRefs.push(`${unit.id} -> ${lessonId}`);
+        }
+      }
+    }
+
+    const missingFromUnits = [...lessonIds].filter((lessonId) => !unitRefs.has(lessonId));
+    const duplicateUnitRefs = [...unitRefs.entries()]
+      .filter(([, unitIds]) => unitIds.length > 1)
+      .map(([lessonId, unitIds]) => `${lessonId} -> ${unitIds.join(", ")}`);
+
+    expect(missingPrereqs).toEqual([]);
+    expect(missingUnitRefs).toEqual([]);
+    expect(missingFromUnits).toEqual([]);
+    expect(duplicateUnitRefs).toEqual([]);
+  });
+
+  test("every lesson has valid exercises", () => {
+    const emptyLessons: string[] = [];
+    const emptyAnswers: string[] = [];
+    const degenerateButtons: string[] = [];
+    const duplicateButtonOptions: string[] = [];
+    const selfDistractors: string[] = [];
+
+    for (const lesson of frenchLessons) {
+      if (lesson.exercises.length === 0) emptyLessons.push(lesson.id);
+
+      for (const [index, exercise] of lesson.exercises.entries()) {
+        const ref = `${lesson.id}#${index}`;
+        if (exercise.answer.trim().length === 0) emptyAnswers.push(ref);
+        if (isButtonExercise(exercise.type) && (exercise.distractors?.length ?? 0) === 0) {
+          degenerateButtons.push(ref);
+        }
+        if (isButtonExercise(exercise.type)) {
+          const options = [exercise.answer, ...(exercise.distractors ?? [])];
+          if (new Set(options).size !== options.length) duplicateButtonOptions.push(ref);
+          if ((exercise.distractors ?? []).includes(exercise.answer)) selfDistractors.push(ref);
+        }
+      }
+    }
+
+    expect(emptyLessons).toEqual([]);
+    expect(emptyAnswers).toEqual([]);
+    expect(degenerateButtons).toEqual([]);
+    expect(duplicateButtonOptions).toEqual([]);
+    expect(selfDistractors).toEqual([]);
+  });
+
+  test("all lessons are reachable from root lessons through prerequisites", () => {
+    const reachable = new Set(
+      frenchLessons
+        .filter((lesson) => lesson.prerequisites.length === 0)
+        .map((lesson) => lesson.id)
+    );
+
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const lesson of frenchLessons) {
+        if (reachable.has(lesson.id)) continue;
+        if (lesson.prerequisites.every((prerequisite) => reachable.has(prerequisite))) {
+          reachable.add(lesson.id);
+          changed = true;
+        }
+      }
+    }
+
+    const unreachable = frenchLessons
+      .map((lesson) => lesson.id)
+      .filter((lessonId) => !reachable.has(lessonId));
+
+    expect(unreachable).toEqual([]);
+  });
+
+  test("adds 100+ unique A1 vocabulary SRS items", () => {
+    const expectedTerms = new Set(frenchA1VocabularyItems.map((item) => item.term));
+    const srsTerms = frenchLessons
+      .filter((lesson) => lesson.unit === "vocabulary")
+      .flatMap((lesson) => lesson.srsItems?.map((item) => item.front) ?? []);
+
+    expect(frenchA1VocabularyItems.length).toBeGreaterThanOrEqual(100);
+    expect(srsTerms).toHaveLength(frenchA1VocabularyItems.length);
+    expect(new Set(srsTerms)).toEqual(expectedTerms);
+  });
+
+  test("generated French production prompts ask for French", () => {
+    const productionPrompts = frenchLessons
+      .flatMap((lesson) => lesson.exercises)
+      .filter((exercise) => exercise.type === "production")
+      .map((exercise) => exercise.prompt);
+
+    expect(productionPrompts.length).toBeGreaterThan(0);
+    for (const prompt of productionPrompts) {
+      expect(prompt).toContain("Type the French");
     }
   });
 });

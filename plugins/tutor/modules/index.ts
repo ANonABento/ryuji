@@ -8,11 +8,13 @@
 
 import type { TutorModule } from "../core/types.ts";
 import { chineseModule } from "./chinese/index.ts";
+import { frenchModule } from "./french/index.ts";
 import { japaneseModule } from "./japanese/index.ts";
 
 const modules: Record<string, TutorModule> = {
   japanese: japaneseModule,
   chinese: chineseModule,
+  french: frenchModule,
 };
 
 export function getModule(name: string): TutorModule {
