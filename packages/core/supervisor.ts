@@ -379,7 +379,7 @@ function createMcp(): Server {
         description: z.string(),
         input_preview: z.string(),
       }),
-    }),
+    }) as any,
     async ({ params }: any) => {
       if (worker && workerReady) {
         try {

@@ -26,17 +26,21 @@ export interface SocialsConfig {
     apiKey?: string;       // Optional — for YouTube Data API v3 reads (fallback to yt-dlp)
     clientId?: string;     // Optional — for OAuth (comments)
     clientSecret?: string; // Optional — for OAuth (comments)
+    [key: string]: string | undefined;
   };
   linkedin?: {
     clientId: string;
     clientSecret: string;
+    [key: string]: string;
   };
   reddit?: {
     clientId: string;
     clientSecret: string;
     username: string;
     password: string;
+    [key: string]: string;
   };
+  [key: string]: { [key: string]: string | undefined } | undefined;
 }
 
 export interface Config {
@@ -50,6 +54,7 @@ export interface Config {
   /** When true, personas with a model field use local-model prompt hints. */
   localFirst?: boolean;
   socials?: SocialsConfig;
+  [key: string]: unknown;
 }
 
 const DEFAULT_CONFIG: Config = {

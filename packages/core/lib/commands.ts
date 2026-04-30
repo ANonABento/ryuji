@@ -557,7 +557,7 @@ registerCommand("voice", {
 
     // Dynamically import to avoid loading voice code when plugin isn't enabled
     const { detectAllProviders } = await import(
-      "../plugins/voice/providers/index.ts"
+      "../../../plugins/voice/providers/index.ts"
     );
 
     let reports;

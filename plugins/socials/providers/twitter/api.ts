@@ -40,11 +40,11 @@ export class TwitterClient {
       // Rettiwt LOGIN auth — pass credentials to constructor,
       // authenticates on first API call
       this.rettiwt = new Rettiwt({
-        authType: "LOGIN" as any,
+        authType: "LOGIN",
         email: config.email,
         userName: config.username,
         password: config.password,
-      });
+      } as any);
 
       // Test the session by fetching own profile
       const me = await this.rettiwt.user.details(config.username);
@@ -80,7 +80,7 @@ export class TwitterClient {
   async postTweet(tweetText: string): Promise<TweetResult> {
     const client = this.ensureClient();
 
-    const result = await client.tweet.post({ text: tweetText });
+    const result = (await client.tweet.post({ text: tweetText })) as any;
 
     return {
       id: result?.id ?? "unknown",
@@ -91,10 +91,10 @@ export class TwitterClient {
   async postTweetWithMedia(tweetText: string, mediaPath: string): Promise<TweetResult> {
     const client = this.ensureClient();
 
-    const result = await client.tweet.post({
+    const result = (await client.tweet.post({
       text: tweetText,
-      media: [{ path: mediaPath }],
-    });
+      media: [{ path: mediaPath }] as any,
+    })) as any;
 
     return {
       id: result?.id ?? "unknown",
@@ -109,7 +109,7 @@ export class TwitterClient {
     const results: TweetResult[] = [];
 
     // First tweet
-    const first = await client.tweet.post({ text: tweets[0] });
+    const first = (await client.tweet.post({ text: tweets[0] })) as any;
     results.push({
       id: first?.id ?? "unknown",
       url: `https://x.com/${this.username}/status/${first?.id ?? "unknown"}`,
@@ -120,10 +120,10 @@ export class TwitterClient {
       // Small delay to avoid rate limiting
       await new Promise((r) => setTimeout(r, 1500));
 
-      const reply = await client.tweet.post({
+      const reply = (await client.tweet.post({
         text: tweets[i],
         replyTo: results[i - 1].id,
-      });
+      })) as any;
 
       results.push({
         id: reply?.id ?? "unknown",
