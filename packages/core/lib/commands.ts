@@ -14,6 +14,8 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  type Collection,
+  type Message,
 } from "discord.js";
 import { VERSION } from "./version.ts";
 import { registerCommand, registerButtonHandler } from "./interactions.ts";
@@ -27,6 +29,51 @@ import {
   buildPersonaModal,
   buildMemoryModal,
 } from "./handlers/modals.ts";
+
+type FetchableTextChannel = {
+  id: string;
+  name: string | null;
+  messages: {
+    fetch: (options: { limit: number; before?: string }) => Promise<
+      Collection<string, Message>
+    >;
+  };
+};
+
+function startOfUtcDay(): Date {
+  const now = new Date();
+  now.setUTCHours(0, 0, 0, 0);
+  return now;
+}
+
+async function countMessagesToday(
+  channel: FetchableTextChannel,
+  since: Date
+): Promise<number> {
+  let count = 0;
+  let before: string | undefined;
+
+  while (true) {
+    const batch = await channel.messages.fetch({
+      limit: 100,
+      ...(before ? { before } : {}),
+    });
+    if (batch.size === 0) break;
+
+    for (const message of batch.values()) {
+      if (message.createdAt < since) {
+        return count;
+      }
+      count += 1;
+    }
+
+    const oldest = batch.last();
+    if (!oldest || batch.size < 100 || oldest.createdAt < since) break;
+    before = oldest.id;
+  }
+
+  return count;
+}
 
 // --- Command definitions ---
 
@@ -238,6 +285,7 @@ registerCommand("help", {
           value: [
             "`/github <check>` — PRs, issues, notifications",
             "`/status` — bot status and stats",
+            "`/serverstats` — server stats (members, channels, messages, top channels)",
           ].join("\n"),
           inline: false,
         },
@@ -251,6 +299,94 @@ registerCommand("help", {
       .setFooter({ text: "@ me in a server or DM me directly" });
 
     await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+  },
+});
+
+// /serverstats — show live guild statistics
+registerCommand("serverstats", {
+  data: new SlashCommandBuilder()
+    .setName("serverstats")
+    .setDescription("Show guild statistics and today's activity")
+    .setDMPermission(false)
+    .toJSON(),
+  handler: async (interaction) => {
+    if (!interaction.guild) {
+      await interaction.reply({
+        content: "Server stats can only be used in a guild.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+    const since = startOfUtcDay();
+
+    try {
+      const fetchGuild = interaction.guild.fetch as (
+        options?: { withCounts?: boolean }
+      ) => Promise<typeof interaction.guild>;
+      const guild = await fetchGuild({ withCounts: true });
+      const channels = await guild.channels.fetch();
+      const channelCount = channels.size;
+      const memberCount = guild.approximateMemberCount ?? guild.memberCount;
+      const onlineCount = guild.approximatePresenceCount ?? 0;
+
+      const channelStats: { id: string; name: string; count: number }[] = [];
+      let messagesToday = 0;
+
+      for (const channel of channels.values()) {
+        if (!channel?.isTextBased()) continue;
+        const fetchManager = (channel as unknown as FetchableTextChannel).messages;
+        if (!fetchManager || typeof fetchManager.fetch !== "function") continue;
+
+        const count = await countMessagesToday(
+          channel as unknown as FetchableTextChannel,
+          since
+        );
+        if (count > 0) {
+          channelStats.push({
+            id: channel.id,
+            name: channel.name,
+            count,
+          });
+        }
+        messagesToday += count;
+      }
+
+      channelStats.sort((a, b) => b.count - a.count);
+      const topChannels = channelStats.slice(0, 5).map((entry) => {
+        return `#${entry.name} <#${entry.id}> — ${entry.count} messages`;
+      });
+
+      const embed = new EmbedBuilder()
+        .setColor(0x5865f2)
+        .setTitle(`Server Stats — ${guild.name}`)
+        .addFields(
+          {
+            name: "Current Stats",
+            value: [
+              `**Members:** ${memberCount.toLocaleString("en-US")}`,
+              `**Online:** ${onlineCount.toLocaleString("en-US")}`,
+              `**Channels:** ${channelCount.toLocaleString("en-US")}`,
+              `**Messages today:** ${messagesToday.toLocaleString("en-US")}`,
+            ].join("\n"),
+          },
+          {
+            name: "Top 5 Active Channels",
+            value: topChannels.length
+              ? topChannels.join("\n")
+              : "No messages were sent today.",
+          }
+        )
+        .setFooter({ text: `Today since ${since.toISOString()}` });
+
+      await interaction.editReply({ embeds: [embed] });
+    } catch (e: any) {
+      await interaction.editReply({
+        content: `Failed to fetch server stats: ${e.message}`,
+      });
+    }
   },
 });
 
