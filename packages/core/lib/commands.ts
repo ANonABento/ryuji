@@ -361,6 +361,7 @@ registerCommand("persona", {
     .toJSON(),
   handler: async (interaction, ctx) => {
     const switchTo = interaction.options.getString("switch");
+    const localFirst = ctx.config.getLocalFirst();
 
     if (switchTo) {
       if (await requireOwner(interaction, ctx)) return;
@@ -376,7 +377,6 @@ registerCommand("persona", {
         });
         return;
       }
-      const localFirst = ctx.config.getLocalFirst();
       const compatNote = persona.model && !localFirst
         ? `\n⚠️ This persona has model \`${persona.model}\` but \`localFirst\` is off — model override won't apply.`
         : !persona.model && localFirst
@@ -392,7 +392,6 @@ registerCommand("persona", {
       });
     } else {
       const personas = ctx.config.listPersonas();
-      const localFirst = ctx.config.getLocalFirst();
       const lines = personas.map(
         (p) =>
           `${p.active ? "→ " : "  "}\`${p.key}\` — **${p.persona.name}**${p.persona.model ? ` (\`${p.persona.model}\`)` : ""}`
