@@ -23,6 +23,7 @@ import { formatDuration, fromSQLiteDatetime } from "./time.ts";
 import { isOwner, requireOwner } from "./handlers/shared.ts";
 import { buildGhArgs, runGh } from "./handlers/github.ts";
 import { discoverPlugins } from "./plugins.ts";
+import { translateText } from "./translation.ts";
 import {
   buildReminderModal,
   buildPersonaModal,
@@ -237,6 +238,7 @@ registerCommand("help", {
         {
           name: "Other",
           value: [
+            "`/translate <target_lang> <text>` — translate text",
             "`/github <check>` — PRs, issues, notifications",
             "`/status` — bot status and stats",
           ].join("\n"),
@@ -252,6 +254,40 @@ registerCommand("help", {
       .setFooter({ text: "@ me in a server or DM me directly" });
 
     await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+  },
+});
+
+// /translate <target_lang> <text>
+registerCommand("translate", {
+  data: new SlashCommandBuilder()
+    .setName("translate")
+    .setDescription("Translate text with automatic source-language detection")
+    .addStringOption((o) =>
+      o
+        .setName("target_lang")
+        .setDescription("Target language, e.g. English, Spanish, Japanese, or pt-BR")
+        .setRequired(true)
+    )
+    .addStringOption((o) =>
+      o
+        .setName("text")
+        .setDescription("Text to translate")
+        .setRequired(true)
+    )
+    .toJSON(),
+  handler: async (interaction) => {
+    await interaction.deferReply();
+
+    const targetLang = interaction.options.getString("target_lang", true);
+    const sourceText = interaction.options.getString("text", true);
+
+    try {
+      const translated = await translateText({ targetLang, text: sourceText });
+      await interaction.editReply({ content: translated.slice(0, 2000) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await interaction.editReply({ content: `Translation failed: ${message}` });
+    }
   },
 });
 
