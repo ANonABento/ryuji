@@ -1,11 +1,49 @@
-import { Collection } from "discord.js";
+import { Collection, MessageFlags } from "discord.js";
 import { expect, test } from "bun:test";
 import { commands } from "@choomfie/shared";
-import { MessageFlags } from "discord.js";
 
 await import("../lib/commands.ts");
 
-function makeMessage(id: string, createdAt: Date) {
+type MockMessage = { id: string; createdAt: Date };
+type MockMessageCollection = Collection<string, MockMessage>;
+type MockMessageFetchArgs = { limit: number; before?: string };
+type MockChannel = {
+  id: string;
+  name: string | null;
+  isTextBased: () => boolean;
+  messages: { fetch: (args: MockMessageFetchArgs) => Promise<MockMessageCollection> };
+};
+type MockGuildStats = {
+  approximateMemberCount: number;
+  memberCount: number;
+  approximatePresenceCount: number;
+};
+type MockServerstatsEmbed = {
+  data: { title?: string; fields?: Array<{ name: string; value: string }> };
+};
+type MockGuildResponse = {
+  id: string;
+  name: string;
+  approximateMemberCount: number;
+  memberCount: number;
+  approximatePresenceCount: number;
+};
+type MockEditPayload = { embeds?: MockServerstatsEmbed[]; content?: string };
+type MockInteraction = {
+  guild?: {
+    id: string;
+    name: string;
+    fetch: () => Promise<MockGuildResponse>;
+    channels: { fetch: () => Promise<Collection<string, MockChannel>> };
+  };
+  deferReply?: (opts?: { flags?: number }) => Promise<void> | void;
+  editReply?: (payload: MockEditPayload) => Promise<void> | void;
+  reply?: (payload: { content: string; flags?: number }) => Promise<void> | void;
+};
+
+const ONE_MINUTE = 60_000;
+
+function makeMessage(id: string, createdAt: Date): MockMessage {
   return { id, createdAt };
 }
 
@@ -16,17 +54,79 @@ function startOfCurrentDay(reference: Date): Date {
 }
 
 function safeRecentMessage(reference: Date, minutesAgo: number): Date {
-  const min = startOfCurrentDay(reference).getTime() + 60_000;
-  const target = reference.getTime() - minutesAgo * 60 * 1000;
+  const min = startOfCurrentDay(reference).getTime() + ONE_MINUTE;
+  const target = reference.getTime() - minutesAgo * ONE_MINUTE;
   return new Date(Math.max(target, min));
 }
 
-function makeMessageBatch(prefix: string, reference: Date, count: number) {
-  const rows: Array<[string, { id: string; createdAt: Date }]> = [];
+function makeMessageBatch(prefix: string, reference: Date, count: number): MockMessageCollection {
+  const rows: Array<[string, MockMessage]> = [];
   for (let i = 0; i < count; i += 1) {
-    rows.push([`${prefix}-${i}`, { id: `${prefix}-${i}`, createdAt: new Date(reference.getTime() - i * 60 * 1000) }]);
+    rows.push([`${prefix}-${i}`, { id: `${prefix}-${i}`, createdAt: new Date(reference.getTime() - i * ONE_MINUTE) }]);
   }
-  return new Collection<string, { id: string; createdAt: Date }>(rows);
+  return new Collection<string, MockMessage>(rows);
+}
+
+function makeTextChannel(
+  id: string,
+  name: string | null,
+  fetchMessages: (args: MockMessageFetchArgs) => Promise<MockMessageCollection>
+): MockChannel {
+  return { id, name, isTextBased: () => true, messages: { fetch: fetchMessages } };
+}
+
+function makeVoiceChannel(id: string, name: string): MockChannel {
+  return { id, name, isTextBased: () => false, messages: { fetch: async () => new Collection() } };
+}
+
+function makeMockGuildInteraction(channels: Collection<string, MockChannel>, counts: MockGuildStats) {
+  const state: {
+    deferred: boolean;
+    deferredFlags?: number;
+    editPayload?: MockEditPayload;
+  } = { deferred: false };
+
+  const interaction: MockInteraction = {
+    guild: {
+      id: "guild-id",
+      name: "Guild",
+      fetch: async () => ({
+        id: "guild-id",
+        name: "Guild",
+        ...counts,
+      }),
+      channels: {
+        fetch: async () => channels,
+      },
+    },
+    deferReply: async ({ flags } = {}) => {
+      state.deferred = true;
+      state.deferredFlags = flags;
+    },
+    editReply: async (payload: MockEditPayload) => {
+      state.editPayload = payload;
+    },
+  };
+
+  return { interaction, state };
+}
+
+function makeMockDmInteraction() {
+  const state: {
+    replied: boolean;
+    flags?: number;
+    content?: string;
+  } = { replied: false };
+
+  const interaction: MockInteraction = {
+    reply: async ({ content, flags }) => {
+      state.replied = true;
+      state.content = content;
+      state.flags = flags;
+    },
+  };
+
+  return { interaction, state };
 }
 
 test("/serverstats command is registered with guild-only visibility", () => {
@@ -40,142 +140,64 @@ test("/serverstats command is registered with guild-only visibility", () => {
 test("/serverstats handler builds an embed payload with expected sections", async () => {
   const def = commands.get("serverstats")!;
   const referenceNow = new Date();
-  const recentMessages = new Collection<string, { id: string; createdAt: Date }>([
+  const recentMessages = new Collection<string, MockMessage>([
     ["m1", makeMessage("m1", safeRecentMessage(referenceNow, 60))],
     ["m2", makeMessage("m2", safeRecentMessage(referenceNow, 5))],
   ]);
-  const oldMessage = new Collection<string, { id: string; createdAt: Date }>([
-    ["m3", makeMessage("m3", new Date(startOfCurrentDay(referenceNow).getTime() - 60 * 1000))],
+  const oldMessage = new Collection<string, MockMessage>([
+    ["m3", makeMessage("m3", new Date(startOfCurrentDay(referenceNow).getTime() - ONE_MINUTE))],
   ]);
-  const channels = new Collection<string, {
-    id: string;
-    name: string | null;
-    isTextBased: () => boolean;
-    messages: { fetch: ({ limit, before }: { limit: number; before?: string }) => Promise<Collection<string, { id: string; createdAt: Date }>>; };
-  }>([
-    [
-      "c1",
-      {
-        id: "c1",
-        name: "general",
-        isTextBased: () => true,
-        messages: {
-          fetch: async ({ limit: _limit, before }: { limit: number; before?: string }) =>
-            before ? new Collection<string, { id: string; createdAt: Date }>() : recentMessages,
-        },
-      },
-    ],
-    [
-      "c2",
-      {
-        id: "c2",
-        name: null,
-        isTextBased: () => true,
-        messages: {
-          fetch: async ({ limit: _limit, before }: { limit: number; before?: string }) =>
-            before ? new Collection<string, { id: string; createdAt: Date }>() : oldMessage,
-        },
-      },
-    ],
-    ["c3", { id: "c3", name: "voice", isTextBased: () => false, messages: {} as never }],
+  const channels = new Collection<string, MockChannel>([
+    ["c1", makeTextChannel("c1", "general", async ({ before }) => (before ? new Collection() : recentMessages))],
+    ["c2", makeTextChannel("c2", null, async ({ before }) => (before ? new Collection() : oldMessage))],
+    ["c3", makeVoiceChannel("c3", "voice")],
   ]);
 
-  let deferred = false;
-  let deferredFlags: number | undefined;
-  let editPayload: { embeds?: Array<{ data: { title?: string; fields?: Array<{ name: string; value: string }> } }> } | undefined;
+  const { interaction, state } = makeMockGuildInteraction(channels, {
+    approximateMemberCount: 128,
+    memberCount: 0,
+    approximatePresenceCount: 64,
+  });
 
-  const interaction: any = {
-    guild: {
-      id: "guild-id",
-      name: "Guild",
-      fetch: async () => ({
-        ...interaction.guild,
-        approximateMemberCount: 128,
-        memberCount: 0,
-        approximatePresenceCount: 64,
-      }),
-      channels: {
-        fetch: async () => channels,
-      },
-    },
-    deferReply: async (opts: { flags?: number }) => {
-      deferred = true;
-      deferredFlags = opts?.flags;
-    },
-    editReply: async (payload: typeof editPayload) => {
-      editPayload = payload;
-    },
-  };
+  await def.handler(interaction);
 
-  await def.handler(interaction, {} as any);
+  expect(state.deferred).toBe(true);
+  expect(state.deferredFlags).toBe(MessageFlags.Ephemeral);
+  const embedData = state.editPayload!.embeds?.[0]?.data;
+  expect(embedData).toBeDefined();
+  expect(embedData!.title).toBe("Server Stats — Guild");
+  expect(embedData!.fields).toHaveLength(2);
 
-  expect(deferred).toBe(true);
-  expect(deferredFlags).toBe(MessageFlags.Ephemeral);
-  expect(editPayload).toBeDefined();
-  expect(editPayload!.embeds).toBeDefined();
-
-  const embedData = editPayload!.embeds![0].data;
-  expect(embedData.title).toBe("Server Stats — Guild");
-  expect(embedData.fields).toHaveLength(2);
-
-  const current = embedData.fields?.find((f) => f.name === "Current Stats");
+  const current = embedData?.fields?.find((field) => field.name === "Current Stats");
   expect(current?.value).toContain("**Members:** 128");
   expect(current?.value).toContain("**Online:** 64");
   expect(current?.value).toContain("**Channels:** 3");
   expect(current?.value).toContain("**Messages today:** 2");
 
-  const top = embedData.fields?.find((f) => f.name === "Top 5 Active Channels");
+  const top = embedData?.fields?.find((field) => field.name === "Top 5 Active Channels");
   expect(top?.value).toContain("<#c1>");
   expect(top?.value).toContain("2 messages");
 });
 
 test("/serverstats handler returns no-message message when history is empty", async () => {
   const def = commands.get("serverstats")!;
-  const channels = new Collection<string, {
-    id: string;
-    name: string | null;
-    isTextBased: () => boolean;
-    messages: { fetch: ({ limit, before }: { limit: number; before?: string }) => Promise<Collection<string, { id: string; createdAt: Date }>>; };
-  }>([
+  const channels = new Collection<string, MockChannel>([
     [
       "c1",
-      {
-        id: "c1",
-        name: "general",
-        isTextBased: () => true,
-        messages: {
-          fetch: async () => new Collection<string, { id: string; createdAt: Date }>(),
-        },
-      },
+      makeTextChannel("c1", "general", async () => new Collection()),
     ],
-    ["c2", { id: "c2", name: "voice", isTextBased: () => false, messages: {} as never }],
+    ["c2", makeVoiceChannel("c2", "voice")],
   ]);
 
-  let editPayload: { embeds?: Array<{ data: { fields?: Array<{ name: string; value: string }> } }> } | undefined;
+  const { interaction, state } = makeMockGuildInteraction(channels, {
+    approximateMemberCount: 2,
+    memberCount: 2,
+    approximatePresenceCount: 1,
+  });
 
-  const interaction: any = {
-    guild: {
-      id: "guild-id",
-      name: "Guild",
-      fetch: async () => ({
-        ...interaction.guild,
-        approximateMemberCount: 2,
-        memberCount: 2,
-        approximatePresenceCount: 1,
-      }),
-      channels: {
-        fetch: async () => channels,
-      },
-    },
-    deferReply: async () => {},
-    editReply: async (payload: typeof editPayload) => {
-      editPayload = payload;
-    },
-  };
+  await def.handler(interaction);
 
-  await def.handler(interaction, {} as any);
-
-  const embedData = editPayload?.embeds?.[0]?.data;
+  const embedData = state.editPayload?.embeds?.[0]?.data;
   const current = embedData?.fields?.find((field) => field.name === "Current Stats");
   expect(current?.value).toContain("**Messages today:** 0");
   const top = embedData?.fields?.find((field) => field.name === "Top 5 Active Channels");
@@ -186,93 +208,24 @@ test("/serverstats handler keeps only top 5 channels by message count", async ()
   const def = commands.get("serverstats")!;
   const referenceNow = new Date();
 
-  const channels = new Collection<string, {
-    id: string;
-    name: string | null;
-    isTextBased: () => boolean;
-    messages: { fetch: ({ limit, before }: { limit: number; before?: string }) => Promise<Collection<string, { id: string; createdAt: Date }>>; };
-  }>([
-    [
-      "c1",
-      {
-        id: "c1",
-        name: "one",
-        isTextBased: () => true,
-        messages: async () => makeMessageBatch("c1", referenceNow, 12),
-      },
-    ],
-    [
-      "c2",
-      {
-        id: "c2",
-        name: "two",
-        isTextBased: () => true,
-        messages: async () => makeMessageBatch("c2", referenceNow, 11),
-      },
-    ],
-    [
-      "c3",
-      {
-        id: "c3",
-        name: "three",
-        isTextBased: () => true,
-        messages: async () => makeMessageBatch("c3", referenceNow, 10),
-      },
-    ],
-    [
-      "c4",
-      {
-        id: "c4",
-        name: "four",
-        isTextBased: () => true,
-        messages: async () => makeMessageBatch("c4", referenceNow, 9),
-      },
-    ],
-    [
-      "c5",
-      {
-        id: "c5",
-        name: "five",
-        isTextBased: () => true,
-        messages: async () => makeMessageBatch("c5", referenceNow, 8),
-      },
-    ],
-    [
-      "c6",
-      {
-        id: "c6",
-        name: "six",
-        isTextBased: () => true,
-        messages: async () => makeMessageBatch("c6", referenceNow, 7),
-      },
-    ],
+  const channels = new Collection<string, MockChannel>([
+    ["c1", makeTextChannel("c1", "one", async () => makeMessageBatch("c1", referenceNow, 12))],
+    ["c2", makeTextChannel("c2", "two", async () => makeMessageBatch("c2", referenceNow, 11))],
+    ["c3", makeTextChannel("c3", "three", async () => makeMessageBatch("c3", referenceNow, 10))],
+    ["c4", makeTextChannel("c4", "four", async () => makeMessageBatch("c4", referenceNow, 9))],
+    ["c5", makeTextChannel("c5", "five", async () => makeMessageBatch("c5", referenceNow, 8))],
+    ["c6", makeTextChannel("c6", "six", async () => makeMessageBatch("c6", referenceNow, 7))],
   ]);
 
-  let editPayload: { embeds?: Array<{ data: { fields?: Array<{ name: string; value: string }> } }> } | undefined;
+  const { interaction, state } = makeMockGuildInteraction(channels, {
+    approximateMemberCount: 128,
+    memberCount: 0,
+    approximatePresenceCount: 64,
+  });
 
-  const interaction: any = {
-    guild: {
-      id: "guild-id",
-      name: "Guild",
-      fetch: async () => ({
-        ...interaction.guild,
-        approximateMemberCount: 128,
-        memberCount: 0,
-        approximatePresenceCount: 64,
-      }),
-      channels: {
-        fetch: async () => channels,
-      },
-    },
-    deferReply: async () => {},
-    editReply: async (payload: typeof editPayload) => {
-      editPayload = payload;
-    },
-  };
+  await def.handler(interaction);
 
-  await def.handler(interaction, {} as any);
-
-  const top = editPayload?.embeds?.[0]?.data?.fields?.find((field) => field.name === "Top 5 Active Channels")?.value ?? "";
+  const top = state.editPayload?.embeds?.[0]?.data?.fields?.find((field) => field.name === "Top 5 Active Channels")?.value ?? "";
   expect(top).toContain("<#c1>");
   expect(top).toContain("<#c2>");
   expect(top).toContain("<#c3>");
@@ -283,27 +236,11 @@ test("/serverstats handler keeps only top 5 channels by message count", async ()
 
 test("/serverstats handler replies ephemerally when used in DMs", async () => {
   const def = commands.get("serverstats")!;
+  const { interaction, state } = makeMockDmInteraction();
 
-  let replied = false;
-  let replyFlags: number | undefined;
-  let replyContent: string | undefined;
-  let deferred = false;
+  await def.handler(interaction);
 
-  const interaction: any = {
-    deferReply: async () => {
-      deferred = true;
-    },
-    reply: async ({ content, flags }: { content: string; flags?: number }) => {
-      replied = true;
-      replyContent = content;
-      replyFlags = flags;
-    },
-  };
-
-  await def.handler(interaction, {} as any);
-
-  expect(replied).toBe(true);
-  expect(deferred).toBe(false);
-  expect(replyFlags).toBe(MessageFlags.Ephemeral);
-  expect(replyContent).toBe("Server stats can only be used in a guild.");
+  expect(state.replied).toBe(true);
+  expect(state.flags).toBe(MessageFlags.Ephemeral);
+  expect(state.content).toBe("Server stats can only be used in a guild.");
 });
