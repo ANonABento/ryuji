@@ -26,12 +26,7 @@ import { formatDuration, fromSQLiteDatetime } from "./time.ts";
 import { isOwner, requireOwner } from "./handlers/shared.ts";
 import { buildGhArgs, runGh } from "./handlers/github.ts";
 import { discoverPlugins } from "./plugins.ts";
-import { deployCurrentGuildCommands } from "./command-deploy.ts";
-import {
-  isValidCustomCommandName,
-  mergeCommandDefs,
-  normalizeCustomCommandName,
-} from "./custom-commands.ts";
+import { translateText } from "./translation.ts";
 import {
   buildReminderModal,
   buildPersonaModal,
@@ -39,6 +34,13 @@ import {
 } from "./handlers/modals.ts";
 import type { IncomingWebhook } from "./memory.ts";
 import { buildWebhookUrl, generateWebhookToken } from "./webhooks.ts";
+
+const DISCORD_CONTENT_LIMIT = 2000;
+
+function fitDiscordContent(content: string): string {
+  if (content.length <= DISCORD_CONTENT_LIMIT) return content;
+  return content.slice(0, DISCORD_CONTENT_LIMIT - 3) + "...";
+}
 
 // --- Command definitions ---
 
@@ -255,6 +257,7 @@ registerCommand("help", {
         {
           name: "Other",
           value: [
+            "`/translate <target_lang> <text>` — translate text",
             "`/github <check>` — PRs, issues, notifications",
             "`/webhook create` — create an incoming webhook for a channel",
             "`/status` — bot status and stats",
@@ -272,6 +275,42 @@ registerCommand("help", {
       .setFooter({ text: "@ me in a server or DM me directly" });
 
     await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+  },
+});
+
+// /translate <target_lang> <text>
+registerCommand("translate", {
+  data: new SlashCommandBuilder()
+    .setName("translate")
+    .setDescription("Translate text with automatic source-language detection")
+    .addStringOption((o) =>
+      o
+        .setName("target_lang")
+        .setDescription("Target language, e.g. English, Spanish, Japanese, or pt-BR")
+        .setRequired(true)
+    )
+    .addStringOption((o) =>
+      o
+        .setName("text")
+        .setDescription("Text to translate")
+        .setRequired(true)
+    )
+    .toJSON(),
+  handler: async (interaction) => {
+    await interaction.deferReply();
+
+    const targetLang = interaction.options.getString("target_lang", true);
+    const sourceText = interaction.options.getString("text", true);
+
+    try {
+      const translated = await translateText({ targetLang, text: sourceText });
+      await interaction.editReply({ content: fitDiscordContent(translated) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await interaction.editReply({
+        content: fitDiscordContent(`Translation failed: ${message}`),
+      });
+    }
   },
 });
 
