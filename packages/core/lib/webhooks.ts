@@ -1,9 +1,25 @@
 import { randomBytes } from "node:crypto";
 import { ChannelType } from "discord.js";
-import type { AppContext } from "./types.ts";
+import type { MemoryStore } from "./memory.ts";
 
 const DEFAULT_WEBHOOK_PORT = 8787;
 const MAX_DISCORD_CONTENT = 2000;
+const WEBHOOK_PATH_PATTERN = /^\/webhook\/([^/]+)\/?$/;
+
+export interface WebhookTextChannel {
+  type: ChannelType;
+  isTextBased(): boolean;
+  send(message: { content: string; allowedMentions: { parse: [] } }): Promise<unknown>;
+}
+
+export interface WebhookContext {
+  memory: Pick<MemoryStore, "getIncomingWebhook">;
+  discord: {
+    channels: {
+      fetch(channelId: string): Promise<unknown>;
+    };
+  };
+}
 
 export function generateWebhookToken(): string {
   return randomBytes(24).toString("base64url");
@@ -62,16 +78,38 @@ function clampDiscordContent(content: string): string {
   return `${content.slice(0, MAX_DISCORD_CONTENT - 20)}\n...[truncated]`;
 }
 
-export async function handleWebhookRequest(req: Request, ctx: AppContext): Promise<Response> {
-  const url = new URL(req.url);
-  const match = /^\/webhook\/([^/]+)\/?$/.exec(url.pathname);
+function parseWebhookToken(pathname: string): string | null {
+  const match = WEBHOOK_PATH_PATTERN.exec(pathname);
+  if (!match) return null;
 
-  if (!match) return json({ error: "not_found" }, 404);
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+function isSendableTextChannel(channel: unknown): channel is WebhookTextChannel {
+  if (!channel || typeof channel !== "object") return false;
+  const record = channel as Partial<WebhookTextChannel>;
+
+  return (
+    record.type !== ChannelType.DM &&
+    typeof record.isTextBased === "function" &&
+    record.isTextBased() &&
+    typeof record.send === "function"
+  );
+}
+
+export async function handleWebhookRequest(req: Request, ctx: WebhookContext): Promise<Response> {
+  const url = new URL(req.url);
+  const token = parseWebhookToken(url.pathname);
+
+  if (!token) return json({ error: "not_found" }, 404);
   if (req.method !== "POST") {
     return json({ error: "method_not_allowed" }, 405);
   }
 
-  const token = decodeURIComponent(match[1]);
   const webhook = ctx.memory.getIncomingWebhook(token);
   if (!webhook) return json({ error: "invalid_webhook" }, 404);
 
@@ -79,7 +117,7 @@ export async function handleWebhookRequest(req: Request, ctx: AppContext): Promi
   if (!content?.trim()) return json({ error: "empty_message" }, 400);
 
   const channel = await ctx.discord.channels.fetch(webhook.channelId).catch(() => null);
-  if (!channel || !channel.isTextBased() || channel.type === ChannelType.DM) {
+  if (!isSendableTextChannel(channel)) {
     return json({ error: "channel_unavailable" }, 502);
   }
 
@@ -95,7 +133,7 @@ export async function handleWebhookRequest(req: Request, ctx: AppContext): Promi
   return json({ ok: true });
 }
 
-export function startWebhookServer(ctx: AppContext): ReturnType<typeof Bun.serve> {
+export function startWebhookServer(ctx: WebhookContext): ReturnType<typeof Bun.serve> {
   const port = getWebhookPort();
   const server = Bun.serve({
     port,

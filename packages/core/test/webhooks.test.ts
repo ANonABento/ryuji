@@ -5,11 +5,16 @@ import { join } from "node:path";
 import { ChannelType } from "discord.js";
 import { MemoryStore } from "../lib/memory.ts";
 import { handleWebhookRequest } from "../lib/webhooks.ts";
-import type { AppContext } from "../lib/types.ts";
+import type { WebhookContext, WebhookTextChannel } from "../lib/webhooks.ts";
 
 const tempDirs: string[] = [];
+const memories: MemoryStore[] = [];
 
 afterEach(async () => {
+  for (const memory of memories.splice(0)) {
+    memory.close();
+  }
+
   await Promise.all(
     tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true }).catch(() => {}))
   );
@@ -18,43 +23,55 @@ afterEach(async () => {
 async function makeMemory(): Promise<MemoryStore> {
   const dir = await mkdtemp(join(tmpdir(), "choomfie-webhooks-"));
   tempDirs.push(dir);
-  return new MemoryStore(join(dir, "choomfie.db"));
+  const memory = new MemoryStore(join(dir, "choomfie.db"));
+  memories.push(memory);
+  return memory;
 }
 
-function fakeContext(memory: MemoryStore, sent: string[]): AppContext {
+interface FakeTextChannel extends WebhookTextChannel {
+  id: string;
+  type: ChannelType.GuildText;
+  isTextBased(): true;
+}
+
+function fakeTextChannel(
+  id: string,
+  send: WebhookTextChannel["send"]
+): FakeTextChannel {
+  return {
+    id,
+    type: ChannelType.GuildText,
+    isTextBased: () => true,
+    send,
+  };
+}
+
+function fakeContext(memory: MemoryStore, sent: string[]): WebhookContext {
   return {
     memory,
     discord: {
       channels: {
-        fetch: async (id: string) => ({
-          id,
-          type: ChannelType.GuildText,
-          isTextBased: () => true,
-          send: async (message: { content: string }) => {
+        fetch: async (id: string) =>
+          fakeTextChannel(id, async (message) => {
             sent.push(message.content);
-          },
-        }),
+          }),
       },
     },
-  } as unknown as AppContext;
+  };
 }
 
-function fakeContextWithBrokenChannel(memory: MemoryStore): AppContext {
+function fakeContextWithBrokenChannel(memory: MemoryStore): WebhookContext {
   return {
     memory,
     discord: {
       channels: {
-        fetch: async () => ({
-          id: "chan_broken",
-          type: ChannelType.GuildText,
-          isTextBased: () => true,
-          send: async () => {
+        fetch: async () =>
+          fakeTextChannel("chan_broken", async () => {
             throw new Error("Cannot post in this channel");
-          },
-        }),
+          }),
       },
     },
-  } as unknown as AppContext;
+  };
 }
 
 test("MemoryStore persists and revokes incoming webhooks", async () => {
@@ -70,7 +87,6 @@ test("MemoryStore persists and revokes incoming webhooks", async () => {
   expect(memory.getIncomingWebhook("tok_123")).toBeNull();
   expect(memory.listIncomingWebhooks()).toHaveLength(0);
   expect(memory.listIncomingWebhooks(true)[0]?.revokedAt).toBeTruthy();
-  memory.close();
 });
 
 test("webhook endpoint posts JSON content to the configured Discord channel", async () => {
@@ -90,7 +106,6 @@ test("webhook endpoint posts JSON content to the configured Discord channel", as
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({ ok: true });
   expect(sent).toEqual(["ship it"]);
-  memory.close();
 });
 
 test("webhook endpoint posts plain text payloads", async () => {
@@ -109,7 +124,6 @@ test("webhook endpoint posts plain text payloads", async () => {
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({ ok: true });
   expect(sent).toEqual(["simple text"]);
-  memory.close();
 });
 
 test("webhook endpoint handles channel send failures with 502", async () => {
@@ -128,7 +142,6 @@ test("webhook endpoint handles channel send failures with 502", async () => {
   expect(response.status).toBe(502);
   expect(await response.json()).toEqual({ error: "channel_unavailable" });
   expect(sent).toEqual([]);
-  memory.close();
 });
 
 test("webhook endpoint rejects revoked tokens", async () => {
@@ -147,5 +160,20 @@ test("webhook endpoint rejects revoked tokens", async () => {
 
   expect(response.status).toBe(404);
   expect(sent).toEqual([]);
-  memory.close();
+});
+
+test("webhook endpoint rejects malformed encoded tokens", async () => {
+  const memory = await makeMemory();
+  const sent: string[] = [];
+
+  const response = await handleWebhookRequest(
+    new Request("http://localhost:8787/webhook/%E0%A4%A", {
+      method: "POST",
+      body: "nope",
+    }),
+    fakeContext(memory, sent)
+  );
+
+  expect(response.status).toBe(404);
+  expect(sent).toEqual([]);
 });

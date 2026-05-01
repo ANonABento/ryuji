@@ -29,6 +29,7 @@ import {
   buildPersonaModal,
   buildMemoryModal,
 } from "./handlers/modals.ts";
+import type { IncomingWebhook } from "./memory.ts";
 import { buildWebhookUrl, generateWebhookToken } from "./webhooks.ts";
 
 // --- Command definitions ---
@@ -538,6 +539,16 @@ registerCommand("plugins", {
 });
 
 // /webhook create|list|revoke — incoming HTTP webhooks (owner only)
+function formatWebhookToken(token: string): string {
+  return token.length > 8 ? `...${token.slice(-8)}` : token;
+}
+
+function formatWebhookListItem(webhook: IncomingWebhook): string {
+  return `\`${formatWebhookToken(webhook.token)}\` -> <#${webhook.channelId}> by <@${
+    webhook.createdBy
+  }>`;
+}
+
 registerCommand("webhook", {
   data: new SlashCommandBuilder()
     .setName("webhook")
@@ -621,10 +632,7 @@ registerCommand("webhook", {
         return;
       }
 
-      const lines = webhooks.map((webhook) => {
-        const suffix = webhook.token.length > 8 ? `...${webhook.token.slice(-8)}` : webhook.token;
-        return `\`${suffix}\` -> <#${webhook.channelId}> by <@${webhook.createdBy}>`;
-      });
+      const lines = webhooks.map(formatWebhookListItem);
 
       await interaction.reply({
         content: `**Active incoming webhooks**\n${lines.join("\n").slice(0, 1900)}`,
