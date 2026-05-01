@@ -338,3 +338,68 @@ test("banned words trigger the configured kick action", async () => {
 
   expect(kickCalls).toEqual(["kick"]);
 });
+
+test("automod command with no args returns current config", async () => {
+  const replies: string[] = [];
+  const cfg = createFakeAutomodConfig({
+    maxMessagesPerMinute: 20,
+    bannedWords: ["nope"],
+    action: "warn",
+  });
+
+  await automodPlugin.init(fakePluginContext({ config: cfg }));
+
+  const handler = commands.get("automod_config")?.handler;
+  expect(handler).toBeDefined();
+
+  const interaction = makeCommandInteraction({
+    onReply: (content) => replies.push(content),
+  });
+
+  await handler!(
+    interaction as never,
+    fakePluginContext({ config: cfg })
+  );
+
+  expect(replies.at(-1)).toContain("Max messages/minute: 20");
+  expect(replies.at(-1)).toContain("Action: warn");
+  expect(replies.at(-1)).toContain("Banned words: nope");
+  expect(replies.at(-1)).toContain("Owner-only command: `/automod_config`");
+});
+
+test("destroy clears in-memory automod state", async () => {
+  const replies: string[] = [];
+  const member: FakeGuildMember = {
+    timeout: async () => {},
+    kick: async () => {},
+  };
+  const config = createFakeAutomodConfig({
+    maxMessagesPerMinute: 1,
+    bannedWords: [],
+    action: "warn",
+  });
+  const ctx: FakePluginContext = {
+    DATA_DIR: "/tmp/choomfie-automod-test",
+    ownerUserId: OWNER_USER_ID,
+    config,
+  };
+
+  const message = makeMessage(member, "spammer-reset", "hello");
+  message.reply = async ({ content }) => {
+    replies.push(content);
+  };
+
+  await automodPlugin.onMessage!(message as never, ctx);
+  await automodPlugin.onMessage!(message as never, ctx);
+  expect(replies).toHaveLength(1);
+
+  await automodPlugin.destroy!();
+
+  const freshMessage = makeMessage(member, "spammer-reset", "after-reset");
+  freshMessage.reply = async ({ content }) => {
+    replies.push(content);
+  };
+  await automodPlugin.onMessage!(freshMessage as never, ctx);
+
+  expect(replies).toHaveLength(1);
+});

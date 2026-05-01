@@ -226,6 +226,11 @@ const automodPlugin: Plugin = {
       return;
     }
   },
+
+  async destroy() {
+    rateBuckets.clear();
+    lastActionAt.clear();
+  },
 };
 
 export default automodPlugin;
