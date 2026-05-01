@@ -22,7 +22,7 @@ type MockGuildStats = {
   memberCount: number;
   approximatePresenceCount: number;
 };
-type MockServerstatsEmbed = {
+type MockServerStatsEmbed = {
   data: { title?: string; fields?: Array<{ name: string; value: string }> };
 };
 type MockGuildResponse = {
@@ -32,7 +32,7 @@ type MockGuildResponse = {
   memberCount: number;
   approximatePresenceCount: number;
 };
-type MockEditPayload = { embeds?: MockServerstatsEmbed[]; content?: string };
+type MockEditPayload = { embeds?: MockServerStatsEmbed[]; content?: string };
 type MockInteraction = {
   guild?: {
     id: string;
@@ -158,6 +158,17 @@ function makeMockDmInteraction() {
   return { interaction, state };
 }
 
+function getEmbedData(state: { editPayload?: MockEditPayload }) {
+  return state.editPayload?.embeds?.[0]?.data;
+}
+
+function getEmbedField(
+  state: { editPayload?: MockEditPayload },
+  name: string
+) {
+  return state.editPayload?.embeds?.[0]?.data?.fields?.find((field) => field.name === name);
+}
+
 async function runServerstats(def: CommandDef, interaction: MockInteraction) {
   await def.handler(
     interaction as unknown as ChatInputCommandInteraction,
@@ -199,18 +210,18 @@ test("/serverstats handler builds an embed payload with expected sections", asyn
 
   expect(state.deferred).toBe(true);
   expect(state.deferredFlags).toBe(MessageFlags.Ephemeral);
-  const embedData = state.editPayload!.embeds?.[0]?.data;
+  const embedData = getEmbedData(state);
   expect(embedData).toBeDefined();
   expect(embedData!.title).toBe("Server Stats — Guild");
   expect(embedData!.fields).toHaveLength(2);
 
-  const current = embedData?.fields?.find((field) => field.name === "Current Stats");
+  const current = getEmbedField(state, "Current Stats");
   expect(current?.value).toContain("**Members:** 128");
   expect(current?.value).toContain("**Online:** 64");
   expect(current?.value).toContain("**Channels:** 3");
   expect(current?.value).toContain("**Messages today:** 2");
 
-  const top = embedData?.fields?.find((field) => field.name === "Top 5 Active Channels");
+  const top = getEmbedField(state, "Top 5 Active Channels");
   expect(top?.value).toContain("<#c1>");
   expect(top?.value).toContain("2 messages");
 });
@@ -233,10 +244,10 @@ test("/serverstats handler returns no-message message when history is empty", as
 
   await runServerstats(def, interaction);
 
-  const embedData = state.editPayload?.embeds?.[0]?.data;
-  const current = embedData?.fields?.find((field) => field.name === "Current Stats");
+  const embedData = getEmbedData(state);
+  const current = getEmbedField(state, "Current Stats");
   expect(current?.value).toContain("**Messages today:** 0");
-  const top = embedData?.fields?.find((field) => field.name === "Top 5 Active Channels");
+  const top = getEmbedField(state, "Top 5 Active Channels");
   expect(top?.value).toContain("No messages were sent today.");
 });
 
@@ -261,7 +272,7 @@ test("/serverstats handler keeps only top 5 channels by message count", async ()
 
   await runServerstats(def, interaction);
 
-  const top = state.editPayload?.embeds?.[0]?.data?.fields?.find((field) => field.name === "Top 5 Active Channels")?.value ?? "";
+  const top = getEmbedField(state, "Top 5 Active Channels")?.value ?? "";
   expect(top).toContain("<#c1>");
   expect(top).toContain("<#c2>");
   expect(top).toContain("<#c3>");
@@ -295,7 +306,7 @@ test("/serverstats handler paginates message history to count messages from toda
 
   await runServerstats(def, interaction);
 
-  const current = state.editPayload?.embeds?.[0]?.data?.fields?.find((field) => field.name === "Current Stats");
+  const current = getEmbedField(state, "Current Stats");
   expect(current?.value).toContain("**Messages today:** 101");
 });
 
@@ -324,8 +335,8 @@ test("/serverstats handler tolerates unreadable channels and still returns stats
 
   await runServerstats(def, interaction);
 
-  const current = state.editPayload?.embeds?.[0]?.data?.fields?.find((field) => field.name === "Current Stats");
-  const top = state.editPayload?.embeds?.[0]?.data?.fields?.find((field) => field.name === "Top 5 Active Channels");
+  const current = getEmbedField(state, "Current Stats");
+  const top = getEmbedField(state, "Top 5 Active Channels");
   expect(current?.value).toContain("**Messages today:** 2");
   expect(top?.value).toContain("<#c1>");
   expect(top?.value).not.toContain("restricted");

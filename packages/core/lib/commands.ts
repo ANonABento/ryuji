@@ -17,7 +17,6 @@ import {
   type Collection,
   type Message,
 } from "discord.js";
-import { dirname, join } from "node:path";
 import { VERSION } from "./version.ts";
 import { registerCommand, registerButtonHandler } from "./interactions.ts";
 import { McpProxy } from "./mcp-proxy.ts";
@@ -49,6 +48,10 @@ function isMissingAccessError(error: unknown): boolean {
     return (error as { code?: number }).code === MISSING_ACCESS_ERROR_CODE;
   }
   return false;
+}
+
+function formatErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unexpected error";
 }
 
 function startOfCurrentDay(): Date {
@@ -404,9 +407,9 @@ registerCommand("serverstats", {
         .setFooter({ text: `Today since ${since.toISOString()}` });
 
       await interaction.editReply({ embeds: [embed] });
-    } catch (e: any) {
+    } catch (error: unknown) {
       await interaction.editReply({
-        content: `Failed to fetch server stats: ${e.message}`,
+        content: `Failed to fetch server stats: ${formatErrorMessage(error)}`,
       });
     }
   },
