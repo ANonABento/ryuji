@@ -24,6 +24,6 @@ export function getAllTools(ctx: AppContext): ToolDef[] {
     ...githubTools,
     ...statusTools,
     ...systemTools,
-    ...ctx.plugins.flatMap((p) => p.tools ?? []),
+    ...(ctx.plugins.flatMap((p) => p.tools ?? []) as unknown as ToolDef[]),
   ];
 }

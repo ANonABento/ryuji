@@ -44,7 +44,16 @@ export interface SocialsConfig {
     password: string;
     [key: string]: string;
   };
-  [key: string]: { [key: string]: string | undefined } | undefined;
+  [key: string]: { [k: string]: string | undefined } | undefined;
+}
+
+export type LlmProvider = "anthropic" | "openai" | "ollama" | "lmstudio";
+
+export interface LlmConfig {
+  provider: LlmProvider;
+  model?: string;
+  apiKey?: string;
+  baseUrl?: string;
 }
 
 export interface Config {
@@ -63,6 +72,7 @@ export interface Config {
   /** When true, personas with a model field use local-model prompt hints. */
   localFirst?: boolean;
   socials?: SocialsConfig;
+  llm?: LlmConfig;
   [key: string]: unknown;
 }
 
@@ -293,6 +303,17 @@ export class ConfigManager {
 
   getSocialsConfig(): SocialsConfig | undefined {
     return this.config.socials;
+  }
+
+  // --- LLM ---
+
+  getLlmConfig(): LlmConfig {
+    return this.config.llm ?? { provider: "anthropic" };
+  }
+
+  setLlmConfig(llm: LlmConfig) {
+    this.config.llm = llm;
+    this.save();
   }
 
   // --- Full config ---
