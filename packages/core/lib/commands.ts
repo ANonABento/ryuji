@@ -239,6 +239,7 @@ registerCommand("help", {
           value: [
             "`/github <check>` — PRs, issues, notifications",
             "`/status` — bot status and stats",
+            "`/welcome_config` — configure welcome message templates and channel",
           ].join("\n"),
           inline: false,
         },
