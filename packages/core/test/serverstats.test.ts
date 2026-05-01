@@ -15,7 +15,9 @@ type MockChannel = {
   id: string;
   name: string | null;
   isTextBased: () => boolean;
-  messages: { fetch: (args: MockMessageFetchArgs) => Promise<MockMessageCollection> };
+  messages: {
+    fetch: (args: MockMessageFetchArgs) => Promise<MockMessageCollection>;
+  };
 };
 type MockGuildStats = {
   approximateMemberCount: number;
@@ -44,7 +46,11 @@ type MockInteraction = {
     name: string;
     channels: { fetch: () => Promise<Collection<string, MockChannel>> };
   };
-  client?: { guilds: { fetch: (options: MockGuildFetchOptions) => Promise<MockGuildResponse> } };
+  client?: {
+    guilds: {
+      fetch: (options: MockGuildFetchOptions) => Promise<MockGuildResponse>;
+    };
+  };
   deferReply?: (opts?: { flags?: number }) => Promise<void> | void;
   editReply?: (payload: MockEditPayload) => Promise<void> | void;
   reply?: (payload: { content: string; flags?: number }) => Promise<void> | void;
@@ -68,10 +74,18 @@ function safeRecentMessage(reference: Date, minutesAgo: number): Date {
   return new Date(Math.max(target, min));
 }
 
-function makeMessageBatch(prefix: string, reference: Date, count: number): MockMessageCollection {
+function makeMessageBatch(
+  prefix: string,
+  reference: Date,
+  count: number
+): MockMessageCollection {
   const rows: Array<[string, MockMessage]> = [];
   for (let i = 0; i < count; i += 1) {
-    rows.push([`${prefix}-${i}`, { id: `${prefix}-${i}`, createdAt: new Date(reference.getTime() - i * ONE_MINUTE) }]);
+    const id = `${prefix}-${i}`;
+    rows.push([
+      id,
+      { id, createdAt: new Date(reference.getTime() - i * ONE_MINUTE) },
+    ]);
   }
   return new Collection<string, MockMessage>(rows);
 }
@@ -97,7 +111,10 @@ function makePagedTextChannel(
   };
 }
 
-function makeDiscordApiError(message: string, code: number): Error & { code: number } {
+function makeDiscordApiError(
+  message: string,
+  code: number
+): Error & { code: number } {
   return Object.assign(new Error(message), { code });
 }
 
@@ -106,14 +123,27 @@ function makeTextChannel(
   name: string | null,
   fetchMessages: (args: MockMessageFetchArgs) => Promise<MockMessageCollection>
 ): MockChannel {
-  return { id, name, isTextBased: () => true, messages: { fetch: fetchMessages } };
+  return {
+    id,
+    name,
+    isTextBased: () => true,
+    messages: { fetch: fetchMessages },
+  };
 }
 
 function makeVoiceChannel(id: string, name: string): MockChannel {
-  return { id, name, isTextBased: () => false, messages: { fetch: async () => new Collection() } };
+  return {
+    id,
+    name,
+    isTextBased: () => false,
+    messages: { fetch: async () => new Collection() },
+  };
 }
 
-function makeMockGuildInteraction(channels: Collection<string, MockChannel>, counts: MockGuildStats) {
+function makeMockGuildInteraction(
+  channels: Collection<string, MockChannel>,
+  counts: MockGuildStats
+) {
   const state: {
     deferred: boolean;
     deferredFlags?: number;
@@ -179,7 +209,9 @@ function getEmbedField(
   state: { editPayload?: MockEditPayload },
   name: string
 ) {
-  return state.editPayload?.embeds?.[0]?.data?.fields?.find((field) => field.name === name);
+  return state.editPayload?.embeds?.[0]?.data?.fields?.find(
+    (field) => field.name === name
+  );
 }
 
 function getServerstatsCommand(): CommandDef {
@@ -200,7 +232,9 @@ test("/serverstats command is registered with guild-only visibility", () => {
   expect(def).toBeDefined();
   expect(def!.data.name).toBe("serverstats");
   expect(def!.data.dm_permission).toBe(false);
-  expect(def!.data.description).toBe("Show guild statistics and today's activity");
+  expect(def!.data.description).toBe(
+    "Show guild statistics and today's activity"
+  );
 });
 
 test("/serverstats handler builds an embed payload with expected sections", async () => {
@@ -211,11 +245,27 @@ test("/serverstats handler builds an embed payload with expected sections", asyn
     ["m2", makeMessage("m2", safeRecentMessage(referenceNow, 5))],
   ]);
   const oldMessage = new Collection<string, MockMessage>([
-    ["m3", makeMessage("m3", new Date(startOfCurrentDay(referenceNow).getTime() - ONE_MINUTE))],
+    [
+      "m3",
+      makeMessage(
+        "m3",
+        new Date(startOfCurrentDay(referenceNow).getTime() - ONE_MINUTE)
+      ),
+    ],
   ]);
   const channels = new Collection<string, MockChannel>([
-    ["c1", makeTextChannel("c1", "general", async ({ before }) => (before ? new Collection() : recentMessages))],
-    ["c2", makeTextChannel("c2", null, async ({ before }) => (before ? new Collection() : oldMessage))],
+    [
+      "c1",
+      makeTextChannel("c1", "general", async ({ before }) =>
+        before ? new Collection() : recentMessages
+      ),
+    ],
+    [
+      "c2",
+      makeTextChannel("c2", null, async ({ before }) =>
+        before ? new Collection() : oldMessage
+      ),
+    ],
     ["c3", makeVoiceChannel("c3", "voice")],
   ]);
 
@@ -279,12 +329,42 @@ test("/serverstats handler keeps only top 5 channels by message count", async ()
   const referenceNow = new Date();
 
   const channels = new Collection<string, MockChannel>([
-    ["c1", makeTextChannel("c1", "one", async () => makeMessageBatch("c1", referenceNow, 12))],
-    ["c2", makeTextChannel("c2", "two", async () => makeMessageBatch("c2", referenceNow, 11))],
-    ["c3", makeTextChannel("c3", "three", async () => makeMessageBatch("c3", referenceNow, 10))],
-    ["c4", makeTextChannel("c4", "four", async () => makeMessageBatch("c4", referenceNow, 9))],
-    ["c5", makeTextChannel("c5", "five", async () => makeMessageBatch("c5", referenceNow, 8))],
-    ["c6", makeTextChannel("c6", "six", async () => makeMessageBatch("c6", referenceNow, 7))],
+    [
+      "c1",
+      makeTextChannel("c1", "one", async () =>
+        makeMessageBatch("c1", referenceNow, 12)
+      ),
+    ],
+    [
+      "c2",
+      makeTextChannel("c2", "two", async () =>
+        makeMessageBatch("c2", referenceNow, 11)
+      ),
+    ],
+    [
+      "c3",
+      makeTextChannel("c3", "three", async () =>
+        makeMessageBatch("c3", referenceNow, 10)
+      ),
+    ],
+    [
+      "c4",
+      makeTextChannel("c4", "four", async () =>
+        makeMessageBatch("c4", referenceNow, 9)
+      ),
+    ],
+    [
+      "c5",
+      makeTextChannel("c5", "five", async () =>
+        makeMessageBatch("c5", referenceNow, 8)
+      ),
+    ],
+    [
+      "c6",
+      makeTextChannel("c6", "six", async () =>
+        makeMessageBatch("c6", referenceNow, 7)
+      ),
+    ],
   ]);
 
   const { interaction, state } = makeMockGuildInteraction(channels, {
@@ -312,8 +392,14 @@ test("/serverstats handler paginates message history to count messages from toda
   const pagedChannel = makePagedTextChannel("c1", "active", [
     makeMessageBatch("page1", reference, 100),
     new Collection<string, MockMessage>([
-      ["page2-new", makeMessage("page2-new", new Date(since.getTime() + 60 * 1000))],
-      ["page2-old", makeMessage("page2-old", new Date(since.getTime() - ONE_MINUTE))],
+      [
+        "page2-new",
+        makeMessage("page2-new", new Date(since.getTime() + 60 * 1000)),
+      ],
+      [
+        "page2-old",
+        makeMessage("page2-old", new Date(since.getTime() - ONE_MINUTE)),
+      ],
     ]),
   ]);
 
@@ -337,27 +423,38 @@ test("/serverstats handler tolerates unreadable channels and still returns stats
   const def = getServerstatsCommand();
   const referenceNow = new Date();
   const channels = new Collection<string, MockChannel>([
-    ["c1", makeTextChannel("c1", "visible", async () => makeMessageBatch("visible", referenceNow, 2))],
-    ["c2", {
-      id: "c2",
-      name: "restricted",
-      isTextBased: () => true,
-      messages: {
-        fetch: async () => {
-          throw makeDiscordApiError("Missing Access", 50001);
+    [
+      "c1",
+      makeTextChannel("c1", "visible", async () =>
+        makeMessageBatch("visible", referenceNow, 2)
+      ),
+    ],
+    [
+      "c2",
+      {
+        id: "c2",
+        name: "restricted",
+        isTextBased: () => true,
+        messages: {
+          fetch: async () => {
+            throw makeDiscordApiError("Missing Access", 50001);
+          },
         },
       },
-    }],
-    ["c3", {
-      id: "c3",
-      name: "no-history",
-      isTextBased: () => true,
-      messages: {
-        fetch: async () => {
-          throw makeDiscordApiError("Missing Permissions", 50013);
+    ],
+    [
+      "c3",
+      {
+        id: "c3",
+        name: "no-history",
+        isTextBased: () => true,
+        messages: {
+          fetch: async () => {
+            throw makeDiscordApiError("Missing Permissions", 50013);
+          },
         },
       },
-    }],
+    ],
   ]);
 
   const { interaction, state } = makeMockGuildInteraction(channels, {

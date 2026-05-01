@@ -714,7 +714,10 @@ registerCommand("voice", {
       reports = await detectAllProviders();
     } catch (error: unknown) {
       await interaction.editReply({
-        content: `Provider detection failed: ${formatErrorMessage(error)}. Check that ffmpeg and python3 are installed.`,
+        content: [
+          `Provider detection failed: ${formatErrorMessage(error)}.`,
+          "Check that ffmpeg and python3 are installed.",
+        ].join(" "),
       });
       return;
     }
