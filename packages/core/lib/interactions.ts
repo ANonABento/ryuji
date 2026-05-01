@@ -57,13 +57,13 @@ function asAppContext(ctx: PluginContext): AppContext {
 
 export function registerButtonHandler(prefix: string, handler: ButtonHandler) {
   registerSharedButtonHandler(prefix, (interaction, parts, ctx) =>
-    handler(interaction, parts, ctx as unknown as AppContext)
+    handler(interaction, parts, asAppContext(ctx))
   );
 }
 
 export function registerModalHandler(prefix: string, handler: ModalHandler) {
   registerSharedModalHandler(prefix, (interaction, parts, ctx) =>
-    handler(interaction, parts, ctx as unknown as AppContext)
+    handler(interaction, parts, asAppContext(ctx))
   );
 }
 
@@ -76,7 +76,7 @@ export function registerCommand(
 ) {
   registerSharedCommand(name, {
     data: def.data,
-    handler: (interaction, ctx) => def.handler(interaction, ctx as unknown as AppContext),
+    handler: (interaction, ctx) => def.handler(interaction, asAppContext(ctx)),
   });
 }
 
@@ -130,14 +130,6 @@ export async function handleInteraction(
       await safeHandle(interaction, `Command(${interaction.commandName})`, () =>
         cmd.handler(interaction, ctx)
       );
-      return;
-    }
-
-    const customCommand = ctx.memory.getCustomCommand(interaction.commandName);
-    if (customCommand) {
-      await safeHandle(interaction, `CustomCommand(${interaction.commandName})`, async () => {
-        await interaction.reply({ content: customCommand.response });
-      });
     }
     return;
   }

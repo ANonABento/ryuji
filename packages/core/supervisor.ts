@@ -14,11 +14,8 @@ import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { readFile, writeFile, unlink } from "node:fs/promises";
-import { z } from "zod";
-import { errorMessage } from "@choomfie/shared";
 import { VERSION } from "./lib/version.ts";
 import {
   PERMISSION_REQUEST_METHOD,
@@ -52,13 +49,11 @@ type McpNotification = Parameters<Server["notification"]>[0];
 /** Pending tool calls waiting for worker response */
 const pendingCalls = new Map<
   string,
-  { resolve: (result: CallToolResult) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout> }
+  { resolve: (result: any) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout> }
 >();
 
 /** MCP server — created once, lives forever */
 let mcp: Server;
-
-type ServerWithInstructions = Server & { _instructions?: string };
 
 // --- PID file (single-instance guard) ---
 const DATA_DIR =
@@ -156,11 +151,11 @@ function handleWorkerMessage(msg: WorkerMessage) {
         );
         if (mcp) {
           // Update instructions for any future initialize handshake (e.g. reconnect)
-          (mcp as ServerWithInstructions)._instructions = currentInstructions;
+          Object.assign(mcp, { _instructions: currentInstructions });
           // Notify Claude Code that the tool list changed so it re-fetches
           mcp.notification({
             method: "notifications/tools/list_changed",
-          });
+          } as McpNotification);
         }
         break;
 
@@ -180,7 +175,7 @@ function handleWorkerMessage(msg: WorkerMessage) {
           mcp.notification({
             method: msg.method,
             params: msg.params,
-          });
+          } as McpNotification);
         }
         break;
 
@@ -224,7 +219,7 @@ function handleWorkerMessage(msg: WorkerMessage) {
 function callWorkerTool(
   name: string,
   args: Record<string, unknown>
-): Promise<CallToolResult> {
+): Promise<any> {
   return new Promise((resolve, reject) => {
     if (!workerReady || !worker) {
       return reject(new Error("Worker not ready"));
@@ -308,7 +303,7 @@ async function restartWorker(reason: string): Promise<{ timedOut: boolean }> {
 async function handleSupervisorTool(
   name: string,
   args: Record<string, unknown>
-): Promise<CallToolResult> {
+): Promise<any> {
   if (name === "restart") {
     const reason = (args.reason as string) || "manual restart";
     const { timedOut } = await restartWorker(reason);
@@ -353,7 +348,7 @@ function createMcp(): Server {
   }));
 
   // Tool call router
-  server.setRequestHandler(CallToolRequestSchema, async (req): Promise<CallToolResult> => {
+  server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const name = req.params.name;
     const args = (req.params.arguments ?? {}) as Record<string, unknown>;
 
@@ -372,9 +367,9 @@ function createMcp(): Server {
 
     try {
       return await callWorkerTool(name, args);
-    } catch (error: unknown) {
+    } catch (e: any) {
       return {
-        content: [{ type: "text", text: `Tool error: ${errorMessage(error)}` }],
+        content: [{ type: "text", text: `Tool error: ${e.message}` }],
         isError: true,
       };
     }
@@ -382,16 +377,9 @@ function createMcp(): Server {
 
   // Forward permission requests from MCP to worker
   server.setNotificationHandler(
-    z.object({
-      method: z.literal("notifications/claude/channel/permission_request"),
-      params: z.object({
-        request_id: z.string(),
-        tool_name: z.string(),
-        description: z.string(),
-        input_preview: z.string(),
-      }),
-    }) as any,
-    async ({ params }: any) => {
+    PermissionRequestNotificationSchema,
+    async ({ params }) => {
+      const permissionParams = requirePermissionRequestParams(params);
       if (worker && workerReady) {
         try {
           worker.send({

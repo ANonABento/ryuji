@@ -101,15 +101,6 @@ export function buildPersonaModal(): ModalBuilder {
           .setPlaceholder("Describe how this persona talks, acts, and thinks...")
           .setRequired(true)
           .setMaxLength(1000)
-      ),
-      new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder()
-          .setCustomId("model")
-          .setLabel("Local Model Override (optional)")
-          .setStyle(TextInputStyle.Short)
-          .setPlaceholder("e.g. llama3.1:8b, mistral:7b (leave empty for Claude)")
-          .setRequired(false)
-          .setMaxLength(50)
       )
     );
 }
@@ -210,14 +201,11 @@ registerModalHandler("modal-persona", async (interaction, _parts, ctx) => {
     .replace(/\s+/g, "-");
   const name = interaction.fields.getTextInputValue("name");
   const personality = interaction.fields.getTextInputValue("personality");
-  const modelRaw = interaction.fields.getTextInputValue("model").trim();
-  const model = modelRaw || undefined;
 
-  ctx.config.savePersona(key, name, personality, model);
+  ctx.config.savePersona(key, name, personality);
 
-  const modelNote = model ? `\nModel override: \`${model}\`` : "";
   await interaction.reply({
-    content: `**Persona created:** \`${key}\` — **${name}**\n${personality}${modelNote}\n\nSwitch with \`/persona switch:${key}\` or ask me to switch.`,
+    content: `**Persona created:** \`${key}\` — **${name}**\n${personality}\n\nSwitch with \`/persona switch:${key}\` or ask me to switch.`,
   });
 });
 

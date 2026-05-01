@@ -19,7 +19,6 @@ import { getAllTutorTools } from "./tools/index.ts";
 import { listModules } from "./modules/index.ts";
 import { japaneseLessons, japaneseUnits } from "./modules/japanese/lessons/index.ts";
 import { chineseLessons, chineseUnits } from "./modules/chinese/lessons/index.ts";
-import { frenchLessons, frenchUnits } from "./modules/french/lessons/index.ts";
 
 import {
   buildExerciseButtons,
@@ -30,7 +29,6 @@ import {
   hasActiveTypingExercise,
   handleTypedAnswer,
 } from "./lesson-interactions.ts";
-import "./srs-interactions.ts";
 import { getActiveModule } from "./core/session.ts";
 import { EmbedBuilder } from "discord.js";
 import { updateFromLessonCompletion } from "./core/learner-profile.ts";
@@ -56,7 +54,6 @@ const tutorPlugin: Plugin = {
     "- Tell beginners to use `/lesson` to start structured lessons for their active module",
     "- Japanese lessons cover hiragana → katakana → phrases → grammar",
     "- Chinese lessons cover tones → hanzi → HSK 1 vocabulary",
-    "- French lessons cover pronunciation → A1 vocabulary → first conversations",
     "- Use `lesson_status` to check their progress and suggest what to study next",
     "- Lessons are button-driven and instant — no need for you to be in the loop",
     "",
@@ -99,7 +96,9 @@ const tutorPlugin: Plugin = {
     "srs_reminders",
     "lesson_status",
     "convert_kana",
-    "spanish_pronunciation",
+    "convert_pinyin",
+    "stroke_info",
+    "convert_hanzi",
     "random_word",
   ],
 
@@ -191,8 +190,6 @@ const tutorPlugin: Plugin = {
     console.error(`Tutor: registered ${japaneseLessons.length} Japanese lessons`);
     registerLessons("chinese", chineseLessons, chineseUnits);
     console.error(`Tutor: registered ${chineseLessons.length} Chinese lessons`);
-    registerLessons("french", frenchLessons, frenchUnits);
-    console.error(`Tutor: registered ${frenchLessons.length} French lessons`);
 
     // Initialize all modules
     for (const mod of listModules()) {

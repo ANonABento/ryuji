@@ -15,7 +15,6 @@ import { buildInstructions } from "./lib/mcp-server.ts";
 import { registerPermissionRelay } from "./lib/permissions.ts";
 import { destroyAll as destroyTyping } from "./lib/typing.ts";
 import { McpProxy } from "./lib/mcp-proxy.ts";
-import { startWebhookServer } from "./lib/webhooks.ts";
 import type { SupervisorMessage, IpcToolDef } from "./lib/ipc-types.ts";
 import type { ToolResult } from "./lib/types.ts";
 
@@ -34,8 +33,6 @@ registerPermissionRelay(ctx);
 
 // Create Discord client
 ctx.discord = createDiscordClient(ctx);
-
-const webhookServer = startWebhookServer(ctx);
 
 // Build tool list + instructions for supervisor
 const allTools = getAllTools(ctx);
@@ -69,11 +66,10 @@ process.on("message", async (msg: SupervisorMessage) => {
       };
     } else {
       try {
-        trackToolCall(ctx, msg.name);
         result = await handler(msg.args, ctx);
-      } catch (error: unknown) {
+      } catch (e: any) {
         result = {
-          content: [{ type: "text", text: `Tool error: ${errorMessage(error)}` }],
+          content: [{ type: "text", text: `Tool error: ${e.message}` }],
           isError: true,
         };
       }
@@ -84,7 +80,7 @@ process.on("message", async (msg: SupervisorMessage) => {
     try {
       const ch = await ctx.discord.channels.fetch(msg.chat_id);
       if (ch?.isTextBased() && "send" in ch) {
-        await ch.send(`✓ Restarted (${msg.reason})`);
+        await (ch as any).send(`✓ Restarted (${msg.reason})`);
       }
     } catch {}
   } else if (msg.type === "permission_request") {
@@ -100,7 +96,7 @@ if (discordToken) {
   // (owner detection, plugin init, reminder scheduling, slash command deploy)
   const discordReady = Promise.race([
     new Promise<void>((resolve) => {
-      ctx._discordReadyResolve = resolve;
+      (ctx as any)._discordReadyResolve = resolve;
     }),
     new Promise<void>((_, reject) =>
       setTimeout(() => reject(new Error("Discord ready timeout (15s)")), 15_000)
@@ -144,9 +140,6 @@ async function shutdown() {
       } catch {}
     }
   }
-  try {
-    webhookServer.stop();
-  } catch {}
   try {
     ctx.discord.destroy();
   } catch {}

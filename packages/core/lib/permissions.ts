@@ -3,7 +3,6 @@
  */
 
 import type { AppContext } from "./types.ts";
-import type { McpTransport } from "@choomfie/shared";
 import {
   buildPermissionMessage,
   buildPermissionTextFallback,
@@ -14,22 +13,12 @@ import {
 } from "./permission-schema.ts";
 
 export function registerPermissionRelay(ctx: AppContext) {
-  (ctx.mcp as unknown as McpTransport).setNotificationHandler!(
-    z.object({
-      method: z.literal(
-        "notifications/claude/channel/permission_request"
-      ),
-      params: z.object({
-        request_id: z.string(),
-        tool_name: z.string(),
-        description: z.string(),
-        input_preview: z.string(),
-      }),
-    }),
+  ctx.mcp.setNotificationHandler(
+    PermissionRequestNotificationSchema,
     async ({ params }) => {
-      const p = params as Parameters<typeof buildPermissionMessage>[0];
-      const message = buildPermissionMessage(p);
-      const textFallback = buildPermissionTextFallback(p);
+      const permissionParams = requirePermissionRequestParams(params);
+      const message = buildPermissionMessage(permissionParams);
+      const textFallback = buildPermissionTextFallback(permissionParams);
 
       // Only send permission requests to the owner (security layer 3)
       const permTarget = ctx.ownerUserId

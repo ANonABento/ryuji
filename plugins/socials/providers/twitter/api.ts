@@ -1,4 +1,3 @@
-// @ts-nocheck -- rettiwt-api types don't match runtime behavior (authType, tweet result shape)
 /**
  * Twitter/X provider — posting via rettiwt-api (unofficial, no API key needed).
  *
@@ -9,7 +8,7 @@
  * Supports: post tweets, post with images, threads.
  */
 
-import { AuthenticationType, Rettiwt } from "rettiwt-api";
+import { Rettiwt, type IRettiwtConfig, type INewTweet } from "rettiwt-api";
 
 // --- Types ---
 
@@ -24,17 +23,20 @@ export interface TweetResult {
   url: string;
 }
 
-type RettiwtClient = InstanceType<typeof Rettiwt> & {
-  auth?: {
-    login(email: string, username: string, password: string): Promise<string>;
-  };
-};
+interface RettiwtLoginConfig extends IRettiwtConfig {
+  authType: "LOGIN";
+  email: string;
+  userName: string;
+  password: string;
+}
 
 // --- Twitter Client ---
 
 export class TwitterClient {
-  private rettiwt: RettiwtClient | null = null;
+  private rettiwt: InstanceType<typeof Rettiwt> | null = null;
   private username: string = "";
+
+  constructor() {}
 
   // --- Auth ---
 
@@ -44,26 +46,22 @@ export class TwitterClient {
     try {
       // Rettiwt LOGIN auth — pass credentials to constructor,
       // authenticates on first API call
-      this.rettiwt = new Rettiwt() as RettiwtClient;
-      const apiKey = await this.rettiwt.auth?.login(
-        config.email,
-        config.username,
-        config.password
-      );
-      if (apiKey) {
-        this.rettiwt.apiKey = apiKey;
-      }
+      const loginConfig: RettiwtLoginConfig = {
+        authType: "LOGIN",
+        email: config.email,
+        userName: config.username,
+        password: config.password,
+      };
+      this.rettiwt = new Rettiwt(loginConfig);
 
       // Test the session by fetching own profile
       const me = await this.rettiwt.user.details(config.username);
       if (!me) throw new Error("Could not fetch user profile");
 
       return `Logged in as @${me.userName || config.username}`;
-    } catch (error: unknown) {
+    } catch (e: any) {
       this.rettiwt = null;
-      throw new Error(
-        `Twitter login failed: ${error instanceof Error ? error.message : String(error)}`
-      );
+      throw new Error(`Twitter login failed: ${e.message}`);
     }
   }
 
@@ -78,7 +76,7 @@ export class TwitterClient {
     };
   }
 
-  private ensureClient(): RettiwtClient {
+  private ensureClient(): InstanceType<typeof Rettiwt> {
     if (!this.rettiwt) {
       throw new Error("Not logged in. Run twitter_auth first.");
     }
@@ -90,12 +88,11 @@ export class TwitterClient {
   async postTweet(tweetText: string): Promise<TweetResult> {
     const client = this.ensureClient();
 
-    const result = await client.tweet.post({ text: tweetText });
-    const id = result ?? "unknown";
+    const id = await client.tweet.post({ text: tweetText });
 
     return {
-      id,
-      url: `https://x.com/${this.username}/status/${id}`,
+      id: id ?? "unknown",
+      url: `https://x.com/${this.username}/status/${id ?? "unknown"}`,
     };
   }
 
@@ -103,15 +100,15 @@ export class TwitterClient {
     const client = this.ensureClient();
 
     const mediaId = await client.tweet.upload(mediaPath);
-    const result = await client.tweet.post({
+    const tweet = {
       text: tweetText,
       media: [{ id: mediaId }],
-    });
-    const id = result ?? "unknown";
+    } satisfies INewTweet;
+    const id = await client.tweet.post(tweet);
 
     return {
-      id,
-      url: `https://x.com/${this.username}/status/${id}`,
+      id: id ?? "unknown",
+      url: `https://x.com/${this.username}/status/${id ?? "unknown"}`,
     };
   }
 
@@ -123,10 +120,9 @@ export class TwitterClient {
 
     // First tweet
     const first = await client.tweet.post({ text: tweets[0] });
-    const firstId = first ?? "unknown";
     results.push({
-      id: firstId,
-      url: `https://x.com/${this.username}/status/${firstId}`,
+      id: first ?? "unknown",
+      url: `https://x.com/${this.username}/status/${first ?? "unknown"}`,
     });
 
     // Reply chain
@@ -134,15 +130,14 @@ export class TwitterClient {
       // Small delay to avoid rate limiting
       await new Promise((r) => setTimeout(r, 1500));
 
-      const reply = (await client.tweet.post({
+      const reply = await client.tweet.post({
         text: tweets[i],
         replyTo: results[i - 1].id,
       });
-      const replyId = reply ?? "unknown";
 
       results.push({
-        id: replyId,
-        url: `https://x.com/${this.username}/status/${replyId}`,
+        id: reply ?? "unknown",
+        url: `https://x.com/${this.username}/status/${reply ?? "unknown"}`,
       });
     }
 

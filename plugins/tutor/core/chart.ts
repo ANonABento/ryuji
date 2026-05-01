@@ -1,4 +1,4 @@
-import type { ChartExerciseData as ChartExercise } from "./lesson-types.ts";
+import type { ChartExerciseData } from "./lesson-types.ts";
 
 export interface ChartRenderState {
   currentBlankIndex?: number;

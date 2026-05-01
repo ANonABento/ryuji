@@ -14,42 +14,21 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ChannelType,
 } from "discord.js";
-import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { findMonorepoRoot } from "@choomfie/shared";
 import { VERSION } from "./version.ts";
-import { getCommandDefs, registerCommand, registerButtonHandler } from "./interactions.ts";
+import { registerCommand, registerButtonHandler } from "./interactions.ts";
 import { McpProxy } from "./mcp-proxy.ts";
 import { formatDuration, fromSQLiteDatetime } from "./time.ts";
 import { isOwner, requireOwner } from "./handlers/shared.ts";
 import { buildGhArgs, runGh } from "./handlers/github.ts";
 import { discoverPlugins } from "./plugins.ts";
-import { translateText } from "./translation.ts";
 import {
   buildReminderModal,
   buildPersonaModal,
   buildMemoryModal,
 } from "./handlers/modals.ts";
-import type { IncomingWebhook } from "./memory.ts";
-import { buildWebhookUrl, generateWebhookToken } from "./webhooks.ts";
-
-const DISCORD_CONTENT_LIMIT = 2000;
-
-function fitDiscordContent(content: string): string {
-  if (content.length <= DISCORD_CONTENT_LIMIT) return content;
-  return content.slice(0, DISCORD_CONTENT_LIMIT - 3) + "...";
-}
 
 // --- Command definitions ---
-
-async function redeployCommands(ctx: AppContext): Promise<number> {
-  const commands = mergeCommandDefs(getCommandDefs(), ctx.memory.listCustomCommands());
-  const deployed = await deployCurrentGuildCommands(ctx, commands);
-  await Bun.write(`${ctx.DATA_DIR}/.commands-hash`, Bun.hash(JSON.stringify(commands)).toString(36));
-  return deployed;
-}
 
 // /remind — opens a modal form
 registerCommand("remind", {
@@ -257,11 +236,8 @@ registerCommand("help", {
         {
           name: "Other",
           value: [
-            "`/translate <target_lang> <text>` — translate text",
             "`/github <check>` — PRs, issues, notifications",
-            "`/webhook create` — create an incoming webhook for a channel",
             "`/status` — bot status and stats",
-            "`/local_check` — validate local services for offline mode",
           ].join("\n"),
           inline: false,
         },
@@ -275,42 +251,6 @@ registerCommand("help", {
       .setFooter({ text: "@ me in a server or DM me directly" });
 
     await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
-  },
-});
-
-// /translate <target_lang> <text>
-registerCommand("translate", {
-  data: new SlashCommandBuilder()
-    .setName("translate")
-    .setDescription("Translate text with automatic source-language detection")
-    .addStringOption((o) =>
-      o
-        .setName("target_lang")
-        .setDescription("Target language, e.g. English, Spanish, Japanese, or pt-BR")
-        .setRequired(true)
-    )
-    .addStringOption((o) =>
-      o
-        .setName("text")
-        .setDescription("Text to translate")
-        .setRequired(true)
-    )
-    .toJSON(),
-  handler: async (interaction) => {
-    await interaction.deferReply();
-
-    const targetLang = interaction.options.getString("target_lang", true);
-    const sourceText = interaction.options.getString("text", true);
-
-    try {
-      const translated = await translateText({ targetLang, text: sourceText });
-      await interaction.editReply({ content: fitDiscordContent(translated) });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      await interaction.editReply({
-        content: fitDiscordContent(`Translation failed: ${message}`),
-      });
-    }
   },
 });
 
@@ -350,130 +290,8 @@ registerCommand("github", {
     try {
       const output = await runGh(ghArgs);
       await interaction.editReply({ content: `\`\`\`\n${output.slice(0, 1900)}\n\`\`\`` });
-    } catch (error: unknown) {
-      await interaction.editReply({ content: `GitHub CLI error: ${getErrorMessage(error)}` });
-    }
-  },
-});
-
-// /customcmd — owner-defined text aliases
-registerCommand("customcmd", {
-  data: new SlashCommandBuilder()
-    .setName("customcmd")
-    .setDescription("Manage custom commands (owner only)")
-    .addSubcommand((sub) =>
-      sub
-        .setName("add")
-        .setDescription("Add or update a custom command")
-        .addStringOption((o) =>
-          o
-            .setName("name")
-            .setDescription("Command name, used as /name")
-            .setRequired(true)
-            .setMinLength(1)
-            .setMaxLength(32)
-        )
-        .addStringOption((o) =>
-          o
-            .setName("response")
-            .setDescription("Text response")
-            .setRequired(true)
-            .setMinLength(1)
-            .setMaxLength(2000)
-        )
-    )
-    .addSubcommand((sub) =>
-      sub
-        .setName("list")
-        .setDescription("List custom commands")
-    )
-    .addSubcommand((sub) =>
-      sub
-        .setName("delete")
-        .setDescription("Delete a custom command")
-        .addStringOption((o) =>
-          o
-            .setName("name")
-            .setDescription("Command name")
-            .setRequired(true)
-            .setMinLength(1)
-            .setMaxLength(32)
-        )
-    )
-    .toJSON(),
-  handler: async (interaction, ctx) => {
-    if (await requireOwner(interaction, ctx)) return;
-
-    const action = interaction.options.getSubcommand(true);
-
-    if (action === "list") {
-      const customCommands = ctx.memory.listCustomCommands();
-      if (customCommands.length === 0) {
-        await interaction.reply({
-          content: "No custom commands defined.",
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
-
-      const lines = customCommands.map(
-        (command) => `\`/${command.name}\` — ${command.response.slice(0, 80)}`
-      );
-      const embed = new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setTitle("Custom Commands")
-        .setDescription(lines.join("\n").slice(0, 4000))
-        .setFooter({ text: `${customCommands.length} custom command(s)` });
-
-      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
-      return;
-    }
-
-    const name = normalizeCustomCommandName(interaction.options.getString("name", true));
-    if (!isValidCustomCommandName(name)) {
-      await interaction.reply({
-        content: "Command names must be 1-32 characters: lowercase letters, numbers, `_`, or `-`.",
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
-    if (action === "add") {
-      const builtInNames = new Set(getCommandDefs().map((command) => command.name));
-      if (builtInNames.has(name)) {
-        await interaction.editReply({
-          content: `\`/${name}\` is a built-in command and cannot be overridden.`,
-        });
-        return;
-      }
-
-      const response = interaction.options.getString("response", true).trim();
-      if (!response) {
-        await interaction.editReply({ content: "Response cannot be empty." });
-        return;
-      }
-
-      ctx.memory.setCustomCommand(name, response, interaction.user.id);
-      const deployed = await redeployCommands(ctx);
-      await interaction.editReply({
-        content: `Added \`/${name}\` and deployed commands to ${deployed} guild(s).`,
-      });
-      return;
-    }
-
-    if (action === "delete") {
-      const deleted = ctx.memory.deleteCustomCommand(name);
-      if (!deleted) {
-        await interaction.editReply({ content: `\`/${name}\` was not found.` });
-        return;
-      }
-
-      const deployed = await redeployCommands(ctx);
-      await interaction.editReply({
-        content: `Deleted \`/${name}\` and deployed commands to ${deployed} guild(s).`,
-      });
+    } catch (e: any) {
+      await interaction.editReply({ content: `GitHub CLI error: ${e.message}` });
     }
   },
 });
@@ -542,7 +360,6 @@ registerCommand("persona", {
     .toJSON(),
   handler: async (interaction, ctx) => {
     const switchTo = interaction.options.getString("switch");
-    const localFirst = ctx.config.getLocalFirst();
 
     if (switchTo) {
       if (await requireOwner(interaction, ctx)) return;
@@ -558,28 +375,19 @@ registerCommand("persona", {
         });
         return;
       }
-      const compatNote = persona.model && !localFirst
-        ? `\n⚠️ This persona has model \`${persona.model}\` but \`localFirst\` is off — model override won't apply.`
-        : !persona.model && localFirst
-        ? `\nℹ️ \`localFirst\` is on but this persona has no model override — using default local model hints.`
-        : persona.model
-        ? `\n✓ Model: \`${persona.model}\``
-        : "";
       if (ctx.mcp instanceof McpProxy) {
         ctx.mcp.requestRestart(`persona switch: ${switchTo}`, interaction.channelId);
       }
       await interaction.reply({
-        content: `Switched to **${persona.name}**. Restarting...${compatNote}`,
+        content: `Switched to **${persona.name}**. Restarting...`,
       });
     } else {
       const personas = ctx.config.listPersonas();
       const lines = personas.map(
-        (p) =>
-          `${p.active ? "→ " : "  "}\`${p.key}\` — **${p.persona.name}**${p.persona.model ? ` (\`${p.persona.model}\`)` : ""}`
+        (p) => `${p.active ? "→ " : "  "}\`${p.key}\` — **${p.persona.name}**`
       );
-      const footer = localFirst ? "\n\n🔧 `localFirst` mode is **on**." : "";
       await interaction.reply({
-        content: `**Personas:**\n${lines.join("\n")}${footer}`,
+        content: `**Personas:**\n${lines.join("\n")}`,
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -725,120 +533,6 @@ registerCommand("plugins", {
   },
 });
 
-// /webhook create|list|revoke — incoming HTTP webhooks (owner only)
-function formatWebhookToken(token: string): string {
-  return token.length > 8 ? `...${token.slice(-8)}` : token;
-}
-
-function formatWebhookListItem(webhook: IncomingWebhook): string {
-  return `\`${formatWebhookToken(webhook.token)}\` -> <#${webhook.channelId}> by <@${
-    webhook.createdBy
-  }>`;
-}
-
-registerCommand("webhook", {
-  data: new SlashCommandBuilder()
-    .setName("webhook")
-    .setDescription("Manage incoming webhooks (owner only)")
-    .addSubcommand((sub) =>
-      sub
-        .setName("create")
-        .setDescription("Create a webhook URL for a Discord channel")
-        .addChannelOption((o) =>
-          o
-            .setName("channel")
-            .setDescription("Channel to post into (defaults to this channel)")
-            .addChannelTypes(ChannelType.GuildText, ChannelType.PublicThread, ChannelType.PrivateThread)
-        )
-    )
-    .addSubcommand((sub) =>
-      sub
-        .setName("list")
-        .setDescription("List active incoming webhooks")
-    )
-    .addSubcommand((sub) =>
-      sub
-        .setName("revoke")
-        .setDescription("Revoke an incoming webhook token")
-        .addStringOption((o) =>
-          o
-            .setName("token")
-            .setDescription("Webhook token to revoke")
-            .setRequired(true)
-        )
-    )
-    .toJSON(),
-  handler: async (interaction, ctx) => {
-    if (await requireOwner(interaction, ctx)) return;
-
-    const action = interaction.options.getSubcommand(true);
-
-    if (action === "create") {
-      const selected = interaction.options.getChannel("channel");
-      const channelId = selected?.id ?? interaction.channelId;
-      const channel = await ctx.discord.channels.fetch(channelId).catch(() => null);
-
-      if (!channel || !channel.isTextBased() || channel.type === ChannelType.DM) {
-        await interaction.reply({
-          content: "Choose a server text channel or thread for the webhook target.",
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
-
-      let token = generateWebhookToken();
-      while (ctx.memory.getIncomingWebhook(token)) {
-        token = generateWebhookToken();
-      }
-
-      ctx.memory.addIncomingWebhook(
-        token,
-        channel.id,
-        interaction.user.id,
-        "guildId" in channel ? channel.guildId : interaction.guildId
-      );
-
-      await interaction.reply({
-        content: [
-          `Webhook created for <#${channel.id}>.`,
-          `URL: \`${buildWebhookUrl(token)}\``,
-          "POST JSON with `content`, `message`, or `text`, or POST plain text.",
-        ].join("\n"),
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    if (action === "list") {
-      const webhooks = ctx.memory.listIncomingWebhooks();
-      if (webhooks.length === 0) {
-        await interaction.reply({
-          content: "No active incoming webhooks.",
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
-
-      const lines = webhooks.map(formatWebhookListItem);
-
-      await interaction.reply({
-        content: `**Active incoming webhooks**\n${lines.join("\n").slice(0, 1900)}`,
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    if (action === "revoke") {
-      const token = interaction.options.getString("token", true).trim();
-      const revoked = ctx.memory.revokeIncomingWebhook(token);
-      await interaction.reply({
-        content: revoked ? "Webhook revoked." : "Webhook token not found.",
-        flags: MessageFlags.Ephemeral,
-      });
-    }
-  },
-});
-
 // /voice setup — interactive provider wizard (owner only)
 registerCommand("voice", {
   data: new SlashCommandBuilder()
@@ -857,11 +551,9 @@ registerCommand("voice", {
     let reports;
     try {
       reports = await detectAllProviders();
-    } catch (error: unknown) {
+    } catch (e: any) {
       await interaction.editReply({
-        content: `Provider detection failed: ${getErrorMessage(
-          error
-        )}. Check that ffmpeg and python3 are installed.`,
+        content: `Provider detection failed: ${e.message}. Check that ffmpeg and python3 are installed.`,
       });
       return;
     }
@@ -933,115 +625,6 @@ registerCommand("voice", {
       embeds: [embed],
       components: [sttRow, ttsRow],
     });
-  },
-});
-
-// /local_check — validate all local services are up
-registerCommand("local_check", {
-  data: new SlashCommandBuilder()
-    .setName("local_check")
-    .setDescription("Validate all local services required for offline operation")
-    .toJSON(),
-  handler: async (interaction, ctx) => {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
-    const isLocalFirst = ctx.config.isLocalFirst();
-    const ollamaUrl = ctx.config.getOllamaUrl();
-    const model = ctx.config.getLocalModel();
-
-    // Check ollama
-    let ollamaOk = false;
-    let ollamaDetail = "not running";
-    try {
-      const res = await fetch(`${ollamaUrl}/api/tags`, {
-        signal: AbortSignal.timeout(3000),
-      });
-      if (res.ok) {
-        const data = (await res.json()) as { models?: { name: string }[] };
-        const models = data.models?.map((m) => m.name) ?? [];
-        ollamaOk = true;
-        ollamaDetail = models.length
-          ? `${models.length} model(s): ${models.slice(0, 3).join(", ")}`
-          : "running (no models loaded)";
-      } else {
-        ollamaDetail = `HTTP ${res.status}`;
-      }
-    } catch (e) {
-      ollamaDetail = (e as Error)?.name === "TimeoutError" ? "timed out (3s)" : "not running";
-    }
-
-    // Check whisper-cpp (try whisper-cli first, then whisper-cpp)
-    let whisperOk = false;
-    let whisperDetail = "not installed";
-    try {
-      for (const bin of ["whisper-cli", "whisper-cpp"]) {
-        const proc = Bun.spawn(["which", bin], { stdout: "pipe", stderr: "pipe" });
-        await proc.exited;
-        if (proc.exitCode === 0) {
-          whisperOk = true;
-          whisperDetail = `found (${bin})`;
-          break;
-        }
-      }
-      if (!whisperOk) whisperDetail = "not installed — `brew install whisper-cpp`";
-    } catch {
-      whisperDetail = "detection failed";
-    }
-
-    // Check kokoro-onnx — prefer venv python if present
-    let kokoroOk = false;
-    let kokoroDetail = "not installed";
-    try {
-      const root = findMonorepoRoot(import.meta.dir);
-      const venvPy = join(root, ".venv", "bin", "python3");
-      const python = existsSync(venvPy) ? venvPy : "python3";
-      const proc = Bun.spawn([python, "-c", "import kokoro_onnx"], {
-        stdout: "pipe",
-        stderr: "pipe",
-      });
-      await proc.exited;
-      kokoroOk = proc.exitCode === 0;
-      kokoroDetail = kokoroOk ? "found" : "not installed — `pip install kokoro-onnx soundfile`";
-    } catch {
-      kokoroDetail = "detection failed";
-    }
-
-    const allOk = ollamaOk && whisperOk && kokoroOk;
-    const anyOk = ollamaOk || whisperOk || kokoroOk;
-    const color = allOk ? 0x57f287 : anyOk ? 0xf0883e : 0xed4245;
-
-    const embed = new EmbedBuilder()
-      .setColor(color)
-      .setTitle(`${allOk ? "✅" : "⚠️"} Local Service Check`)
-      .setDescription(
-        isLocalFirst
-          ? "Local-first mode is **enabled** — all API calls stay on-device."
-          : "Local-first mode is **disabled** — enable with `config.localFirst = true` to go fully offline."
-      )
-      .addFields(
-        {
-          name: `${ollamaOk ? "✅" : "❌"} Ollama (LLM)`,
-          value: `\`${ollamaUrl}\`\n${ollamaDetail}${ollamaOk ? ` · target model: \`${model}\`` : ""}`,
-          inline: false,
-        },
-        {
-          name: `${whisperOk ? "✅" : "❌"} whisper-cpp (STT)`,
-          value: whisperDetail,
-          inline: false,
-        },
-        {
-          name: `${kokoroOk ? "✅" : "❌"} kokoro-onnx (TTS)`,
-          value: kokoroDetail,
-          inline: false,
-        }
-      )
-      .setFooter({
-        text: allOk
-          ? "All local services ready — fully offline capable."
-          : "Fix the services above to enable full offline operation.",
-      });
-
-    await interaction.editReply({ embeds: [embed] });
   },
 });
 

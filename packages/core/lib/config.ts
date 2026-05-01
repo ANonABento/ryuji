@@ -12,8 +12,6 @@ import type { SocialsPlatformConfig } from "@choomfie/shared";
 export interface Persona {
   name: string;
   personality: string;
-  /** Local model override (e.g. "llama3.1:8b", "mistral:7b"). Activates local-model prompt hints. */
-  model?: string;
 }
 
 export interface VoiceConfig {
@@ -22,43 +20,39 @@ export interface VoiceConfig {
   ttsSpeed?: number; // 0.5 to 2.0 (default 1.0)
 }
 
-export type LlmProvider = "claude" | "ollama" | string;
-export type EmbeddingsProvider = "none" | "local" | string;
-
-export interface SocialsConfig {
-  youtube?: {
+export interface YouTubeConfig extends SocialsPlatformConfig {
     apiKey?: string;       // Optional — for YouTube Data API v3 reads (fallback to yt-dlp)
     clientId?: string;     // Optional — for OAuth (comments)
     clientSecret?: string; // Optional — for OAuth (comments)
-    [key: string]: string | undefined;
-  };
-  linkedin?: {
+}
+
+export interface LinkedInConfig extends SocialsPlatformConfig {
     clientId: string;
     clientSecret: string;
-    [key: string]: string;
-  };
-  reddit?: {
+}
+
+export interface RedditConfig extends SocialsPlatformConfig {
     clientId: string;
     clientSecret: string;
     username: string;
     password: string;
-    [key: string]: string;
-  };
-  [key: string]: { [k: string]: string | undefined } | undefined;
 }
 
-export type LlmProvider = "anthropic" | "openai" | "ollama" | "lmstudio";
+export interface TwitterConfig extends SocialsPlatformConfig {
+  username: string;
+  password: string;
+  email: string;
+}
 
-export interface LlmConfig {
-  provider: LlmProvider;
-  model?: string;
-  apiKey?: string;
-  baseUrl?: string;
+export interface SocialsConfig {
+  youtube?: YouTubeConfig;
+  linkedin?: LinkedInConfig;
+  reddit?: RedditConfig;
+  twitter?: TwitterConfig;
+  [key: string]: SocialsPlatformConfig | undefined;
 }
 
 export interface Config {
-  provider: "claude" | "ollama";
-  ollama_model: string;
   activePersona: string;
   personas: Record<string, Persona>;
   rateLimitMs: number;
@@ -66,18 +60,11 @@ export interface Config {
   autoSummarize: boolean;
   plugins: string[];
   voice: VoiceConfig;
-  /** When true, personas with a model field use local-model prompt hints. */
-  localFirst?: boolean;
   socials?: SocialsConfig;
-  llm?: LlmConfig;
   [key: string]: unknown;
 }
 
-export const DEFAULT_OLLAMA_MODEL = "llama3.1:8b";
-
 const DEFAULT_CONFIG: Config = {
-  provider: "claude",
-  ollama_model: DEFAULT_OLLAMA_MODEL,
   activePersona: "choomfie",
   personas: {
     choomfie: {
@@ -93,20 +80,6 @@ const DEFAULT_CONFIG: Config = {
   voice: { stt: "auto", tts: "auto", ttsSpeed: 0.7 },
 };
 
-function applyLocalFirst(config: Config): Config {
-  if (!config.localFirst) return config;
-  return {
-    ...config,
-    provider: "ollama",
-    embeddings: "local",
-    voice: {
-      ...config.voice,
-      stt: "whisper",
-      tts: "kokoro",
-    },
-  };
-}
-
 function mergeConfig(saved: Partial<Config>): Config {
   const savedPersonas =
     saved.personas && typeof saved.personas === "object"
@@ -120,11 +93,6 @@ function mergeConfig(saved: Partial<Config>): Config {
   return {
     ...DEFAULT_CONFIG,
     ...saved,
-    provider: saved.provider === "ollama" ? "ollama" : DEFAULT_CONFIG.provider,
-    ollama_model:
-      typeof saved.ollama_model === "string" && saved.ollama_model.trim()
-        ? saved.ollama_model.trim()
-        : DEFAULT_CONFIG.ollama_model,
     personas: {
       ...DEFAULT_CONFIG.personas,
       ...savedPersonas,
@@ -185,23 +153,8 @@ export class ConfigManager {
     return persona;
   }
 
-  savePersona(key: string, name: string, personality: string, model?: string) {
-    const persona: Persona = { name, personality };
-    if (model) persona.model = model;
-    this.config.personas[key.toLowerCase()] = persona;
-    this.save();
-  }
-
-  getActivePersonaModel(): string | undefined {
-    return this.getActivePersona().model;
-  }
-
-  getLocalFirst(): boolean {
-    return this.config.localFirst ?? false;
-  }
-
-  setLocalFirst(enabled: boolean) {
-    this.config.localFirst = enabled;
+  savePersona(key: string, name: string, personality: string) {
+    this.config.personas[key.toLowerCase()] = { name, personality };
     this.save();
   }
 
@@ -251,32 +204,10 @@ export class ConfigManager {
     this.save();
   }
 
-  // --- Chat provider ---
-
-  getProvider(): Config["provider"] {
-    return this.config.provider === "ollama" ? "ollama" : "claude";
-  }
-
-  setProvider(provider: Config["provider"]) {
-    this.config.provider = provider;
-    this.save();
-  }
-
-  getOllamaModel(): string {
-    return this.config.ollama_model || DEFAULT_CONFIG.ollama_model;
-  }
-
-  setOllamaModel(model: string) {
-    const trimmed = model.trim();
-    if (!trimmed) return;
-    this.config.ollama_model = trimmed;
-    this.save();
-  }
-
   // --- Voice ---
 
   getVoiceConfig(): VoiceConfig {
-    return applyLocalFirst(this.config).voice;
+    return this.config.voice || { stt: "auto", tts: "auto" };
   }
 
   setVoiceConfig(voice: Partial<VoiceConfig>) {
@@ -301,20 +232,9 @@ export class ConfigManager {
     return this.config.socials;
   }
 
-  // --- LLM ---
-
-  getLlmConfig(): LlmConfig {
-    return this.config.llm ?? { provider: "anthropic" };
-  }
-
-  setLlmConfig(llm: LlmConfig) {
-    this.config.llm = llm;
-    this.save();
-  }
-
   // --- Full config ---
 
   getConfig(): Config {
-    return applyLocalFirst({ ...this.config });
+    return { ...this.config };
   }
 }

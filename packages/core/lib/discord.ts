@@ -7,10 +7,7 @@ import {
   Events,
   GatewayIntentBits,
   Partials,
-  type DMChannel,
   type Message,
-  type NewsChannel,
-  type TextChannel,
 } from "discord.js";
 import { mkdir, readdir, stat, unlink } from "node:fs/promises";
 import { basename } from "node:path";
@@ -26,7 +23,6 @@ import {
 } from "./conversation.ts";
 import { deployGuildCommands } from "./command-deploy.ts";
 import { isAllowed, isOwner } from "./access.ts";
-import { handleProviderChat } from "./chat/discord-chat.ts";
 
 const PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i;
 
@@ -66,9 +62,7 @@ export function createDiscordClient(ctx: AppContext): Client {
   discord.once(Events.ClientReady, async (c) => {
     console.error(`Choomfie Discord: logged in as ${c.user.tag}`);
     ctx.startedAt = Date.now();
-    const initDone = () => {
-      ctx._discordReadyResolve?.();
-    };
+    const initDone = () => { (ctx as any)._discordReadyResolve?.(); };
 
     // Fallback: auto-detect owner if not set during setup
     if (!ctx.ownerUserId) {
@@ -112,8 +106,8 @@ export function createDiscordClient(ctx: AppContext): Client {
       }
     };
     // Clear previous interval if restarting, then start fresh
-    if (ctx._inboxInterval) clearInterval(ctx._inboxInterval);
-    ctx._inboxInterval = setInterval(cleanInbox, 60 * 60 * 1000);
+    if ((ctx as any)._inboxInterval) clearInterval((ctx as any)._inboxInterval);
+    (ctx as any)._inboxInterval = setInterval(cleanInbox, 60 * 60 * 1000);
     cleanInbox(); // Run on startup
 
     // Initialize plugins
@@ -130,7 +124,7 @@ export function createDiscordClient(ctx: AppContext): Client {
 
     // Auto-deploy slash commands if they've changed
     try {
-      const commands = mergeCommandDefs(getCommandDefs(), ctx.memory.listCustomCommands());
+      const commands = getCommandDefs();
       const hash = Bun.hash(JSON.stringify(commands)).toString(36);
       const hashFile = `${ctx.DATA_DIR}/.commands-hash`;
       let lastHash = "";
@@ -182,7 +176,7 @@ export function createDiscordClient(ctx: AppContext): Client {
     const permMatch = PERMISSION_REPLY_RE.exec(message.content);
     if (permMatch && canApprovePermissions) {
       ctx.mcp.notification({
-        method: "notifications/claude/channel/permission",
+        method: "notifications/claude/channel/permission" as any,
         params: {
           request_id: permMatch[2].toLowerCase(),
           behavior: permMatch[1].toLowerCase().startsWith("y")
@@ -316,31 +310,16 @@ export function createDiscordClient(ctx: AppContext): Client {
 
     // Show typing indicator while Claude processes (state machine in lib/typing.ts)
     const isConversationMode = meta.conversation_mode === "true";
-    onMessageReceived(
-      message.channelId,
-      message.channel as TextChannel | DMChannel | NewsChannel,
-      isConversationMode
-    );
+    onMessageReceived(message.channelId, message.channel as any, isConversationMode);
 
     // Strip bot @mention from the message so Claude sees clean text
     const cleanContent = message.content
       .replace(new RegExp(`<@!?${discord.user!.id}>`, "g"), "")
       .trim();
 
-    if (
-      await handleProviderChat(
-        message,
-        ctx,
-        cleanContent || "(empty message - user may have just mentioned you)",
-        meta
-      )
-    ) {
-      return;
-    }
-
     // Forward to Claude Code
     ctx.mcp.notification({
-      method: "notifications/claude/channel",
+      method: "notifications/claude/channel" as any,
       params: {
         content:
           cleanContent ||
