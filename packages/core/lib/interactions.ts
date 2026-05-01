@@ -57,13 +57,13 @@ function asAppContext(ctx: PluginContext): AppContext {
 
 export function registerButtonHandler(prefix: string, handler: ButtonHandler) {
   registerSharedButtonHandler(prefix, (interaction, parts, ctx) =>
-    handler(interaction, parts, asAppContext(ctx))
+    handler(interaction, parts, ctx as unknown as AppContext)
   );
 }
 
 export function registerModalHandler(prefix: string, handler: ModalHandler) {
   registerSharedModalHandler(prefix, (interaction, parts, ctx) =>
-    handler(interaction, parts, asAppContext(ctx))
+    handler(interaction, parts, ctx as unknown as AppContext)
   );
 }
 
@@ -76,7 +76,7 @@ export function registerCommand(
 ) {
   registerSharedCommand(name, {
     data: def.data,
-    handler: (interaction, ctx) => def.handler(interaction, asAppContext(ctx)),
+    handler: (interaction, ctx) => def.handler(interaction, ctx as unknown as AppContext),
   });
 }
 

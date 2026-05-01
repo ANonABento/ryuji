@@ -36,20 +36,8 @@ export interface RedditConfig extends SocialsPlatformConfig {
     clientSecret: string;
     username: string;
     password: string;
-}
-
-export interface TwitterConfig extends SocialsPlatformConfig {
-  username: string;
-  password: string;
-  email: string;
-}
-
-export interface SocialsConfig {
-  youtube?: YouTubeConfig;
-  linkedin?: LinkedInConfig;
-  reddit?: RedditConfig;
-  twitter?: TwitterConfig;
-  [key: string]: SocialsPlatformConfig | undefined;
+  };
+  [key: string]: unknown;
 }
 
 export interface Config {

@@ -73,10 +73,9 @@ export function createMcpServer(ctx: AppContext): Server {
   );
   mcp.setRequestHandler(CallToolRequestSchema, async (req): Promise<any> => {
     const handler = toolMap.get(req.params.name);
-    if (!handler) return err(`Unknown tool: ${req.params.name}`);
+    if (!handler) return err(`Unknown tool: ${req.params.name}`) as any;
 
-    trackToolCall(ctx, req.params.name);
-    return handler(req.params.arguments ?? {}, ctx);
+    return handler(req.params.arguments ?? {}, ctx) as any;
   });
 
   // Assign to ctx before registering permission relay (needs ctx.mcp)
