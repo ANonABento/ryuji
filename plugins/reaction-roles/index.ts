@@ -65,8 +65,9 @@ registerCommand("reactionrole", {
     )
     .toJSON(),
   handler: async (interaction, ctx) => {
-    const replyEphemeral = async (content: string): Promise<void> =>
-      interaction.reply({ content, flags: MessageFlags.Ephemeral });
+    const replyEphemeral = async (content: string): Promise<void> => {
+      await interaction.reply({ content, flags: MessageFlags.Ephemeral });
+    };
 
     if (!interaction.guild || !interaction.channel) {
       await replyEphemeral("Reaction roles can only be configured in a server channel.");

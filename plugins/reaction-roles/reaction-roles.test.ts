@@ -100,7 +100,7 @@ test("applyReactionRole adds and removes the configured role", async () => {
   const reaction = {
     partial: false,
     emoji: { id: null, name: "✅" },
-    message: { id: "message-1", guild },
+    message: { id: "message-1", channelId: "channel-1", guild },
   };
   const user = { partial: false, bot: false, id: "user-1" };
 
