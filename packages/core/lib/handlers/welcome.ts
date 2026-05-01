@@ -6,7 +6,6 @@ import {
   ChannelType,
   MessageFlags,
   SlashCommandBuilder,
-  type GuildMember,
 } from "discord.js";
 import {
   normalizeWelcomeTemplate,
@@ -20,6 +19,54 @@ const WELCOME_TEMPLATE_MAX_LENGTH = 1000;
 const DISCORD_MESSAGE_MAX_LENGTH = 2000;
 const CONFIG_DISPLAY_MAX_LENGTH = 700;
 
+interface WelcomeTextChannel {
+  isTextBased(): boolean;
+  send(payload: {
+    content: string;
+    allowedMentions: { users: string[]; roles: string[]; parse: string[] };
+  }): Promise<unknown>;
+}
+
+export interface WelcomeTemplateMember {
+  id: string;
+  displayName: string;
+  user: {
+    username: string;
+  };
+  guild: {
+    name: string;
+    memberCount: number;
+  };
+}
+
+export interface WelcomeGuildMember {
+  id: string;
+  displayName: string;
+  user: {
+    username: string;
+    bot?: boolean;
+  };
+  guild: {
+    name: string;
+    memberCount: number;
+    channels: {
+      fetch(channelId: string): Promise<unknown>;
+    };
+  };
+}
+
+function isWelcomeTextChannel(channel: unknown): channel is WelcomeTextChannel {
+  return (
+    Boolean(channel) &&
+    typeof channel === "object" &&
+    "isTextBased" in channel &&
+    typeof channel.isTextBased === "function" &&
+    "send" in channel &&
+    typeof channel.send === "function" &&
+    channel.isTextBased()
+  );
+}
+
 function truncateText(value: string, maxLength: number): string {
   if (value.length <= maxLength) return value;
   return `${value.slice(0, maxLength - 3)}...`;
@@ -27,10 +74,7 @@ function truncateText(value: string, maxLength: number): string {
 
 export function renderWelcomeTemplate(
   template: string,
-  member: Pick<GuildMember, "id" | "displayName"> & {
-    user: Pick<GuildMember["user"], "username">;
-    guild: Pick<GuildMember["guild"], "name" | "memberCount">;
-  }
+  member: WelcomeTemplateMember
 ): string {
   return template
     .replaceAll("{user}", `<@${member.id}>`)
@@ -41,7 +85,7 @@ export function renderWelcomeTemplate(
 }
 
 export async function handleGuildMemberAdd(
-  member: GuildMember,
+  member: WelcomeGuildMember,
   ctx: AppContext
 ): Promise<void> {
   if (member.user.bot) return;
@@ -57,7 +101,7 @@ export async function handleGuildMemberAdd(
 
   try {
     const channel = await member.guild.channels.fetch(welcome.channelId);
-    if (!channel?.isTextBased()) return;
+    if (!isWelcomeTextChannel(channel)) return;
 
     await channel.send({
       content,

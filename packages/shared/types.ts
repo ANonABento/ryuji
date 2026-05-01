@@ -6,6 +6,7 @@
  */
 
 import type { GatewayIntentBits, Interaction, Message } from "discord.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { PluginContext } from "./plugin-context.ts";
 
 export interface Plugin {
@@ -29,7 +30,7 @@ export interface Plugin {
   destroy?(): Promise<void>;
 }
 
-export interface ToolResult {
+export interface ToolResult extends CallToolResult {
   content: Array<{ type: "text"; text: string }>;
   isError?: boolean;
 }

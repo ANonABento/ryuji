@@ -1,8 +1,13 @@
 import { expect, test } from "bun:test";
 import { commands } from "@choomfie/shared";
+import type { ChatInputCommandInteraction } from "discord.js";
 import type { AppContext } from "../lib/types.ts";
-import { handleGuildMemberAdd, renderWelcomeTemplate } from "../lib/handlers/welcome.ts";
-import { WelcomeConfig } from "../lib/config.ts";
+import {
+  handleGuildMemberAdd,
+  renderWelcomeTemplate,
+  type WelcomeGuildMember,
+} from "../lib/handlers/welcome.ts";
+import type { WelcomeConfig } from "../lib/config.ts";
 
 type Spy = ((...args: unknown[]) => unknown) & { calls: unknown[][] };
 function spy(): Spy {
@@ -31,17 +36,35 @@ function getWelcomeCommand() {
 }
 
 function makeTextChannel() {
-  const send = spy();
+  const send = spyWithImpl(async (_payload: unknown) => {});
   const channel = {
     isTextBased: () => true,
     send,
   };
   const fetch = spyWithImpl(async () => channel);
-  return { channel, fetch, send };
+  return { fetch, send };
+}
+
+function makeMember(
+  overrides: Partial<WelcomeGuildMember> = {}
+): WelcomeGuildMember {
+  return {
+    guild: {
+      channels: {
+        fetch: async () => null,
+      },
+      name: "Choomfie",
+      memberCount: 5,
+    },
+    id: "user-1",
+    displayName: "Bento",
+    user: { username: "bentomac" },
+    ...overrides,
+  };
 }
 
 test("handleGuildMemberAdd sends welcome content to configured channel", async () => {
-  const { channel, fetch, send } = makeTextChannel();
+  const { fetch, send } = makeTextChannel();
 
   const ctx = {
     config: {
@@ -54,17 +77,13 @@ test("handleGuildMemberAdd sends welcome content to configured channel", async (
   } as unknown as AppContext;
 
   await handleGuildMemberAdd(
-    {
+    makeMember({
       guild: {
         channels: { fetch },
         name: "Choomfie",
         memberCount: 5,
       },
-      id: "user-1",
-      displayName: "Bento",
-      user: { username: "bentomac" },
-      guildId: "guild-1",
-    } as any,
+    }),
     ctx
   );
 
@@ -92,17 +111,14 @@ test("handleGuildMemberAdd keeps rendered welcome content within Discord limit",
   } as unknown as AppContext;
 
   await handleGuildMemberAdd(
-    {
+    makeMember({
       guild: {
         channels: { fetch },
         name: "Choomfie",
         memberCount: 5,
       },
       id: "123456789012345678",
-      displayName: "Bento",
-      user: { username: "bentomac" },
-      guildId: "guild-1",
-    } as any,
+    }),
     ctx
   );
 
@@ -128,6 +144,7 @@ test("welcome_config updates config and requires owner", async () => {
     },
   } as unknown as AppContext;
 
+  const ownerReply = spy();
   const ownerInteraction = {
     user: { id: "owner" },
     guildId: "guild-1",
@@ -138,25 +155,30 @@ test("welcome_config updates config and requires owner", async () => {
       getString: () => "Welcome {displayName} to {server}!",
       getBoolean: () => true,
     },
-    reply: spy(),
-  } as any;
+    reply: ownerReply,
+  } as unknown as ChatInputCommandInteraction;
 
   await cmd!.handler(ownerInteraction, ctx);
   expect(cfg.channelId).toBe("channel-new");
   expect(cfg.template).toBe("Welcome {displayName} to {server}!");
   expect(setWelcomeConfig.calls).toHaveLength(1);
-  expect(ownerInteraction.reply.calls).toHaveLength(1);
-  expect(ownerInteraction.reply.calls[0][0].content).toContain("Welcome messages are **enabled");
+  expect(ownerReply.calls).toHaveLength(1);
+  expect((ownerReply.calls[0][0] as { content: string }).content).toContain(
+    "Welcome messages are **enabled"
+  );
 
+  const intruderReply = spy();
   const intruderInteraction = {
     user: { id: "intruder" },
     guildId: "guild-1",
     options: { getChannel: () => null, getString: () => null, getBoolean: () => null },
-    reply: spy(),
-  } as any;
+    reply: intruderReply,
+  } as unknown as ChatInputCommandInteraction;
   await cmd!.handler(intruderInteraction, ctx);
-  expect(intruderInteraction.reply.calls).toHaveLength(1);
-  expect(intruderInteraction.reply.calls[0][0].content).toBe("This command is owner-only~");
+  expect(intruderReply.calls).toHaveLength(1);
+  expect((intruderReply.calls[0][0] as { content: string }).content).toBe(
+    "This command is owner-only~"
+  );
 });
 
 test("welcome_config blocks enabling without channel configured", async () => {
@@ -175,6 +197,7 @@ test("welcome_config blocks enabling without channel configured", async () => {
     },
   } as unknown as AppContext;
 
+  const ownerReply = spy();
   const ownerInteraction = {
     user: { id: "owner" },
     guildId: "guild-1",
@@ -185,20 +208,22 @@ test("welcome_config blocks enabling without channel configured", async () => {
       getString: () => null,
       getBoolean: () => true,
     },
-    reply: spy(),
-  } as any;
+    reply: ownerReply,
+  } as unknown as ChatInputCommandInteraction;
 
   await cmd!.handler(ownerInteraction, ctx);
 
   expect(cfg.channelId).toBeNull();
   expect(cfg.template).toBe("Welcome {user}!");
   expect(setWelcomeConfig.calls).toHaveLength(0);
-  expect(ownerInteraction.reply.calls).toHaveLength(1);
-  expect(ownerInteraction.reply.calls[0][0].content).toBe("Choose a channel before enabling welcome messages.");
+  expect(ownerReply.calls).toHaveLength(1);
+  expect((ownerReply.calls[0][0] as { content: string }).content).toBe(
+    "Choose a channel before enabling welcome messages."
+  );
 });
 
 test("handleGuildMemberAdd ignores bot users", async () => {
-  const { channel, fetch, send } = makeTextChannel();
+  const { fetch, send } = makeTextChannel();
 
   const ctx = {
     config: {
@@ -211,17 +236,15 @@ test("handleGuildMemberAdd ignores bot users", async () => {
   } as unknown as AppContext;
 
   await handleGuildMemberAdd(
-    {
+    makeMember({
       guild: {
         channels: { fetch },
         name: "Choomfie",
         memberCount: 5,
       },
-      id: "user-1",
       displayName: "BentoBot",
       user: { username: "bot-user", bot: true },
-      guildId: "guild-1",
-    } as any,
+    }),
     ctx
   );
 

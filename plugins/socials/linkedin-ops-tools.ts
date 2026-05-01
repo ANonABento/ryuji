@@ -1,5 +1,5 @@
 import type { ToolDef } from "@choomfie/shared";
-import { err, text } from "@choomfie/shared";
+import { err, errorMessage, text } from "@choomfie/shared";
 import { getLinkedInClient, getLinkedInMonitor, getLinkedInScheduler } from "./linkedin-runtime.ts";
 import { validateLinkedInText } from "./linkedin-tool-helpers.ts";
 
@@ -85,8 +85,8 @@ export const linkedinOpsTools: ToolDef[] = [
           `Type: ${mediaType}` +
           (post.firstComment ? `\nFirst comment: "${post.firstComment}"` : ""),
         );
-      } catch (e: any) {
-        return err(`LinkedIn schedule failed: ${e.message}`);
+      } catch (e: unknown) {
+        return err(`LinkedIn schedule failed: ${errorMessage(e)}`);
       }
     },
   },
@@ -139,8 +139,8 @@ export const linkedinOpsTools: ToolDef[] = [
           )
           .join("\n\n");
         return text(`**LinkedIn Queue (${posts.length}):**\n\n${formatted}`);
-      } catch (e: any) {
-        return err(`LinkedIn queue failed: ${e.message}`);
+      } catch (e: unknown) {
+        return err(`LinkedIn queue failed: ${errorMessage(e)}`);
       }
     },
   },
@@ -190,8 +190,8 @@ export const linkedinOpsTools: ToolDef[] = [
           )
           .join("\n\n");
         return text(`**Tracked LinkedIn posts (${posts.length}):**\n\n${formatted}`);
-      } catch (e: any) {
-        return err(`LinkedIn monitor failed: ${e.message}`);
+      } catch (e: unknown) {
+        return err(`LinkedIn monitor failed: ${errorMessage(e)}`);
       }
     },
   },
@@ -237,8 +237,8 @@ export const linkedinOpsTools: ToolDef[] = [
         }
 
         return text(output);
-      } catch (e: any) {
-        return err(`LinkedIn analytics failed: ${e.message}`);
+      } catch (e: unknown) {
+        return err(`LinkedIn analytics failed: ${errorMessage(e)}`);
       }
     },
   },
@@ -271,8 +271,8 @@ export const linkedinOpsTools: ToolDef[] = [
           `URN: ${status.personUrn || "Unknown"}\n` +
           `Token expires in: ~${expiresIn} days`,
         );
-      } catch (e: any) {
-        return err(`LinkedIn status check failed: ${e.message}`);
+      } catch (e: unknown) {
+        return err(`LinkedIn status check failed: ${errorMessage(e)}`);
       }
     },
   },

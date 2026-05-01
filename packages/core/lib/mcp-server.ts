@@ -7,7 +7,7 @@ import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import type { AppContext } from "./types.ts";
+import type { AppContext, ToolResult } from "./types.ts";
 import { err } from "./types.ts";
 import { getAllTools } from "./tools/index.ts";
 import { registerPermissionRelay } from "./permissions.ts";
@@ -70,7 +70,7 @@ export function createMcpServer(ctx: AppContext): Server {
   const toolMap = new Map(
     allTools.map((t) => [t.definition.name, t.handler])
   );
-  mcp.setRequestHandler(CallToolRequestSchema, async (req): Promise<any> => {
+  mcp.setRequestHandler(CallToolRequestSchema, async (req): Promise<ToolResult> => {
     const handler = toolMap.get(req.params.name);
     if (!handler) return err(`Unknown tool: ${req.params.name}`);
 

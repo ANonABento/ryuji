@@ -3,19 +3,24 @@
  * Checks tool count + names for each plugin.
  */
 import { test, expect, describe } from "bun:test";
+import type { Plugin, ToolDef } from "@choomfie/shared";
+
+function toolNames(plugin: Pick<Plugin, "tools">): string[] {
+  return (plugin.tools ?? []).map((tool: ToolDef) => tool.definition.name);
+}
 
 describe("plugin tool registration", () => {
   test("voice plugin exports 3 tools", async () => {
     const mod = await import("@choomfie/voice");
-    const plugin = mod.default;
-    const names = (plugin.tools ?? []).map((t: any) => t.definition.name);
+    const plugin = mod.default as Plugin;
+    const names = toolNames(plugin);
     expect(names).toEqual(["join_voice", "leave_voice", "speak"]);
   });
 
   test("browser plugin exports 7 tools", async () => {
     const mod = await import("@choomfie/browser");
-    const plugin = mod.default;
-    const names = (plugin.tools ?? []).map((t: any) => t.definition.name);
+    const plugin = mod.default as Plugin;
+    const names = toolNames(plugin);
     expect(names).toEqual([
       "browse",
       "browser_click",
@@ -29,8 +34,8 @@ describe("plugin tool registration", () => {
 
   test("tutor plugin exports 16 tools", async () => {
     const mod = await import("@choomfie/tutor");
-    const plugin = mod.default;
-    const names = (plugin.tools ?? []).map((t: any) => t.definition.name);
+    const plugin = mod.default as Plugin;
+    const names = toolNames(plugin);
     expect(names).toContain("tutor_prompt");
     expect(names).toContain("quiz");
     expect(names).toContain("dictionary_lookup");
@@ -54,8 +59,8 @@ describe("plugin tool registration", () => {
 
   test("socials plugin exports 33 tools", async () => {
     const mod = await import("@choomfie/socials");
-    const plugin = mod.default;
-    const names = (plugin.tools ?? []).map((t: any) => t.definition.name);
+    const plugin = mod.default as Plugin;
+    const names = toolNames(plugin);
     expect(names).toContain("youtube_search");
     expect(names).toContain("youtube_info");
     expect(names).toContain("youtube_transcript");
