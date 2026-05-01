@@ -41,6 +41,8 @@ type FetchableTextChannel = {
   };
 };
 
+const SERVERSTATS_TOP_CHANNEL_LIMIT = 5;
+
 function startOfCurrentDay(): Date {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
@@ -357,7 +359,9 @@ registerCommand("serverstats", {
       }
 
       channelStats.sort((a, b) => b.count - a.count);
-      const topChannels = channelStats.slice(0, 5).map((entry) => {
+      const topChannels = channelStats
+        .slice(0, SERVERSTATS_TOP_CHANNEL_LIMIT)
+        .map((entry) => {
         return `#${entry.name} <#${entry.id}> — ${entry.count} messages`;
       });
 
