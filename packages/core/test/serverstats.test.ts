@@ -1,6 +1,10 @@
-import { Collection, MessageFlags } from "discord.js";
+import {
+  Collection,
+  MessageFlags,
+  type ChatInputCommandInteraction,
+} from "discord.js";
 import { expect, test } from "bun:test";
-import { commands } from "@choomfie/shared";
+import { commands, type CommandDef, type PluginContext } from "@choomfie/shared";
 
 await import("../lib/commands.ts");
 
@@ -129,6 +133,13 @@ function makeMockDmInteraction() {
   return { interaction, state };
 }
 
+async function runServerstats(def: CommandDef, interaction: MockInteraction) {
+  await def.handler(
+    interaction as unknown as ChatInputCommandInteraction,
+    {} as PluginContext
+  );
+}
+
 test("/serverstats command is registered with guild-only visibility", () => {
   const def = commands.get("serverstats");
   expect(def).toBeDefined();
@@ -159,7 +170,7 @@ test("/serverstats handler builds an embed payload with expected sections", asyn
     approximatePresenceCount: 64,
   });
 
-  await def.handler(interaction);
+  await runServerstats(def, interaction);
 
   expect(state.deferred).toBe(true);
   expect(state.deferredFlags).toBe(MessageFlags.Ephemeral);
@@ -195,7 +206,7 @@ test("/serverstats handler returns no-message message when history is empty", as
     approximatePresenceCount: 1,
   });
 
-  await def.handler(interaction);
+  await runServerstats(def, interaction);
 
   const embedData = state.editPayload?.embeds?.[0]?.data;
   const current = embedData?.fields?.find((field) => field.name === "Current Stats");
@@ -223,7 +234,7 @@ test("/serverstats handler keeps only top 5 channels by message count", async ()
     approximatePresenceCount: 64,
   });
 
-  await def.handler(interaction);
+  await runServerstats(def, interaction);
 
   const top = state.editPayload?.embeds?.[0]?.data?.fields?.find((field) => field.name === "Top 5 Active Channels")?.value ?? "";
   expect(top).toContain("<#c1>");
@@ -238,7 +249,7 @@ test("/serverstats handler replies ephemerally when used in DMs", async () => {
   const def = commands.get("serverstats")!;
   const { interaction, state } = makeMockDmInteraction();
 
-  await def.handler(interaction);
+  await runServerstats(def, interaction);
 
   expect(state.replied).toBe(true);
   expect(state.flags).toBe(MessageFlags.Ephemeral);
