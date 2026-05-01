@@ -20,7 +20,7 @@ async function withCliSession(
     await startSession(state);
     const exitCode = ((await run(state)) ?? 0) as number;
     await cleanup(state);
-    process.exit(exitCode);
+    process.exit(exitCode as number);
   } catch (error: unknown) {
     log(`CLI session failed: ${getErrorMessage(error)}`);
     await cleanup(state);

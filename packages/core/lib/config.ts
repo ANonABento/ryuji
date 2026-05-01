@@ -12,6 +12,8 @@ import type { SocialsPlatformConfig } from "@choomfie/shared";
 export interface Persona {
   name: string;
   personality: string;
+  /** Local model override (e.g. "llama3.1:8b", "mistral:7b"). Activates local-model prompt hints. */
+  model?: string;
 }
 
 export interface VoiceConfig {
@@ -24,20 +26,21 @@ export interface YouTubeConfig extends SocialsPlatformConfig {
     apiKey?: string;       // Optional — for YouTube Data API v3 reads (fallback to yt-dlp)
     clientId?: string;     // Optional — for OAuth (comments)
     clientSecret?: string; // Optional — for OAuth (comments)
-}
-
-export interface LinkedInConfig extends SocialsPlatformConfig {
+    [key: string]: string | undefined;
+  };
+  linkedin?: {
     clientId: string;
     clientSecret: string;
-}
-
-export interface RedditConfig extends SocialsPlatformConfig {
+    [key: string]: string;
+  };
+  reddit?: {
     clientId: string;
     clientSecret: string;
     username: string;
     password: string;
+    [key: string]: string;
   };
-  [key: string]: unknown;
+  [key: string]: { [key: string]: string | undefined } | undefined;
 }
 
 export interface Config {
@@ -48,6 +51,8 @@ export interface Config {
   autoSummarize: boolean;
   plugins: string[];
   voice: VoiceConfig;
+  /** When true, personas with a model field use local-model prompt hints. */
+  localFirst?: boolean;
   socials?: SocialsConfig;
   [key: string]: unknown;
 }
@@ -141,8 +146,23 @@ export class ConfigManager {
     return persona;
   }
 
-  savePersona(key: string, name: string, personality: string) {
-    this.config.personas[key.toLowerCase()] = { name, personality };
+  savePersona(key: string, name: string, personality: string, model?: string) {
+    const persona: Persona = { name, personality };
+    if (model) persona.model = model;
+    this.config.personas[key.toLowerCase()] = persona;
+    this.save();
+  }
+
+  getActivePersonaModel(): string | undefined {
+    return this.getActivePersona().model;
+  }
+
+  getLocalFirst(): boolean {
+    return this.config.localFirst ?? false;
+  }
+
+  setLocalFirst(enabled: boolean) {
+    this.config.localFirst = enabled;
     this.save();
   }
 

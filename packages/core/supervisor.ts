@@ -381,9 +381,16 @@ function createMcp(): Server {
 
   // Forward permission requests from MCP to worker
   server.setNotificationHandler(
-    PermissionRequestNotificationSchema,
-    async ({ params }) => {
-      const permissionParams = requirePermissionRequestParams(params);
+    z.object({
+      method: z.literal("notifications/claude/channel/permission_request"),
+      params: z.object({
+        request_id: z.string(),
+        tool_name: z.string(),
+        description: z.string(),
+        input_preview: z.string(),
+      }),
+    }) as any,
+    async ({ params }: any) => {
       if (worker && workerReady) {
         try {
           worker.send({

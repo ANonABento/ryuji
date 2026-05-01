@@ -23,9 +23,9 @@ function getTwitterConfig(ctx: PluginContext): { username: string; password: str
   }
 
   return {
-    username: requireNonEmptyString(socialsConfig.username, "socials.twitter.username"),
-    password: requireNonEmptyString(socialsConfig.password, "socials.twitter.password"),
-    email: requireNonEmptyString(socialsConfig.email, "socials.twitter.email"),
+    username: socialsConfig.username as string,
+    password: socialsConfig.password as string,
+    email: socialsConfig.email as string,
   };
 }
 

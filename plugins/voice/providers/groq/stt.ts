@@ -34,7 +34,7 @@ export const groqSTT: STTProvider = {
     const formData = new FormData();
     formData.append(
       "file",
-      new Blob([audioBytes], { type: "audio/wav" }),
+      new Blob([audio as unknown as BlobPart], { type: "audio/wav" }),
       "audio.wav"
     );
     formData.append("model", "whisper-large-v3-turbo");
