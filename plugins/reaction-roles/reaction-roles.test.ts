@@ -69,7 +69,12 @@ test("ReactionRoleDB persists and updates mappings", () => {
 test("applyReactionRole adds and removes the configured role", async () => {
   const actions: string[] = [];
   const store = {
-    get(guildId: string, channelId: string, messageId: string, emojiKey: string) {
+    get(
+      guildId: string,
+      channelId: string,
+      messageId: string,
+      emojiKey: string
+    ) {
       expect([guildId, channelId, messageId, emojiKey]).toEqual([
         "guild-1",
         "channel-1",
@@ -167,4 +172,66 @@ test("applyReactionRole ignores bots and unmapped reactions", async () => {
 
   expect(lookups).toBe(1);
   expect(memberFetches).toBe(0);
+});
+
+test("applyReactionRole removes roles from partial reactions when fetch fails", async () => {
+  const actions: string[] = [];
+  const store = {
+    get(guildId: string, channelId: string, messageId: string, emojiKey: string) {
+      expect([guildId, channelId, messageId, emojiKey]).toEqual([
+        "guild-1",
+        "channel-1",
+        "message-1",
+        "✅",
+      ]);
+      return {
+        guildId,
+        channelId,
+        messageId,
+        emojiKey,
+        roleId: "role-1",
+      };
+    },
+  };
+  const guild = {
+    id: "guild-1",
+    members: {
+      async fetch(userId: string) {
+        expect(userId).toBe("user-1");
+        return {
+          roles: {
+            async remove(roleId: string, reason: string) {
+              actions.push(`remove:${roleId}:${reason}`);
+            },
+          },
+        };
+      },
+    },
+  };
+  const reaction = {
+    partial: true,
+    async fetch() {
+      throw new Error("removed reaction is no longer fetchable");
+    },
+    emoji: { id: null, name: "✅" },
+    message: {
+      id: "message-1",
+      channelId: "channel-1",
+      guild: null,
+      guildId: "guild-1",
+      client: {
+        guilds: {
+          async fetch(guildId: string) {
+            expect(guildId).toBe("guild-1");
+            return guild;
+          },
+        },
+      },
+    },
+  };
+  const user = { partial: false, bot: false, id: "user-1" };
+
+  await applyReactionRole(store as any, reaction as any, user as any, "remove");
+
+  expect(actions).toEqual(["remove:role-1:Reaction role removed"]);
 });

@@ -21,6 +21,12 @@ type ReactionRoleAction = "add" | "remove";
 type ReactionRoleStore = Pick<ReactionRoleDB, "get">;
 type ReactionRoleEvent = MessageReaction | PartialMessageReaction;
 type ReactionRoleUser = User | PartialUser;
+type ReactionRoleContext = {
+  guild: Guild;
+  channelId: string;
+  messageId: string;
+  emojiKey: string;
+};
 type ReactionRoleHandler = (
   reaction: ReactionRoleEvent,
   user: ReactionRoleUser
@@ -161,14 +167,14 @@ registerCommand("reactionrole", {
 
 async function resolveReaction(
   reaction: ReactionRoleEvent
-): Promise<MessageReaction | null> {
+): Promise<ReactionRoleEvent> {
   try {
     if (reaction.partial) {
       return (await reaction.fetch()) as MessageReaction;
     }
-    return reaction as MessageReaction;
+    return reaction;
   } catch {
-    return null;
+    return reaction;
   }
 }
 
@@ -183,7 +189,7 @@ async function resolveUser(user: ReactionRoleUser): Promise<User | null> {
   }
 }
 
-async function resolveGuild(reaction: MessageReaction): Promise<Guild | null> {
+async function resolveGuild(reaction: ReactionRoleEvent): Promise<Guild | null> {
   if (reaction.message.guild) return reaction.message.guild;
 
   const guildId = (reaction.message as MessageReaction["message"] & {
@@ -196,6 +202,25 @@ async function resolveGuild(reaction: MessageReaction): Promise<Guild | null> {
   } catch {
     return null;
   }
+}
+
+async function resolveReactionContext(
+  reaction: ReactionRoleEvent
+): Promise<ReactionRoleContext | null> {
+  const resolvedReaction = await resolveReaction(reaction);
+  const guild = await resolveGuild(resolvedReaction);
+  if (!guild) return null;
+
+  const message = resolvedReaction.message;
+  const emojiKey = emojiKeyFromReaction(resolvedReaction as MessageReaction);
+  if (!message.id || !message.channelId || !emojiKey) return null;
+
+  return {
+    guild,
+    channelId: message.channelId,
+    messageId: message.id,
+    emojiKey,
+  };
 }
 
 async function handleReaction(
@@ -216,21 +241,19 @@ export async function applyReactionRole(
   const resolvedUser = await resolveUser(user);
   if (!resolvedUser || resolvedUser.bot) return;
 
-  const resolvedReaction = await resolveReaction(reaction);
-  if (!resolvedReaction) return;
+  const reactionContext = await resolveReactionContext(reaction);
+  if (!reactionContext) return;
 
-  const guild = await resolveGuild(resolvedReaction);
-  if (!guild) return;
-
-  const message = resolvedReaction.message;
-  const emojiKey = emojiKeyFromReaction(resolvedReaction);
-  if (!emojiKey) return;
-
-  const mapping = store.get(guild.id, message.channelId, message.id, emojiKey);
+  const mapping = store.get(
+    reactionContext.guild.id,
+    reactionContext.channelId,
+    reactionContext.messageId,
+    reactionContext.emojiKey
+  );
   if (!mapping) return;
 
   try {
-    const member = await guild.members.fetch(resolvedUser.id);
+    const member = await reactionContext.guild.members.fetch(resolvedUser.id);
     if (action === "add") {
       await member.roles.add(mapping.roleId, REACTION_ROLE_REASONS.add);
     } else {
