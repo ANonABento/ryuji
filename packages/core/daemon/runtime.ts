@@ -38,6 +38,15 @@ function isCompactBoundaryMessage(
   return message.type === "system" && message.subtype === "compact_boundary";
 }
 
+function addInputTokens(state: MetaState, inputTokens: number): void {
+  const today = new Date().toISOString().slice(0, 10);
+  if (state.tokenUsageToday.date !== today) {
+    state.tokenUsageToday = { date: today, inputTokens: 0 };
+  }
+
+  state.tokenUsageToday.inputTokens += inputTokens;
+}
+
 export async function startSession(
   state: MetaState,
   handoffSummary?: string
@@ -184,7 +193,9 @@ export function handleSessionMessage(state: MetaState, message: SDKMessage): voi
 
         const usage = successResult.usage;
         if (usage) {
-          state.totalInputTokens += usage.input_tokens ?? 0;
+          const inputTokens = usage.input_tokens ?? 0;
+          state.totalInputTokens += inputTokens;
+          addInputTokens(state, inputTokens);
         }
 
         log(

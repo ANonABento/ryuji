@@ -16,6 +16,8 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { readFile, writeFile, unlink } from "node:fs/promises";
+import { z } from "zod";
+import { errorMessage } from "@choomfie/shared";
 import { VERSION } from "./lib/version.ts";
 import {
   PERMISSION_REQUEST_METHOD,
@@ -54,6 +56,8 @@ const pendingCalls = new Map<
 
 /** MCP server — created once, lives forever */
 let mcp: Server;
+
+type ServerWithInstructions = Server & { _instructions?: string };
 
 // --- PID file (single-instance guard) ---
 const DATA_DIR =
@@ -151,11 +155,11 @@ function handleWorkerMessage(msg: WorkerMessage) {
         );
         if (mcp) {
           // Update instructions for any future initialize handshake (e.g. reconnect)
-          Object.assign(mcp, { _instructions: currentInstructions });
+          (mcp as ServerWithInstructions)._instructions = currentInstructions;
           // Notify Claude Code that the tool list changed so it re-fetches
           mcp.notification({
             method: "notifications/tools/list_changed",
-          } as McpNotification);
+          });
         }
         break;
 
@@ -175,7 +179,7 @@ function handleWorkerMessage(msg: WorkerMessage) {
           mcp.notification({
             method: msg.method,
             params: msg.params,
-          } as McpNotification);
+          });
         }
         break;
 
@@ -367,9 +371,9 @@ function createMcp(): Server {
 
     try {
       return await callWorkerTool(name, args);
-    } catch (e: any) {
+    } catch (error: unknown) {
       return {
-        content: [{ type: "text", text: `Tool error: ${e.message}` }],
+        content: [{ type: "text", text: `Tool error: ${errorMessage(error)}` }],
         isError: true,
       };
     }

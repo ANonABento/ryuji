@@ -12,6 +12,7 @@ import { err } from "./types.ts";
 import { getAllTools } from "./tools/index.ts";
 import { registerPermissionRelay } from "./permissions.ts";
 import { VERSION } from "./version.ts";
+import { trackToolCall } from "./stats.ts";
 
 /** Build the MCP instructions string from context. Used by both worker (IPC) and boot test. */
 export function buildInstructions(ctx: AppContext): string {
@@ -74,6 +75,7 @@ export function createMcpServer(ctx: AppContext): Server {
     const handler = toolMap.get(req.params.name);
     if (!handler) return err(`Unknown tool: ${req.params.name}`);
 
+    trackToolCall(ctx, req.params.name);
     return handler(req.params.arguments ?? {}, ctx);
   });
 
