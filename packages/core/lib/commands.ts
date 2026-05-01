@@ -14,8 +14,7 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  type Collection,
-  type Message,
+  type GuildTextBasedChannel,
 } from "discord.js";
 import { VERSION } from "./version.ts";
 import { registerCommand, registerButtonHandler } from "./interactions.ts";
@@ -30,22 +29,23 @@ import {
   buildMemoryModal,
 } from "./handlers/modals.ts";
 
-type FetchableTextChannel = {
-  id: string;
-  name: string | null;
-  messages: {
-    fetch: (options: { limit: number; before?: string }) => Promise<
-      Collection<string, Message>
-    >;
-  };
-};
+type ServerStatsChannel = Pick<
+  GuildTextBasedChannel,
+  "id" | "name" | "messages"
+>;
+type ServerStatsChannelStat = { id: string; name: string; count: number };
 
 const SERVERSTATS_TOP_CHANNEL_LIMIT = 5;
 const MISSING_ACCESS_ERROR_CODE = 50001;
+const MISSING_PERMISSIONS_ERROR_CODE = 50013;
 
-function isMissingAccessError(error: unknown): boolean {
+function isSkippableChannelFetchError(error: unknown): boolean {
   if (error && typeof error === "object" && "code" in error) {
-    return (error as { code?: number }).code === MISSING_ACCESS_ERROR_CODE;
+    const code = (error as { code?: number }).code;
+    return (
+      code === MISSING_ACCESS_ERROR_CODE ||
+      code === MISSING_PERMISSIONS_ERROR_CODE
+    );
   }
   return false;
 }
@@ -61,7 +61,7 @@ function startOfCurrentDay(): Date {
 }
 
 async function countMessagesToday(
-  channel: FetchableTextChannel,
+  channel: ServerStatsChannel,
   since: Date
 ): Promise<number> {
   let count = 0;
@@ -87,6 +87,10 @@ async function countMessagesToday(
   }
 
   return count;
+}
+
+function formatTopChannel({ id, name, count }: ServerStatsChannelStat): string {
+  return `#${name} <#${id}> — ${count} messages`;
 }
 
 // --- Command definitions ---
@@ -338,31 +342,27 @@ registerCommand("serverstats", {
 
     try {
       const sourceGuild = interaction.guild;
-      const fetchGuild = sourceGuild.fetch as (
-        options?: { withCounts?: boolean }
-      ) => Promise<typeof sourceGuild>;
-      const guild = await fetchGuild({ withCounts: true });
+      const guild = await interaction.client.guilds.fetch({
+        guild: sourceGuild.id,
+        withCounts: true,
+        force: true,
+      });
       const channels = await sourceGuild.channels.fetch();
       const channelCount = channels.size;
       const memberCount = guild.approximateMemberCount ?? guild.memberCount;
       const onlineCount = guild.approximatePresenceCount ?? 0;
 
-      const channelStats: { id: string; name: string; count: number }[] = [];
+      const channelStats: ServerStatsChannelStat[] = [];
       let messagesToday = 0;
 
       for (const channel of channels.values()) {
         if (!channel?.isTextBased()) continue;
-        const fetchManager = (channel as unknown as FetchableTextChannel).messages;
-        if (!fetchManager || typeof fetchManager.fetch !== "function") continue;
 
         let count = 0;
         try {
-          count = await countMessagesToday(
-            channel as unknown as FetchableTextChannel,
-            since
-          );
+          count = await countMessagesToday(channel, since);
         } catch (error) {
-          if (isMissingAccessError(error)) {
+          if (isSkippableChannelFetchError(error)) {
             continue;
           }
           throw error;
@@ -380,9 +380,7 @@ registerCommand("serverstats", {
       channelStats.sort((a, b) => b.count - a.count);
       const topChannels = channelStats
         .slice(0, SERVERSTATS_TOP_CHANNEL_LIMIT)
-        .map((entry) => {
-        return `#${entry.name} <#${entry.id}> — ${entry.count} messages`;
-      });
+        .map(formatTopChannel);
 
       const embed = new EmbedBuilder()
         .setColor(0x5865f2)
@@ -398,7 +396,7 @@ registerCommand("serverstats", {
             ].join("\n"),
           },
           {
-            name: "Top 5 Active Channels",
+            name: `Top ${SERVERSTATS_TOP_CHANNEL_LIMIT} Active Channels`,
             value: topChannels.length
               ? topChannels.join("\n")
               : "No messages were sent today.",
@@ -451,8 +449,10 @@ registerCommand("github", {
     try {
       const output = await runGh(ghArgs);
       await interaction.editReply({ content: `\`\`\`\n${output.slice(0, 1900)}\n\`\`\`` });
-    } catch (e: any) {
-      await interaction.editReply({ content: `GitHub CLI error: ${e.message}` });
+    } catch (error: unknown) {
+      await interaction.editReply({
+        content: `GitHub CLI error: ${formatErrorMessage(error)}`,
+      });
     }
   },
 });
@@ -705,16 +705,16 @@ registerCommand("voice", {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     // Dynamically import to avoid loading voice code when plugin isn't enabled
-      const { detectAllProviders } = await import(
+    const { detectAllProviders } = await import(
       "../../../plugins/voice/providers/index.ts"
     );
 
     let reports;
     try {
       reports = await detectAllProviders();
-    } catch (e: any) {
+    } catch (error: unknown) {
       await interaction.editReply({
-        content: `Provider detection failed: ${e.message}. Check that ffmpeg and python3 are installed.`,
+        content: `Provider detection failed: ${formatErrorMessage(error)}. Check that ffmpeg and python3 are installed.`,
       });
       return;
     }
