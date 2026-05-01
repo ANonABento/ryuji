@@ -2,6 +2,7 @@ import {
   Events,
   GatewayIntentBits,
   MessageFlags,
+  type Guild,
   PermissionFlagsBits,
   SlashCommandBuilder,
   type Client,
@@ -168,6 +169,21 @@ async function resolveUser(user: ReactionRoleUser): Promise<User | null> {
   }
 }
 
+async function resolveGuild(reaction: MessageReaction): Promise<Guild | null> {
+  if (reaction.message.guild) return reaction.message.guild;
+
+  const guildId = (reaction.message as MessageReaction["message"] & {
+    guildId?: string | null;
+  }).guildId;
+  if (!guildId) return null;
+
+  try {
+    return await reaction.message.client.guilds.fetch(guildId);
+  } catch {
+    return null;
+  }
+}
+
 async function handleReaction(
   reaction: ReactionRoleEvent,
   user: ReactionRoleUser,
@@ -189,10 +205,10 @@ export async function applyReactionRole(
   const resolvedReaction = await resolveReaction(reaction);
   if (!resolvedReaction) return;
 
-  const message = resolvedReaction.message;
-  const guild = message.guild;
+  const guild = await resolveGuild(resolvedReaction);
   if (!guild) return;
 
+  const message = resolvedReaction.message;
   const emojiKey = emojiKeyFromReaction(resolvedReaction);
   if (!emojiKey) return;
 
