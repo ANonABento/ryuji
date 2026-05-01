@@ -7,6 +7,7 @@ import type {
   SDKResultSuccess,
 } from "@anthropic-ai/claude-agent-sdk";
 import {
+  ANTHROPIC_FALLBACK_THRESHOLD,
   CONTEXT_CHECK_FAILURE_LIMIT,
   CONTEXT_CHECK_INTERVAL,
   DATA_DIR,
@@ -14,6 +15,7 @@ import {
   INITIAL_RESTART_BACKOFF,
   MAX_ERROR_RETRIES,
   MAX_RESTART_BACKOFF,
+  OLLAMA_MODEL,
   TOKEN_THRESHOLD,
   TURN_THRESHOLD,
   WORKER_HEALTH_INTERVAL,
@@ -25,6 +27,7 @@ import { log, setSessionId, verbose } from "./log.ts";
 import { createMessageGenerator } from "./message-generator.ts";
 import { getErrorMessage } from "./error.ts";
 import {
+  applyAnthropicFailure,
   createSession,
   extractAssistantText,
   generateSessionId,
@@ -38,13 +41,82 @@ function isCompactBoundaryMessage(
   return message.type === "system" && message.subtype === "compact_boundary";
 }
 
-function addInputTokens(state: MetaState, inputTokens: number): void {
-  const today = new Date().toISOString().slice(0, 10);
-  if (state.tokenUsageToday.date !== today) {
-    state.tokenUsageToday = { date: today, inputTokens: 0 };
+/**
+ * Send a DM to the bot owner via Discord REST API to notify them of the
+ * Anthropic → Ollama provider switch. Does not depend on an active session.
+ */
+async function notifyOwnerDirectly(reason: string): Promise<void> {
+  const envPath = `${DATA_DIR}/.env`;
+  let discordToken = process.env.DISCORD_TOKEN ?? "";
+
+  try {
+    const envFile = await readFile(envPath, "utf-8");
+    for (const line of envFile.split("\n")) {
+      const match = line.match(/^DISCORD_TOKEN=(.+)$/);
+      if (match) discordToken = match[1].trim();
+    }
+  } catch {
+    // .env may not exist yet
   }
 
-  state.tokenUsageToday.inputTokens += inputTokens;
+  if (!discordToken) {
+    log("Cannot notify owner: no Discord token available");
+    return;
+  }
+
+  const accessPath = `${DATA_DIR}/access.json`;
+  let ownerId: string | null = null;
+  try {
+    const raw = await readFile(accessPath, "utf-8");
+    const parsed = JSON.parse(raw) as { owner?: string };
+    ownerId = parsed.owner ?? null;
+  } catch {
+    // access.json may not exist yet
+  }
+
+  if (!ownerId) {
+    log("Cannot notify owner: no owner ID in access.json");
+    return;
+  }
+
+  try {
+    const dmRes = await fetch("https://discord.com/api/v10/users/@me/channels", {
+      method: "POST",
+      headers: {
+        Authorization: `Bot ${discordToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ recipient_id: ownerId }),
+    });
+
+    if (!dmRes.ok) {
+      log(`Owner DM channel creation failed: HTTP ${dmRes.status}`);
+      return;
+    }
+
+    const dm = (await dmRes.json()) as { id: string };
+
+    const msgRes = await fetch(`https://discord.com/api/v10/channels/${dm.id}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bot ${discordToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        content:
+          `⚠️ **Daemon: Anthropic API unavailable** — switched to local Ollama fallback (\`${OLLAMA_MODEL}\`)\n` +
+          `Reason: \`${reason.slice(0, 200)}\``,
+      }),
+    });
+
+    if (msgRes.ok) {
+      log("Owner notified of Anthropic → Ollama fallback via Discord DM");
+    } else {
+      log(`Owner DM send failed: HTTP ${msgRes.status}`);
+    }
+  } catch (err: unknown) {
+    log(`Owner notification error: ${getErrorMessage(err)}`);
+  }
 }
 
 export async function startSession(
@@ -70,7 +142,8 @@ export async function startSession(
   state.pushMessage = push;
   state.closeGenerator = close;
 
-  state.session = createSession(generator, handoffSummary);
+  log(`Using model provider: ${state.activeProvider}`);
+  state.session = createSession(generator, handoffSummary, state.activeProvider);
 
   void consumeSessionStream(state).catch((error: unknown) => {
     log(`Session stream error: ${getErrorMessage(error)}`);
@@ -142,10 +215,25 @@ export async function handleStreamError(
   }
 
   let error = initialError;
+
   for (let attempt = 1; attempt <= MAX_ERROR_RETRIES; attempt++) {
     log(
       `Session stream failed: ${getErrorMessage(error)} (attempt ${attempt}/${MAX_ERROR_RETRIES})`
     );
+
+    const prevFailureCount = state.anthropicFailureCount;
+    const switched = applyAnthropicFailure(state, error);
+    if (switched) {
+      log(
+        `Switching to Ollama fallback after ${ANTHROPIC_FALLBACK_THRESHOLD} consecutive Anthropic errors`
+      );
+      // Notify before starting Ollama session so owner knows even if Ollama fails.
+      void notifyOwnerDirectly(getErrorMessage(error));
+    } else if (state.anthropicFailureCount > prevFailureCount) {
+      log(
+        `Anthropic API error #${state.anthropicFailureCount}/${ANTHROPIC_FALLBACK_THRESHOLD}: ${getErrorMessage(error)}`
+      );
+    }
 
     stopWorkerHealthMonitor(state);
     try {

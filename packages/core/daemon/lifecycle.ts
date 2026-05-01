@@ -36,6 +36,8 @@ export function createInitialState(): MetaState {
     workerHealthTimer: null,
     totalCycles: 0,
     lastCycleReason: null,
+    activeProvider: "anthropic",
+    anthropicFailureCount: 0,
   };
 }
 
