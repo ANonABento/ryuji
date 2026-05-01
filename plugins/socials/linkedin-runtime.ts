@@ -12,8 +12,10 @@ export function getLinkedInClient(ctx: PluginContext): LinkedInClient {
 
   const config = ctx.config.getConfig();
   const socialsConfig = config.socials?.linkedin;
+  const clientId = socialsConfig?.clientId;
+  const clientSecret = socialsConfig?.clientSecret;
 
-  if (!socialsConfig?.clientId || !socialsConfig?.clientSecret) {
+  if (typeof clientId !== "string" || typeof clientSecret !== "string") {
     throw new Error(
       "LinkedIn not configured. Add socials.linkedin.clientId and socials.linkedin.clientSecret to config.json. " +
       "Create a LinkedIn app at https://developer.linkedin.com first.",
@@ -22,8 +24,8 @@ export function getLinkedInClient(ctx: PluginContext): LinkedInClient {
 
   linkedInClient = new LinkedInClient(
     ctx.DATA_DIR,
-    socialsConfig.clientId,
-    socialsConfig.clientSecret,
+    clientId,
+    clientSecret,
   );
   return linkedInClient;
 }

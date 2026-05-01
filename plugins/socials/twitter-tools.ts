@@ -21,11 +21,19 @@ function getTwitterConfig(ctx: PluginContext): { username: string; password: str
       '  "socials": { "twitter": { "username": "...", "password": "...", "email": "..." } }',
     );
   }
+  const { username, password, email } = socialsConfig;
+  if (
+    typeof username !== "string" ||
+    typeof password !== "string" ||
+    typeof email !== "string"
+  ) {
+    throw new Error("Twitter config values must be strings.");
+  }
 
   return {
-    username: socialsConfig.username,
-    password: socialsConfig.password,
-    email: socialsConfig.email,
+    username,
+    password,
+    email,
   };
 }
 

@@ -10,8 +10,7 @@ import {
 } from "./handlers/permission-buttons.ts";
 
 export function registerPermissionRelay(ctx: AppContext) {
-  ctx.mcp.setNotificationHandler(
-    z.object({
+  const permissionRequestSchema = z.object({
       method: z.literal(
         "notifications/claude/channel/permission_request"
       ),
@@ -21,7 +20,10 @@ export function registerPermissionRelay(ctx: AppContext) {
         description: z.string(),
         input_preview: z.string(),
       }),
-    }),
+    }) as any;
+
+  ctx.mcp.setNotificationHandler(
+    permissionRequestSchema,
     async ({ params }) => {
       const message = buildPermissionMessage(params);
       const textFallback = buildPermissionTextFallback(params);

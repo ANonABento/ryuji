@@ -44,7 +44,7 @@ export class TwitterClient {
         email: config.email,
         userName: config.username,
         password: config.password,
-      });
+      } as any);
 
       // Test the session by fetching own profile
       const me = await this.rettiwt.user.details(config.username);
@@ -82,24 +82,21 @@ export class TwitterClient {
 
     const result = await client.tweet.post({ text: tweetText });
 
-    return {
-      id: result?.id ?? "unknown",
-      url: `https://x.com/${this.username}/status/${result?.id ?? "unknown"}`,
-    };
+    const id = result ?? "unknown";
+    return { id, url: `https://x.com/${this.username}/status/${id}` };
   }
 
   async postTweetWithMedia(tweetText: string, mediaPath: string): Promise<TweetResult> {
     const client = this.ensureClient();
 
+    const mediaId = await client.tweet.upload(mediaPath);
     const result = await client.tweet.post({
       text: tweetText,
-      media: [{ path: mediaPath }],
+      media: [{ id: mediaId }],
     });
 
-    return {
-      id: result?.id ?? "unknown",
-      url: `https://x.com/${this.username}/status/${result?.id ?? "unknown"}`,
-    };
+    const id = result ?? "unknown";
+    return { id, url: `https://x.com/${this.username}/status/${id}` };
   }
 
   async postThread(tweets: string[]): Promise<TweetResult[]> {
@@ -110,9 +107,10 @@ export class TwitterClient {
 
     // First tweet
     const first = await client.tweet.post({ text: tweets[0] });
+    const firstId = first ?? "unknown";
     results.push({
-      id: first?.id ?? "unknown",
-      url: `https://x.com/${this.username}/status/${first?.id ?? "unknown"}`,
+      id: firstId,
+      url: `https://x.com/${this.username}/status/${firstId}`,
     });
 
     // Reply chain
@@ -124,10 +122,11 @@ export class TwitterClient {
         text: tweets[i],
         replyTo: results[i - 1].id,
       });
+      const replyId = reply ?? "unknown";
 
       results.push({
-        id: reply?.id ?? "unknown",
-        url: `https://x.com/${this.username}/status/${reply?.id ?? "unknown"}`,
+        id: replyId,
+        url: `https://x.com/${this.username}/status/${replyId}`,
       });
     }
 
