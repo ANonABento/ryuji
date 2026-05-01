@@ -33,13 +33,18 @@ type MockGuildResponse = {
   approximatePresenceCount: number;
 };
 type MockEditPayload = { embeds?: MockServerStatsEmbed[]; content?: string };
+type MockGuildFetchOptions = {
+  guild: string;
+  withCounts: boolean;
+  force: boolean;
+};
 type MockInteraction = {
   guild?: {
     id: string;
     name: string;
-    fetch: () => Promise<MockGuildResponse>;
     channels: { fetch: () => Promise<Collection<string, MockChannel>> };
   };
+  client?: { guilds: { fetch: (options: MockGuildFetchOptions) => Promise<MockGuildResponse> } };
   deferReply?: (opts?: { flags?: number }) => Promise<void> | void;
   editReply?: (payload: MockEditPayload) => Promise<void> | void;
   reply?: (payload: { content: string; flags?: number }) => Promise<void> | void;
@@ -92,8 +97,8 @@ function makePagedTextChannel(
   };
 }
 
-function makeMissingAccessError(): Error & { code: number } {
-  return Object.assign(new Error("Missing Access"), { code: 50001 });
+function makeDiscordApiError(message: string, code: number): Error & { code: number } {
+  return Object.assign(new Error(message), { code });
 }
 
 function makeTextChannel(
@@ -113,19 +118,27 @@ function makeMockGuildInteraction(channels: Collection<string, MockChannel>, cou
     deferred: boolean;
     deferredFlags?: number;
     editPayload?: MockEditPayload;
+    guildFetchOptions?: MockGuildFetchOptions;
   } = { deferred: false };
 
   const interaction: MockInteraction = {
     guild: {
       id: "guild-id",
       name: "Guild",
-      fetch: async () => ({
-        id: "guild-id",
-        name: "Guild",
-        ...counts,
-      }),
       channels: {
         fetch: async () => channels,
+      },
+    },
+    client: {
+      guilds: {
+        fetch: async (options: MockGuildFetchOptions) => {
+          state.guildFetchOptions = options;
+          return {
+            id: "guild-id",
+            name: "Guild",
+            ...counts,
+          };
+        },
       },
     },
     deferReply: async ({ flags } = {}) => {
@@ -169,6 +182,12 @@ function getEmbedField(
   return state.editPayload?.embeds?.[0]?.data?.fields?.find((field) => field.name === name);
 }
 
+function getServerstatsCommand(): CommandDef {
+  const def = commands.get("serverstats");
+  expect(def).toBeDefined();
+  return def!;
+}
+
 async function runServerstats(def: CommandDef, interaction: MockInteraction) {
   await def.handler(
     interaction as unknown as ChatInputCommandInteraction,
@@ -185,7 +204,7 @@ test("/serverstats command is registered with guild-only visibility", () => {
 });
 
 test("/serverstats handler builds an embed payload with expected sections", async () => {
-  const def = commands.get("serverstats")!;
+  const def = getServerstatsCommand();
   const referenceNow = new Date();
   const recentMessages = new Collection<string, MockMessage>([
     ["m1", makeMessage("m1", safeRecentMessage(referenceNow, 60))],
@@ -210,6 +229,11 @@ test("/serverstats handler builds an embed payload with expected sections", asyn
 
   expect(state.deferred).toBe(true);
   expect(state.deferredFlags).toBe(MessageFlags.Ephemeral);
+  expect(state.guildFetchOptions).toEqual({
+    guild: "guild-id",
+    withCounts: true,
+    force: true,
+  });
   const embedData = getEmbedData(state);
   expect(embedData).toBeDefined();
   expect(embedData!.title).toBe("Server Stats — Guild");
@@ -227,7 +251,7 @@ test("/serverstats handler builds an embed payload with expected sections", asyn
 });
 
 test("/serverstats handler returns no-message message when history is empty", async () => {
-  const def = commands.get("serverstats")!;
+  const def = getServerstatsCommand();
   const channels = new Collection<string, MockChannel>([
     [
       "c1",
@@ -244,7 +268,6 @@ test("/serverstats handler returns no-message message when history is empty", as
 
   await runServerstats(def, interaction);
 
-  const embedData = getEmbedData(state);
   const current = getEmbedField(state, "Current Stats");
   expect(current?.value).toContain("**Messages today:** 0");
   const top = getEmbedField(state, "Top 5 Active Channels");
@@ -252,7 +275,7 @@ test("/serverstats handler returns no-message message when history is empty", as
 });
 
 test("/serverstats handler keeps only top 5 channels by message count", async () => {
-  const def = commands.get("serverstats")!;
+  const def = getServerstatsCommand();
   const referenceNow = new Date();
 
   const channels = new Collection<string, MockChannel>([
@@ -282,7 +305,7 @@ test("/serverstats handler keeps only top 5 channels by message count", async ()
 });
 
 test("/serverstats handler paginates message history to count messages from today", async () => {
-  const def = commands.get("serverstats")!;
+  const def = getServerstatsCommand();
   const since = startOfCurrentDay(new Date());
   const reference = new Date(since.getTime() + 2 * 60 * 60 * 1000);
 
@@ -311,7 +334,7 @@ test("/serverstats handler paginates message history to count messages from toda
 });
 
 test("/serverstats handler tolerates unreadable channels and still returns stats", async () => {
-  const def = commands.get("serverstats")!;
+  const def = getServerstatsCommand();
   const referenceNow = new Date();
   const channels = new Collection<string, MockChannel>([
     ["c1", makeTextChannel("c1", "visible", async () => makeMessageBatch("visible", referenceNow, 2))],
@@ -321,7 +344,17 @@ test("/serverstats handler tolerates unreadable channels and still returns stats
       isTextBased: () => true,
       messages: {
         fetch: async () => {
-          throw makeMissingAccessError();
+          throw makeDiscordApiError("Missing Access", 50001);
+        },
+      },
+    }],
+    ["c3", {
+      id: "c3",
+      name: "no-history",
+      isTextBased: () => true,
+      messages: {
+        fetch: async () => {
+          throw makeDiscordApiError("Missing Permissions", 50013);
         },
       },
     }],
@@ -343,7 +376,7 @@ test("/serverstats handler tolerates unreadable channels and still returns stats
 });
 
 test("/serverstats handler replies ephemerally when used in DMs", async () => {
-  const def = commands.get("serverstats")!;
+  const def = getServerstatsCommand();
   const { interaction, state } = makeMockDmInteraction();
 
   await runServerstats(def, interaction);
