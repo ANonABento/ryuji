@@ -8,7 +8,7 @@
  * Supports: post tweets, post with images, threads.
  */
 
-import { Rettiwt } from "rettiwt-api";
+import { AuthenticationType, Rettiwt } from "rettiwt-api";
 
 // --- Types ---
 
@@ -37,23 +37,32 @@ export class TwitterClient {
     this.username = config.username;
 
     try {
-      // Rettiwt LOGIN auth — pass credentials to constructor,
-      // authenticates on first API call
-      this.rettiwt = new Rettiwt({
-        authType: "LOGIN" as any,
+      const loginConfig: {
+        authType: AuthenticationType.LOGIN;
+        email: string;
+        userName: string;
+        password: string;
+      } = {
+        authType: AuthenticationType.LOGIN,
         email: config.email,
         userName: config.username,
         password: config.password,
-      });
+      };
+
+      // Rettiwt LOGIN auth — pass credentials to constructor,
+      // authenticates on first API call
+      this.rettiwt = new Rettiwt(loginConfig);
 
       // Test the session by fetching own profile
       const me = await this.rettiwt.user.details(config.username);
       if (!me) throw new Error("Could not fetch user profile");
 
       return `Logged in as @${me.userName || config.username}`;
-    } catch (e: any) {
+    } catch (error: unknown) {
       this.rettiwt = null;
-      throw new Error(`Twitter login failed: ${e.message}`);
+      throw new Error(
+        `Twitter login failed: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 

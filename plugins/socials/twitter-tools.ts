@@ -1,5 +1,5 @@
 import type { PluginContext, ToolDef } from "@choomfie/shared";
-import { err, text } from "@choomfie/shared";
+import { err, errorMessage, text } from "@choomfie/shared";
 import { withRetry } from "./providers/retry.ts";
 import { TwitterClient } from "./providers/twitter/api.ts";
 
@@ -52,8 +52,8 @@ export const twitterTools: ToolDef[] = [
         const client = getTwitterClient();
         const result = await client.login(twitterConfig);
         return text(`Twitter: ${result}`);
-      } catch (e: any) {
-        return err(`Twitter auth failed: ${e.message}`);
+      } catch (error: unknown) {
+        return err(`Twitter auth failed: ${errorMessage(error)}`);
       }
     },
   },
@@ -77,8 +77,8 @@ export const twitterTools: ToolDef[] = [
           { label: "twitter_post", maxAttempts: 2 },
         );
         return text(`Tweet posted!\nURL: ${result.url}\nID: ${result.id}`);
-      } catch (e: any) {
-        return err(`Tweet failed: ${e.message}`);
+      } catch (error: unknown) {
+        return err(`Tweet failed: ${errorMessage(error)}`);
       }
     },
   },
@@ -103,8 +103,8 @@ export const twitterTools: ToolDef[] = [
           { label: "twitter_post_image", maxAttempts: 2 },
         );
         return text(`Tweet with image posted!\nURL: ${result.url}\nID: ${result.id}`);
-      } catch (e: any) {
-        return err(`Tweet with image failed: ${e.message}`);
+      } catch (error: unknown) {
+        return err(`Tweet with image failed: ${errorMessage(error)}`);
       }
     },
   },
@@ -131,8 +131,8 @@ export const twitterTools: ToolDef[] = [
         const results = await client.postThread(tweets);
         const summary = results.map((result, i) => `${i + 1}. ${result.url}`).join("\n");
         return text(`Thread posted! (${results.length} tweets)\n${summary}`);
-      } catch (e: any) {
-        return err(`Thread failed: ${e.message}`);
+      } catch (error: unknown) {
+        return err(`Thread failed: ${errorMessage(error)}`);
       }
     },
   },
@@ -159,8 +159,8 @@ export const twitterTools: ToolDef[] = [
           `Username: @${status.username || "unknown"}\n` +
           "Session: cookie-based (no expiry)",
         );
-      } catch (e: any) {
-        return err(`Twitter status check failed: ${e.message}`);
+      } catch (error: unknown) {
+        return err(`Twitter status check failed: ${errorMessage(error)}`);
       }
     },
   },

@@ -2,10 +2,16 @@ import { expect, test } from "bun:test";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { MessageFlags } from "discord.js";
+import { MessageFlags, type ChatInputCommandInteraction } from "discord.js";
 import { buildStatsEmbed, getTokenUsageToday, getTopTools, trackToolCall } from "../lib/stats.ts";
+import type { AppContext } from "../lib/types.ts";
 
-function makeCtx() {
+type StatsReply = {
+  flags?: MessageFlags;
+  embeds?: unknown[];
+};
+
+function makeCtx(): AppContext {
   return {
     DATA_DIR: "/tmp/choomfie-stats-test-missing",
     discord: { user: null },
@@ -27,7 +33,7 @@ function makeCtx() {
       { name: "voice", tools: [{}, {}] },
       { name: "browser", tools: [{}] },
     ],
-  } as any;
+  } as unknown as AppContext;
 }
 
 test("tracks top tools by count then name", () => {
@@ -62,28 +68,28 @@ test("buildStatsEmbed includes required stats fields", async () => {
 test("/stats command replies ephemerally with the stats embed", async () => {
   const { commands } = await import("../lib/interactions.ts");
   const stats = commands.get("stats");
-  let reply: any;
+  let reply: StatsReply | undefined;
 
   await stats?.handler(
     {
-      reply(payload: any) {
+      reply(payload: StatsReply) {
         reply = payload;
         return Promise.resolve();
       },
-    } as any,
+    } as unknown as ChatInputCommandInteraction,
     makeCtx()
   );
 
   expect(stats?.data.name).toBe("stats");
-  expect(reply.flags).toBe(MessageFlags.Ephemeral);
-  expect(reply.embeds).toHaveLength(1);
+  expect(reply?.flags).toBe(MessageFlags.Ephemeral);
+  expect(reply?.embeds).toHaveLength(1);
 });
 
 test("reads token usage only for the current day", async () => {
   const dir = await mkdtemp(join(tmpdir(), "choomfie-stats-"));
   await mkdir(join(dir, "meta"));
 
-  const ctx = { DATA_DIR: dir } as any;
+  const ctx = { DATA_DIR: dir };
   const today = new Date().toISOString().slice(0, 10);
   await writeFile(
     join(dir, "meta", "daemon-state.json"),
@@ -108,7 +114,7 @@ test("reads same-day token usage even with stale pid metadata", async () => {
   const dir = await mkdtemp(join(tmpdir(), "choomfie-stats-"));
   await mkdir(join(dir, "meta"));
 
-  const ctx = { DATA_DIR: dir } as any;
+  const ctx = { DATA_DIR: dir };
   const today = new Date().toISOString().slice(0, 10);
 
   await writeFile(
@@ -126,7 +132,7 @@ test("guards against malformed token counts", async () => {
   const dir = await mkdtemp(join(tmpdir(), "choomfie-stats-"));
   await mkdir(join(dir, "meta"));
 
-  const ctx = { DATA_DIR: dir } as any;
+  const ctx = { DATA_DIR: dir };
   const today = new Date().toISOString().slice(0, 10);
 
   await writeFile(

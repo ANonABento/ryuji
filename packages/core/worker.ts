@@ -16,6 +16,7 @@ import { registerPermissionRelay } from "./lib/permissions.ts";
 import { destroyAll as destroyTyping } from "./lib/typing.ts";
 import { McpProxy } from "./lib/mcp-proxy.ts";
 import { trackToolCall } from "./lib/stats.ts";
+import { errorMessage } from "@choomfie/shared";
 import type { SupervisorMessage, IpcToolDef } from "./lib/ipc-types.ts";
 import type { ToolResult } from "./lib/types.ts";
 
@@ -69,9 +70,9 @@ process.on("message", async (msg: SupervisorMessage) => {
       try {
         trackToolCall(ctx, msg.name);
         result = await handler(msg.args, ctx);
-      } catch (e: any) {
+      } catch (error: unknown) {
         result = {
-          content: [{ type: "text", text: `Tool error: ${e.message}` }],
+          content: [{ type: "text", text: `Tool error: ${errorMessage(error)}` }],
           isError: true,
         };
       }
@@ -82,7 +83,7 @@ process.on("message", async (msg: SupervisorMessage) => {
     try {
       const ch = await ctx.discord.channels.fetch(msg.chat_id);
       if (ch?.isTextBased() && "send" in ch) {
-        await (ch as any).send(`✓ Restarted (${msg.reason})`);
+        await ch.send(`✓ Restarted (${msg.reason})`);
       }
     } catch {}
   } else if (msg.type === "permission_request") {
@@ -98,7 +99,7 @@ if (discordToken) {
   // (owner detection, plugin init, reminder scheduling, slash command deploy)
   const discordReady = Promise.race([
     new Promise<void>((resolve) => {
-      (ctx as any)._discordReadyResolve = resolve;
+      ctx._discordReadyResolve = resolve;
     }),
     new Promise<void>((_, reject) =>
       setTimeout(() => reject(new Error("Discord ready timeout (15s)")), 15_000)

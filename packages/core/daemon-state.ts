@@ -73,7 +73,8 @@ export async function writeDaemonState(
 
   try {
     await writeFile(`${opts.metaDir}/daemon-state.json`, JSON.stringify(data, null, 2));
-  } catch (err: any) {
-    opts.log(`Failed to write daemon state: ${err.message}`);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    opts.log(`Failed to write daemon state: ${message}`);
   }
 }

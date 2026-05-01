@@ -1,5 +1,6 @@
 import { EmbedBuilder } from "discord.js";
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { AppContext } from "./types.ts";
 import { formatDuration } from "./time.ts";
 import { VERSION } from "./version.ts";
@@ -35,10 +36,10 @@ export function getTopTools(ctx: AppContext, limit = 5): Array<{ name: string; c
     .map(([name, count]) => ({ name, count }));
 }
 
-export async function getTokenUsageToday(ctx: AppContext): Promise<number> {
+export async function getTokenUsageToday(ctx: Pick<AppContext, "DATA_DIR">): Promise<number> {
   try {
     const daemonState = JSON.parse(
-      await readFile(`${ctx.DATA_DIR}/meta/daemon-state.json`, "utf-8")
+      await readFile(join(ctx.DATA_DIR, "meta", "daemon-state.json"), "utf-8")
     ) as DaemonState;
 
     const today = new Date().toISOString().slice(0, 10);
