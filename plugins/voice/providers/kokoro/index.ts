@@ -2,4 +2,4 @@
  * Kokoro provider — local neural TTS.
  */
 
-export { kokoroTTS } from "./tts.ts";
+export { kokoroTTS, stopKokoroSession } from "./tts.ts";
