@@ -74,16 +74,12 @@ const PRONUNCIATION_QUESTIONS: QuizQuestion[] = [
 function asDictionaryEntry(item: (typeof spanishA1Vocab)[number]): DictionaryEntry {
   return {
     word: item.term,
-    reading: `/${spanishToIpa(item.term)}/`,
+    reading: `/${item.reading}/`,
     meanings: [item.meaning],
     partOfSpeech: ["A1 vocabulary"],
     level: "A1",
-    examples: exampleSentences(item.term),
+    examples: spanishExampleSentences[item.term],
   };
-}
-
-function exampleSentences(term: string): string[] | undefined {
-  return spanishExampleSentences[term];
 }
 
 function normalizeSearch(input: string): string {

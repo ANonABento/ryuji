@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { PluginContext } from "@choomfie/shared";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,6 +13,8 @@ import { spanishTools } from "../../../plugins/tutor/modules/spanish/tools.ts";
 import { spanishToIpa } from "../../../plugins/tutor/modules/spanish/pronunciation.ts";
 import { lessonTools } from "../../../plugins/tutor/tools/lesson-tools.ts";
 import { moduleTools } from "../../../plugins/tutor/tools/module-tools.ts";
+
+const emptyContext = {} as PluginContext;
 
 describe("Spanish tutor module", () => {
   test("is registered as a tutor module", () => {
@@ -49,7 +52,7 @@ describe("Spanish tutor module", () => {
     const pronunciationTool = spanishTools.find((tool) => tool.definition.name === "spanish_pronunciation");
     expect(pronunciationTool).toBeDefined();
 
-    const result = await pronunciationTool!.handler({ text: "   " }, undefined as never);
+    const result = await pronunciationTool!.handler({ text: "   " }, emptyContext);
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("non-empty string");
   });
@@ -65,14 +68,14 @@ describe("Spanish tutor module", () => {
       const switchModule = moduleTools.find((tool) => tool.definition.name === "switch_module")!;
       const switchResult = await switchModule.handler(
         { user_id: userId, module: "SPANISH" },
-        undefined as never,
+        emptyContext,
       );
       expect(switchResult.isError).toBeUndefined();
       expect(switchResult.content[0].text).toContain("**Spanish**");
       expect(switchResult.content[0].text).toContain("A1");
 
       const lessonStatus = lessonTools.find((tool) => tool.definition.name === "lesson_status")!;
-      const statusResult = await lessonStatus.handler({ user_id: userId }, undefined as never);
+      const statusResult = await lessonStatus.handler({ user_id: userId }, emptyContext);
       expect(statusResult.isError).toBeUndefined();
       expect(statusResult.content[0].text).toContain("**Spanish Progress**");
       expect(statusResult.content[0].text).toContain("Pronunciation");

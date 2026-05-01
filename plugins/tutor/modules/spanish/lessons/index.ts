@@ -54,7 +54,7 @@ const spellingSoundContent: ContentSet = {
   items: [
     { term: "que", reading: "/ke/", meaning: "qu makes k before e" },
     { term: "ciudad", reading: "/sju.dad/", meaning: "c before i sounds like s in Latin America" },
-    { term: "chico", reading: "/tSi.ko/", meaning: "ch sounds like English ch" },
+    { term: "chico", reading: "/tʃi.ko/", meaning: "ch sounds like English ch" },
     { term: "llamo", reading: "/ja.mo/", meaning: "ll sounds like y in many dialects" },
     { term: "jugar", reading: "/xu.gar/", meaning: "j is a strong h-like sound" },
   ],
@@ -114,7 +114,7 @@ export const spanishLessons: Lesson[] = [
     exercises: [
       ...generateExercises(spellingSoundContent, "recognition"),
       mc("In Latin American Spanish, c before e or i usually sounds like:", "s", ["k", "ch", "r"]),
-      mc("Which spelling gives the /tS/ sound?", "ch", ["qu", "ll", "j"]),
+      mc("Which spelling gives the /tʃ/ sound?", "ch", ["qu", "ll", "j"]),
       cloze("Type the two-letter spelling that makes /k/ before e in **que**.", "qu"),
       cloze("Type the letter that is silent in **hola**.", "h"),
     ],
