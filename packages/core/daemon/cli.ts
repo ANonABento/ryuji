@@ -1,6 +1,21 @@
 import { readFile, unlink } from "node:fs/promises";
-import { PID_PATH } from "./constants.ts";
-import { loadHandoffs } from "./handoffs.ts";
+import {
+  DATA_DIR,
+  PLUGIN_DIR,
+  PID_PATH,
+  TOKEN_THRESHOLD,
+  TURN_THRESHOLD,
+  WORKER_HEALTH_INTERVAL,
+  WORKER_MAX_CONSECUTIVE_FAILURES,
+} from "./constants.ts";
+import {
+  FLAG_BENCHMARK,
+  FLAG_STATUS,
+  FLAG_STOP,
+  FLAG_TEST_CYCLE,
+  FLAG_VERBOSE,
+} from "./flags.ts";
+import { getLastHandoffSummary, loadHandoffs } from "./handoffs.ts";
 import { cleanup, createInitialState, setupShutdown } from "./lifecycle.ts";
 import { log } from "./log.ts";
 import { acquirePid } from "./pid.ts";
@@ -252,4 +267,37 @@ export async function showStatus(): Promise<void> {
   }
 
   process.exit(0);
+}
+
+export async function main(): Promise<void> {
+  if (FLAG_STOP) return stopDaemon();
+  if (FLAG_STATUS) return showStatus();
+  if (FLAG_TEST_CYCLE) return testCycle();
+  if (FLAG_BENCHMARK) return benchmark();
+
+  log("Choomfie daemon starting...");
+  log(`Plugin directory: ${PLUGIN_DIR}`);
+  log(`Data directory: ${DATA_DIR}`);
+  log(`Thresholds: ${TOKEN_THRESHOLD} tokens, ${TURN_THRESHOLD} turns`);
+  log(
+    `Worker health: check every ${WORKER_HEALTH_INTERVAL / 1000}s, ` +
+      `max ${WORKER_MAX_CONSECUTIVE_FAILURES} failures before recovery`
+  );
+  if (FLAG_VERBOSE) log("Verbose logging enabled");
+
+  await acquirePid();
+  log(`PID ${process.pid} acquired`);
+
+  const handoffs = await loadHandoffs();
+  const lastSummary = getLastHandoffSummary(handoffs);
+  if (lastSummary) {
+    log(`Found previous handoff summary (${handoffs.length} total)`);
+  }
+
+  const state = createInitialState();
+  setupShutdown(state);
+  await startSession(state, lastSummary);
+
+  log("Daemon running. Press Ctrl+C to stop.");
+  await new Promise(() => {});
 }
