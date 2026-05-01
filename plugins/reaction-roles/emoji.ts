@@ -1,6 +1,9 @@
-import type { MessageReaction } from "discord.js";
-
 const CUSTOM_EMOJI_RE = /^<a?:[A-Za-z0-9_]+:(\d+)>$/;
+
+export interface ReactionEmoji {
+  id: string | null;
+  name: string | null;
+}
 
 export function emojiKeyFromInput(input: string): string {
   const trimmed = input.trim();
@@ -13,6 +16,8 @@ export function emojiKeyFromInput(input: string): string {
   return trimmed;
 }
 
-export function emojiKeyFromReaction(reaction: MessageReaction): string {
+export function emojiKeyFromReaction(reaction: {
+  emoji: ReactionEmoji;
+}): string {
   return reaction.emoji.id ?? reaction.emoji.name ?? "";
 }

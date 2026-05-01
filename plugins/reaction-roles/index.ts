@@ -2,27 +2,63 @@ import {
   Events,
   GatewayIntentBits,
   MessageFlags,
-  type Guild,
   PermissionFlagsBits,
   SlashCommandBuilder,
   type Client,
-  type MessageReaction,
-  type PartialMessageReaction,
-  type PartialUser,
   type Role,
-  type User,
 } from "discord.js";
 import type { Plugin, PluginContext } from "@choomfie/shared";
 import { errorMessage, registerCommand } from "@choomfie/shared";
 import { ReactionRoleDB } from "./db.ts";
-import { emojiKeyFromInput, emojiKeyFromReaction } from "./emoji.ts";
+import {
+  type ReactionEmoji,
+  emojiKeyFromInput,
+  emojiKeyFromReaction,
+} from "./emoji.ts";
 
 type ReactionRoleAction = "add" | "remove";
 type ReactionRoleStore = Pick<ReactionRoleDB, "get">;
-type ReactionRoleEvent = MessageReaction | PartialMessageReaction;
-type ReactionRoleUser = User | PartialUser;
+
+interface ReactionRoleMember {
+  roles: {
+    add(roleId: string, reason?: string): Promise<unknown>;
+    remove(roleId: string, reason?: string): Promise<unknown>;
+  };
+}
+
+interface ReactionRoleGuild {
+  id: string;
+  members: {
+    fetch(userId: string): Promise<ReactionRoleMember>;
+  };
+}
+
+interface ReactionRoleEvent {
+  partial: boolean;
+  fetch?: () => Promise<ReactionRoleEvent>;
+  emoji: ReactionEmoji;
+  message: {
+    id?: string | null;
+    channelId?: string | null;
+    guild?: ReactionRoleGuild | null;
+    guildId?: string | null;
+    client?: {
+      guilds: {
+        fetch(guildId: string): Promise<ReactionRoleGuild | null>;
+      };
+    };
+  };
+}
+
+interface ReactionRoleUser {
+  partial: boolean;
+  fetch?: () => Promise<ReactionRoleUser>;
+  bot?: boolean;
+  id: string;
+}
+
 type ReactionRoleContext = {
-  guild: Guild;
+  guild: ReactionRoleGuild;
   channelId: string;
   messageId: string;
   emojiKey: string;
@@ -169,8 +205,8 @@ async function resolveReaction(
   reaction: ReactionRoleEvent
 ): Promise<ReactionRoleEvent> {
   try {
-    if (reaction.partial) {
-      return (await reaction.fetch()) as MessageReaction;
+    if (reaction.partial && reaction.fetch) {
+      return await reaction.fetch();
     }
     return reaction;
   } catch {
@@ -178,24 +214,26 @@ async function resolveReaction(
   }
 }
 
-async function resolveUser(user: ReactionRoleUser): Promise<User | null> {
+async function resolveUser(
+  user: ReactionRoleUser
+): Promise<ReactionRoleUser | null> {
   try {
-    if (user.partial) {
-      return (await user.fetch()) as User;
+    if (user.partial && user.fetch) {
+      return await user.fetch();
     }
-    return user as User;
+    return user;
   } catch {
     return null;
   }
 }
 
-async function resolveGuild(reaction: ReactionRoleEvent): Promise<Guild | null> {
+async function resolveGuild(
+  reaction: ReactionRoleEvent
+): Promise<ReactionRoleGuild | null> {
   if (reaction.message.guild) return reaction.message.guild;
 
-  const guildId = (reaction.message as MessageReaction["message"] & {
-    guildId?: string | null;
-  }).guildId;
-  if (!guildId) return null;
+  const guildId = reaction.message.guildId;
+  if (!guildId || !reaction.message.client) return null;
 
   try {
     return await reaction.message.client.guilds.fetch(guildId);
@@ -212,7 +250,7 @@ async function resolveReactionContext(
   if (!guild) return null;
 
   const message = resolvedReaction.message;
-  const emojiKey = emojiKeyFromReaction(resolvedReaction as MessageReaction);
+  const emojiKey = emojiKeyFromReaction(resolvedReaction);
   if (!message.id || !message.channelId || !emojiKey) return null;
 
   return {
@@ -280,7 +318,8 @@ const reactionRolesPlugin: Plugin = {
     db = new ReactionRoleDB(`${ctx.DATA_DIR}/reaction-roles.db`);
     discordClient = ctx.discord;
 
-    reactionAddHandler = (reaction, user) => handleReaction(reaction, user, "add");
+    reactionAddHandler = (reaction, user) =>
+      handleReaction(reaction, user, "add");
     reactionRemoveHandler = (reaction, user) =>
       handleReaction(reaction, user, "remove");
 
