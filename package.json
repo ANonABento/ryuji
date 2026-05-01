@@ -17,7 +17,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "lint-staged": "lint-staged",
-    "prepare": "husky",
+    "prepare": "husky || true",
     "deploy-commands": "bun packages/core/scripts/deploy-commands.ts",
     "daemon": "bun packages/core/daemon.ts"
   },
