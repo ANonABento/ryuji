@@ -41,9 +41,11 @@ let lastCrashTime = 0;
 const MAX_CRASHES = 5; // max crashes within the reset window
 const CRASH_WINDOW_MS = 60_000; // reset crash count after 1min of stability
 
-const permissionRequestNotificationSchema = z.object({
+const zod = z as any;
+
+const permissionRequestNotificationSchema = zod.object({
   method: z.literal("notifications/claude/channel/permission_request"),
-  params: z.object({
+  params: zod.object({
     request_id: z.string(),
     tool_name: z.string(),
     description: z.string(),
