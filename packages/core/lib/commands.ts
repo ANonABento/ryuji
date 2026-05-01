@@ -38,7 +38,7 @@ import type { AppContext } from "./types.ts";
 
 // --- Command definitions ---
 
-async function redeployCommands(ctx: AppContext) {
+async function redeployCommands(ctx: AppContext): Promise<number> {
   const commands = mergeCommandDefs(getCommandDefs(), ctx.memory.listCustomCommands());
   const deployed = await deployCurrentGuildCommands(ctx, commands);
   await Bun.write(`${ctx.DATA_DIR}/.commands-hash`, Bun.hash(JSON.stringify(commands)).toString(36));

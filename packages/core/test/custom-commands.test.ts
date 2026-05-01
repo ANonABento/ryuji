@@ -65,8 +65,14 @@ test("buildCustomCommandDefs creates slash commands and merge skips built-in col
 
   expect(buildCustomCommandDefs([{ name: "hello" }])[0].name).toBe("hello");
   expect(buildCustomCommandDefs([{ name: "Hello World" }]).length).toBe(0);
-  expect(mergeCommandDefs(staticCommands, [{ name: "help" }, { name: "hello" }]).map((c) => c.name))
-    .toEqual(["help", "hello"]);
+  expect(
+    mergeCommandDefs(staticCommands, [
+      { name: "help" },
+      { name: "Help" },
+      { name: "hello" },
+      { name: "HELLO" },
+    ]).map((c) => c.name)
+  ).toEqual(["help", "hello"]);
 });
 
 test("custom command name normalization and validation", () => {

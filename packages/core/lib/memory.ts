@@ -515,7 +515,7 @@ export class MemoryStore {
   private static readonly CUSTOM_COMMAND_COLS = `name, response, created_by as createdBy,
     created_at as createdAt, updated_at as updatedAt`;
 
-  setCustomCommand(name: string, response: string, createdBy: string) {
+  setCustomCommand(name: string, response: string, createdBy: string): void {
     const normalizedName = normalizeCustomCommandName(name);
     const normalizedResponse = response.trim();
 
@@ -612,7 +612,7 @@ export class MemoryStore {
     return `## Current Memories\n${lines.join("\n")}`;
   }
 
-  close() {
+  close(): void {
     // Checkpoint WAL before closing — ensures all writes are flushed to the main DB file
     // and prevents WAL contention when a new worker opens the same database on restart
     try {

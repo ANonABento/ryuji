@@ -2,9 +2,12 @@ import {
   SlashCommandBuilder,
   type RESTPostAPIChatInputApplicationCommandsJSONBody,
 } from "discord.js";
-import type { CustomCommand } from "./memory.ts";
 
 export const CUSTOM_COMMAND_NAME_RE = /^[a-z0-9_-]{1,32}$/;
+
+export interface CustomCommandDefinition {
+  name: string;
+}
 
 export function isValidCustomCommandName(name: string): boolean {
   return CUSTOM_COMMAND_NAME_RE.test(name);
@@ -15,13 +18,14 @@ export function normalizeCustomCommandName(name: string): string {
 }
 
 export function buildCustomCommandDefs(
-  customCommands: Pick<CustomCommand, "name">[]
+  customCommands: CustomCommandDefinition[]
 ): RESTPostAPIChatInputApplicationCommandsJSONBody[] {
   return customCommands
-    .filter((command) => isValidCustomCommandName(normalizeCustomCommandName(command.name)))
-    .map((command) =>
+    .map((command) => normalizeCustomCommandName(command.name))
+    .filter((name) => isValidCustomCommandName(name))
+    .map((name) =>
       new SlashCommandBuilder()
-        .setName(normalizeCustomCommandName(command.name))
+        .setName(name)
         .setDescription("Custom command")
         .toJSON()
     );
@@ -29,11 +33,20 @@ export function buildCustomCommandDefs(
 
 export function mergeCommandDefs(
   staticCommands: RESTPostAPIChatInputApplicationCommandsJSONBody[],
-  customCommands: Pick<CustomCommand, "name">[]
+  customCommands: CustomCommandDefinition[]
 ): RESTPostAPIChatInputApplicationCommandsJSONBody[] {
   const staticNames = new Set(staticCommands.map((command) => command.name));
-  const dynamic = buildCustomCommandDefs(
-    customCommands.filter((command) => !staticNames.has(command.name))
-  );
+  const dynamicNames = new Set<string>();
+  const dynamicCommands = customCommands
+    .map((command) => normalizeCustomCommandName(command.name))
+    .filter((name) => isValidCustomCommandName(name))
+    .filter((name) => !staticNames.has(name))
+    .filter((name) => {
+      if (dynamicNames.has(name)) return false;
+      dynamicNames.add(name);
+      return true;
+    })
+    .map((name) => ({ name }));
+  const dynamic = buildCustomCommandDefs(dynamicCommands);
   return [...staticCommands, ...dynamic];
 }
