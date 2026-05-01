@@ -22,7 +22,11 @@ export interface VoiceConfig {
   ttsSpeed?: number; // 0.5 to 2.0 (default 1.0)
 }
 
-export interface YouTubeConfig extends SocialsPlatformConfig {
+export type LlmProvider = "claude" | "ollama" | string;
+export type EmbeddingsProvider = "none" | "local" | string;
+
+export interface SocialsConfig {
+  youtube?: {
     apiKey?: string;       // Optional — for YouTube Data API v3 reads (fallback to yt-dlp)
     clientId?: string;     // Optional — for OAuth (comments)
     clientSecret?: string; // Optional — for OAuth (comments)
@@ -44,6 +48,11 @@ export interface YouTubeConfig extends SocialsPlatformConfig {
 }
 
 export interface Config {
+  localFirst: boolean;
+  provider: LlmProvider;
+  localModel: string;
+  ollamaUrl: string;
+  embeddings: EmbeddingsProvider;
   activePersona: string;
   personas: Record<string, Persona>;
   rateLimitMs: number;
@@ -58,6 +67,11 @@ export interface Config {
 }
 
 const DEFAULT_CONFIG: Config = {
+  localFirst: false,
+  provider: "claude",
+  localModel: "llama3.2",
+  ollamaUrl: "http://127.0.0.1:11434",
+  embeddings: "none",
   activePersona: "choomfie",
   personas: {
     choomfie: {
@@ -72,6 +86,20 @@ const DEFAULT_CONFIG: Config = {
   plugins: [],
   voice: { stt: "auto", tts: "auto", ttsSpeed: 0.7 },
 };
+
+function applyLocalFirst(config: Config): Config {
+  if (!config.localFirst) return config;
+  return {
+    ...config,
+    provider: "ollama",
+    embeddings: "local",
+    voice: {
+      ...config.voice,
+      stt: "whisper",
+      tts: "kokoro",
+    },
+  };
+}
 
 function mergeConfig(saved: Partial<Config>): Config {
   const savedPersonas =
@@ -212,10 +240,37 @@ export class ConfigManager {
     this.save();
   }
 
+  // --- Local-first ---
+
+  isLocalFirst(): boolean {
+    return this.config.localFirst === true;
+  }
+
+  getProvider(): LlmProvider {
+    return applyLocalFirst(this.config).provider;
+  }
+
+  getLocalModel(): string {
+    return process.env.OLLAMA_MODEL || this.config.localModel;
+  }
+
+  getOllamaUrl(): string {
+    return process.env.OLLAMA_URL || this.config.ollamaUrl;
+  }
+
+  getEmbeddingsProvider(): EmbeddingsProvider {
+    return applyLocalFirst(this.config).embeddings;
+  }
+
+  setLocalFirst(enabled: boolean) {
+    this.config.localFirst = enabled;
+    this.save();
+  }
+
   // --- Voice ---
 
   getVoiceConfig(): VoiceConfig {
-    return this.config.voice || { stt: "auto", tts: "auto" };
+    return applyLocalFirst(this.config).voice;
   }
 
   setVoiceConfig(voice: Partial<VoiceConfig>) {
@@ -243,6 +298,6 @@ export class ConfigManager {
   // --- Full config ---
 
   getConfig(): Config {
-    return { ...this.config };
+    return applyLocalFirst({ ...this.config });
   }
 }
