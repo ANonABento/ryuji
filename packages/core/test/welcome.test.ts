@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ConfigManager } from "../lib/config.ts";
@@ -49,5 +49,25 @@ test("ConfigManager persists welcome config", async () => {
   expect(config.getWelcomeConfig()).toEqual({
     channelId: "456",
     template: "Welcome {displayName}",
+  });
+});
+
+test("ConfigManager normalizes invalid welcome config values", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "choomfie-welcome-"));
+  tempDirs.push(dir);
+  await writeFile(
+    join(dir, "config.json"),
+    JSON.stringify({
+      welcome: {
+        channelId: 123,
+        template: null,
+      },
+    })
+  );
+
+  const config = new ConfigManager(dir);
+  expect(config.getWelcomeConfig()).toEqual({
+    channelId: null,
+    template: "Welcome {user} to {server}!",
   });
 });

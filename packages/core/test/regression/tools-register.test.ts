@@ -27,7 +27,7 @@ describe("plugin tool registration", () => {
     ]);
   });
 
-  test("tutor plugin exports 13 tools", async () => {
+  test("tutor plugin exports 16 tools", async () => {
     const mod = await import("@choomfie/tutor");
     const plugin = mod.default;
     const names = (plugin.tools ?? []).map((t: any) => t.definition.name);
@@ -43,8 +43,11 @@ describe("plugin tool registration", () => {
     expect(names).toContain("srs_stats");
     expect(names).toContain("srs_reminders");
     expect(names).toContain("lesson_status");
+    expect(names).toContain("convert_pinyin");
+    expect(names).toContain("stroke_info");
+    expect(names).toContain("convert_hanzi");
     expect(names).toContain("random_word");
-    expect(names.length).toBe(13);
+    expect(names.length).toBe(16);
     const userTools = plugin.userTools ?? [];
     expect(userTools.every((name) => names.includes(name))).toBe(true);
   });

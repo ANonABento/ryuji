@@ -9,7 +9,7 @@ import {
   type GuildMember,
 } from "discord.js";
 import {
-  DEFAULT_WELCOME_TEMPLATE,
+  normalizeWelcomeTemplate,
   type WelcomeConfig,
 } from "../config.ts";
 import { registerCommand } from "../interactions.ts";
@@ -17,9 +17,12 @@ import type { AppContext } from "../types.ts";
 import { requireOwner } from "./shared.ts";
 
 const WELCOME_TEMPLATE_MAX_LENGTH = 1000;
+const DISCORD_MESSAGE_MAX_LENGTH = 2000;
+const CONFIG_DISPLAY_MAX_LENGTH = 700;
 
-function normalizeWelcomeTemplate(value: string | undefined | null): string {
-  return value?.trim() || DEFAULT_WELCOME_TEMPLATE;
+function truncateText(value: string, maxLength: number): string {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength - 3)}...`;
 }
 
 export function renderWelcomeTemplate(
@@ -47,7 +50,10 @@ export async function handleGuildMemberAdd(
   if (!welcome.channelId) return;
 
   const template = normalizeWelcomeTemplate(welcome.template);
-  const content = renderWelcomeTemplate(template, member);
+  const content = truncateText(
+    renderWelcomeTemplate(template, member),
+    DISCORD_MESSAGE_MAX_LENGTH
+  );
 
   try {
     const channel = await member.guild.channels.fetch(welcome.channelId);
@@ -134,12 +140,16 @@ registerCommand("welcome_config", {
         memberCount: interaction.guild?.memberCount ?? 0,
       },
     };
-    const preview = renderWelcomeTemplate(updated.template, previewMember);
+    const savedTemplate = normalizeWelcomeTemplate(updated.template);
+    const preview = truncateText(
+      renderWelcomeTemplate(savedTemplate, previewMember),
+      CONFIG_DISPLAY_MAX_LENGTH
+    );
 
     await interaction.reply({
       content: [
         `Welcome messages are **${status}**.`,
-        `Template: \`${updated.template}\``,
+        `Template: \`${truncateText(savedTemplate, CONFIG_DISPLAY_MAX_LENGTH)}\``,
         `Preview: ${preview}`,
       ].join("\n"),
       flags: MessageFlags.Ephemeral,

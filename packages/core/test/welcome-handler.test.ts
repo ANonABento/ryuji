@@ -78,6 +78,40 @@ test("handleGuildMemberAdd sends welcome content to configured channel", async (
   expect(ctx.messageStats.sent).toBe(1);
 });
 
+test("handleGuildMemberAdd keeps rendered welcome content within Discord limit", async () => {
+  const { fetch, send } = makeTextChannel();
+
+  const ctx = {
+    config: {
+      getWelcomeConfig: () => ({
+        channelId: "channel-id",
+        template: "{user}".repeat(500),
+      }),
+    },
+    messageStats: { sent: 0 },
+  } as unknown as AppContext;
+
+  await handleGuildMemberAdd(
+    {
+      guild: {
+        channels: { fetch },
+        name: "Choomfie",
+        memberCount: 5,
+      },
+      id: "123456789012345678",
+      displayName: "Bento",
+      user: { username: "bentomac" },
+      guildId: "guild-1",
+    } as any,
+    ctx
+  );
+
+  const payload = send.calls[0][0] as { content: string };
+  expect(payload.content.length).toBeLessThanOrEqual(2000);
+  expect(payload.content.endsWith("...")).toBe(true);
+  expect(ctx.messageStats.sent).toBe(1);
+});
+
 test("welcome_config updates config and requires owner", async () => {
   const cmd = getWelcomeCommand();
 

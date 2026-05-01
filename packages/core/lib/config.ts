@@ -64,6 +64,28 @@ export interface Config {
 export const DEFAULT_WELCOME_TEMPLATE =
   "Welcome {user} to {server}!";
 
+export function normalizeWelcomeTemplate(value: unknown): string {
+  return typeof value === "string" && value.trim()
+    ? value.trim()
+    : DEFAULT_WELCOME_TEMPLATE;
+}
+
+function normalizeWelcomeConfig(value: unknown): WelcomeConfig {
+  const saved =
+    value && typeof value === "object"
+      ? (value as Partial<Record<keyof WelcomeConfig, unknown>>)
+      : {};
+  const channelId =
+    typeof saved.channelId === "string" && saved.channelId.trim()
+      ? saved.channelId.trim()
+      : null;
+
+  return {
+    channelId,
+    template: normalizeWelcomeTemplate(saved.template),
+  };
+}
+
 const DEFAULT_CONFIG: Config = {
   activePersona: "choomfie",
   personas: {
@@ -91,8 +113,7 @@ function mergeConfig(saved: Partial<Config>): Config {
       : {};
   const savedVoice =
     saved.voice && typeof saved.voice === "object" ? saved.voice : {};
-  const savedWelcome =
-    saved.welcome && typeof saved.welcome === "object" ? saved.welcome : {};
+  const savedWelcome = normalizeWelcomeConfig(saved.welcome);
   const savedSocials =
     saved.socials && typeof saved.socials === "object" ? saved.socials : undefined;
 
@@ -228,15 +249,14 @@ export class ConfigManager {
   // --- Welcome messages ---
 
   getWelcomeConfig(): WelcomeConfig {
-    return this.config.welcome || { ...DEFAULT_CONFIG.welcome };
+    return normalizeWelcomeConfig(this.config.welcome);
   }
 
   setWelcomeConfig(welcome: Partial<WelcomeConfig>) {
-    this.config.welcome = {
-      ...DEFAULT_CONFIG.welcome,
+    this.config.welcome = normalizeWelcomeConfig({
       ...this.config.welcome,
       ...welcome,
-    };
+    });
     this.save();
   }
 
