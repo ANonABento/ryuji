@@ -323,11 +323,12 @@ registerCommand("serverstats", {
     const since = startOfCurrentDay();
 
     try {
-      const fetchGuild = interaction.guild.fetch as (
+      const sourceGuild = interaction.guild;
+      const fetchGuild = sourceGuild.fetch as (
         options?: { withCounts?: boolean }
-      ) => Promise<typeof interaction.guild>;
+      ) => Promise<typeof sourceGuild>;
       const guild = await fetchGuild({ withCounts: true });
-      const channels = await guild.channels.fetch();
+      const channels = await sourceGuild.channels.fetch();
       const channelCount = channels.size;
       const memberCount = guild.approximateMemberCount ?? guild.memberCount;
       const onlineCount = guild.approximatePresenceCount ?? 0;
