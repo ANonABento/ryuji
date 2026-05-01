@@ -14,6 +14,7 @@ import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { readFile, writeFile, unlink } from "node:fs/promises";
 import { z } from "zod";
@@ -51,7 +52,7 @@ type McpNotification = Parameters<Server["notification"]>[0];
 /** Pending tool calls waiting for worker response */
 const pendingCalls = new Map<
   string,
-  { resolve: (result: any) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout> }
+  { resolve: (result: CallToolResult) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout> }
 >();
 
 /** MCP server — created once, lives forever */
@@ -223,7 +224,7 @@ function handleWorkerMessage(msg: WorkerMessage) {
 function callWorkerTool(
   name: string,
   args: Record<string, unknown>
-): Promise<any> {
+): Promise<CallToolResult> {
   return new Promise((resolve, reject) => {
     if (!workerReady || !worker) {
       return reject(new Error("Worker not ready"));
@@ -307,7 +308,7 @@ async function restartWorker(reason: string): Promise<{ timedOut: boolean }> {
 async function handleSupervisorTool(
   name: string,
   args: Record<string, unknown>
-): Promise<any> {
+): Promise<CallToolResult> {
   if (name === "restart") {
     const reason = (args.reason as string) || "manual restart";
     const { timedOut } = await restartWorker(reason);
@@ -352,7 +353,7 @@ function createMcp(): Server {
   }));
 
   // Tool call router
-  server.setRequestHandler(CallToolRequestSchema, async (req) => {
+  server.setRequestHandler(CallToolRequestSchema, async (req): Promise<CallToolResult> => {
     const name = req.params.name;
     const args = (req.params.arguments ?? {}) as Record<string, unknown>;
 
@@ -380,16 +381,18 @@ function createMcp(): Server {
   });
 
   // Forward permission requests from MCP to worker
+  const permissionRequestSchema = z.object({
+    method: z.literal("notifications/claude/channel/permission_request"),
+    params: z.object({
+      request_id: z.string(),
+      tool_name: z.string(),
+      description: z.string(),
+      input_preview: z.string(),
+    }),
+  }) as any;
+
   server.setNotificationHandler(
-    z.object({
-      method: z.literal("notifications/claude/channel/permission_request"),
-      params: z.object({
-        request_id: z.string(),
-        tool_name: z.string(),
-        description: z.string(),
-        input_preview: z.string(),
-      }),
-    }) as any,
+    permissionRequestSchema,
     async ({ params }: any) => {
       if (worker && workerReady) {
         try {
