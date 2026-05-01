@@ -19,6 +19,7 @@ interface FakeMessage {
   member: FakeGuildMember | null;
   author: {
     id: string;
+    bot?: boolean;
   };
   content: string;
   reply: (payload: { content: string }) => Promise<void>;
@@ -201,6 +202,32 @@ test("owner messages are skipped", async () => {
   });
 
   const message = makeMessage(member, OWNER_USER_ID, "forbidden");
+  message.reply = async ({ content }) => {
+    replies.push(content);
+  };
+
+  await automodPlugin.onMessage!(
+    message as never,
+    fakePluginContext({ config })
+  );
+
+  expect(replies).toHaveLength(0);
+});
+
+test("bot messages are skipped", async () => {
+  const replies: string[] = [];
+  const member: FakeGuildMember = {
+    timeout: async () => {},
+    kick: async () => {},
+  };
+  const config = createFakeAutomodConfig({
+    maxMessagesPerMinute: 1,
+    bannedWords: ["forbidden"],
+    action: "warn",
+  });
+
+  const message = makeMessage(member, "bot-user", "this has forbidden content");
+  message.author = { id: "bot-user", bot: true };
   message.reply = async ({ content }) => {
     replies.push(content);
   };

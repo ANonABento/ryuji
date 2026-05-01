@@ -39,6 +39,13 @@ function isOwner(ctx: PluginContext, userId: string): boolean {
   return !!ctx.ownerUserId && ctx.ownerUserId === userId;
 }
 
+function isModerationTarget(
+  message: { author: { id: string; bot?: boolean } },
+  ctx: PluginContext
+): boolean {
+  return !message.author.bot && !isOwner(ctx, message.author.id);
+}
+
 function shouldRateLimit(userId: string, maxPerMinute: number): boolean {
   const now = Date.now();
   const bucket = rateBuckets.get(userId) || [];
@@ -167,7 +174,7 @@ const automodPlugin: Plugin = {
 
   async onMessage(message, ctx) {
     if (!message.guild) return;
-    if (isOwner(ctx, message.author.id)) return;
+    if (!isModerationTarget(message, ctx)) return;
 
     const cfg = ctx.config.getAutomodConfig();
     const userId = message.author.id;
@@ -213,7 +220,6 @@ const automodPlugin: Plugin = {
         return;
       }
     } catch {
-      if (!shouldAct && !bannedWord) return;
       await message.reply({
         content: `⚠️ Automod ${action} failed. Check bot permissions.`,
       });
