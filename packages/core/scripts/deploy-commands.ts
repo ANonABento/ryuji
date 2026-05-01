@@ -16,6 +16,7 @@ import { mergeCommandDefs } from "../lib/custom-commands.ts";
 import { MemoryStore } from "../lib/memory.ts";
 import { readFile } from "node:fs/promises";
 import "@choomfie/tutor";
+import "@choomfie/rss";
 
 const DATA_DIR =
   process.env.CHOOMFIE_DATA_DIR ||
