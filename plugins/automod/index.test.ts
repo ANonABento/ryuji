@@ -3,14 +3,12 @@ import {
   type AutomodAction,
   type AutomodConfig,
   type PluginConfig,
+  type PluginContext,
 } from "@choomfie/shared";
 import { expect, test } from "bun:test";
 import automodPlugin from ".";
 
-type FakeAutomodConfig = Pick<
-  PluginConfig,
-  "getAutomodConfig" | "setAutomodConfig"
->;
+type FakeAutomodConfig = PluginConfig;
 
 interface FakeMessage {
   guild: {
@@ -36,15 +34,15 @@ interface FakeCommandInteraction {
     id: string;
   };
   options: {
-    getInteger: () => number | null;
-    getString: () => string | null;
+    getInteger: (name: string) => number | null;
+    getString: (name: string) => string | null;
   };
-  reply: (payload: { content: string }) => Promise<void>;
+  reply: (payload: { content: string; flags?: unknown }) => Promise<void>;
 }
 
-interface FakePluginContext {
+interface FakePluginContext
+  extends Pick<PluginContext, "DATA_DIR" | "ownerUserId" | "config"> {
   ownerUserId?: string;
-  config: FakeAutomodConfig;
 }
 
 const OWNER_USER_ID = "owner-user";
@@ -60,6 +58,18 @@ function createFakeAutomodConfig(
   };
 
   return {
+    getConfig() {
+      return { automod: this.getAutomodConfig() };
+    },
+    getEnabledPlugins() {
+      return ["automod"];
+    },
+    getVoiceConfig() {
+      return { stt: "auto", tts: "auto" };
+    },
+    getSocialsConfig() {
+      return undefined;
+    },
     getAutomodConfig() {
       return { ...state, bannedWords: [...state.bannedWords] };
     },
@@ -74,6 +84,7 @@ function fakePluginContext(overrides: {
   ownerUserId?: string;
 }): FakePluginContext {
   return {
+    DATA_DIR: "/tmp/choomfie-automod-test",
     ownerUserId: overrides.ownerUserId ?? OWNER_USER_ID,
     config: overrides.config,
   };
@@ -81,13 +92,15 @@ function fakePluginContext(overrides: {
 
 function makeCommandInteraction(overrides: {
   userId?: string;
+  integers?: Record<string, number | null>;
+  strings?: Record<string, string | null>;
   onReply: (content: string) => void;
 }): FakeCommandInteraction {
   return {
     user: { id: overrides.userId ?? OWNER_USER_ID },
     options: {
-      getInteger: () => null,
-      getString: () => null,
+      getInteger: (name) => overrides.integers?.[name] ?? null,
+      getString: (name) => overrides.strings?.[name] ?? null,
     },
     reply: async ({ content }) => {
       overrides.onReply(content);
@@ -136,8 +149,68 @@ test("automod command is owner-only", async () => {
     onReply: (content) => replies.push(content),
   });
 
-  await handler!(denied, fakePluginContext({ config: cfg, ownerUserId: OWNER_USER_ID }));
+  await handler!(
+    denied as never,
+    fakePluginContext({ config: cfg, ownerUserId: OWNER_USER_ID })
+  );
   expect(replies.at(-1)).toContain("owner-only");
+});
+
+test("automod command updates all configurable settings", async () => {
+  const replies: string[] = [];
+  const cfg = createFakeAutomodConfig({
+    maxMessagesPerMinute: 20,
+    bannedWords: [],
+    action: "warn",
+  });
+
+  await automodPlugin.init(fakePluginContext({ config: cfg }));
+
+  const handler = commands.get("automod_config")?.handler;
+  expect(handler).toBeDefined();
+
+  const interaction = makeCommandInteraction({
+    integers: { max_messages_per_minute: 3 },
+    strings: {
+      banned_words: "Spam, scam\nSPAM",
+      action: "kick",
+    },
+    onReply: (content) => replies.push(content),
+  });
+
+  await handler!(interaction as never, fakePluginContext({ config: cfg }));
+
+  expect(cfg.getAutomodConfig()).toEqual({
+    maxMessagesPerMinute: 3,
+    bannedWords: ["spam", "scam"],
+    action: "kick",
+  });
+  expect(replies.at(-1)).toContain("Automod updated");
+});
+
+test("owner messages are skipped", async () => {
+  const replies: string[] = [];
+  const member: FakeGuildMember = {
+    timeout: async () => {},
+    kick: async () => {},
+  };
+  const config = createFakeAutomodConfig({
+    maxMessagesPerMinute: 1,
+    bannedWords: ["forbidden"],
+    action: "warn",
+  });
+
+  const message = makeMessage(member, OWNER_USER_ID, "forbidden");
+  message.reply = async ({ content }) => {
+    replies.push(content);
+  };
+
+  await automodPlugin.onMessage!(
+    message as never,
+    fakePluginContext({ config })
+  );
+
+  expect(replies).toHaveLength(0);
 });
 
 test("rate limit and cooldown apply warn action", async () => {
@@ -154,6 +227,7 @@ test("rate limit and cooldown apply warn action", async () => {
   });
 
   const ctx: FakePluginContext = {
+    DATA_DIR: "/tmp/choomfie-automod-test",
     ownerUserId: OWNER_USER_ID,
     config,
   };
@@ -164,9 +238,9 @@ test("rate limit and cooldown apply warn action", async () => {
     replies.push(content);
   };
 
-  await automodPlugin.onMessage!(message, ctx);
-  await automodPlugin.onMessage!(message, ctx);
-  await automodPlugin.onMessage!(message, ctx);
+  await automodPlugin.onMessage!(message as never, ctx);
+  await automodPlugin.onMessage!(message as never, ctx);
+  await automodPlugin.onMessage!(message as never, ctx);
 
   expect(fetchCalls).toBe(1);
   expect(replies).toHaveLength(1);
@@ -189,6 +263,7 @@ test("banned words trigger the configured timeout action", async () => {
   });
 
   const ctx: FakePluginContext = {
+    DATA_DIR: "/tmp/choomfie-automod-test",
     ownerUserId: OWNER_USER_ID,
     config,
   };
@@ -206,8 +281,33 @@ test("banned words trigger the configured timeout action", async () => {
     replies.push(content);
   };
 
-  await automodPlugin.onMessage!(message, ctx);
+  await automodPlugin.onMessage!(message as never, ctx);
 
-  expect(timeoutCalls).toHaveLength(2);
+  expect(timeoutCalls).toHaveLength(1);
+  expect(timeoutCalls).toEqual(["timeout"]);
   expect(replies.join("")).toContain("User timed out for 1 minute");
+});
+
+test("banned words trigger the configured kick action", async () => {
+  const kickCalls: string[] = [];
+  const member: FakeGuildMember = {
+    timeout: async () => {},
+    kick: async () => {
+      kickCalls.push("kick");
+    },
+  };
+  const config = createFakeAutomodConfig({
+    maxMessagesPerMinute: 100,
+    bannedWords: ["scam"],
+    action: "kick",
+  });
+
+  const message = makeMessage(member, "spammer-kick", "obvious scam");
+
+  await automodPlugin.onMessage!(
+    message as never,
+    fakePluginContext({ config })
+  );
+
+  expect(kickCalls).toEqual(["kick"]);
 });
