@@ -71,6 +71,31 @@ function makeMessageBatch(prefix: string, reference: Date, count: number): MockM
   return new Collection<string, MockMessage>(rows);
 }
 
+function makePagedTextChannel(
+  id: string,
+  name: string | null,
+  pages: Array<MockMessageCollection>
+): MockChannel {
+  let index = 0;
+
+  return {
+    id,
+    name,
+    isTextBased: () => true,
+    messages: {
+      fetch: async () => {
+        const page = pages[index] ?? new Collection<string, MockMessage>();
+        index += 1;
+        return page;
+      },
+    },
+  };
+}
+
+function makeMissingAccessError(): Error & { code: number } {
+  return Object.assign(new Error("Missing Access"), { code: 50001 });
+}
+
 function makeTextChannel(
   id: string,
   name: string | null,
@@ -243,6 +268,67 @@ test("/serverstats handler keeps only top 5 channels by message count", async ()
   expect(top).toContain("<#c4>");
   expect(top).toContain("<#c5>");
   expect(top).not.toContain("<#c6>");
+});
+
+test("/serverstats handler paginates message history to count messages from today", async () => {
+  const def = commands.get("serverstats")!;
+  const since = startOfCurrentDay(new Date());
+  const reference = new Date(since.getTime() + 2 * 60 * 60 * 1000);
+
+  const pagedChannel = makePagedTextChannel("c1", "active", [
+    makeMessageBatch("page1", reference, 100),
+    new Collection<string, MockMessage>([
+      ["page2-new", makeMessage("page2-new", new Date(since.getTime() + 60 * 1000))],
+      ["page2-old", makeMessage("page2-old", new Date(since.getTime() - ONE_MINUTE))],
+    ]),
+  ]);
+
+  const channels = new Collection<string, MockChannel>([
+    ["c1", pagedChannel],
+  ]);
+
+  const { interaction, state } = makeMockGuildInteraction(channels, {
+    approximateMemberCount: 1,
+    memberCount: 1,
+    approximatePresenceCount: 1,
+  });
+
+  await runServerstats(def, interaction);
+
+  const current = state.editPayload?.embeds?.[0]?.data?.fields?.find((field) => field.name === "Current Stats");
+  expect(current?.value).toContain("**Messages today:** 101");
+});
+
+test("/serverstats handler tolerates unreadable channels and still returns stats", async () => {
+  const def = commands.get("serverstats")!;
+  const referenceNow = new Date();
+  const channels = new Collection<string, MockChannel>([
+    ["c1", makeTextChannel("c1", "visible", async () => makeMessageBatch("visible", referenceNow, 2))],
+    ["c2", {
+      id: "c2",
+      name: "restricted",
+      isTextBased: () => true,
+      messages: {
+        fetch: async () => {
+          throw makeMissingAccessError();
+        },
+      },
+    }],
+  ]);
+
+  const { interaction, state } = makeMockGuildInteraction(channels, {
+    approximateMemberCount: 4,
+    memberCount: 4,
+    approximatePresenceCount: 1,
+  });
+
+  await runServerstats(def, interaction);
+
+  const current = state.editPayload?.embeds?.[0]?.data?.fields?.find((field) => field.name === "Current Stats");
+  const top = state.editPayload?.embeds?.[0]?.data?.fields?.find((field) => field.name === "Top 5 Active Channels");
+  expect(current?.value).toContain("**Messages today:** 2");
+  expect(top?.value).toContain("<#c1>");
+  expect(top?.value).not.toContain("restricted");
 });
 
 test("/serverstats handler replies ephemerally when used in DMs", async () => {
