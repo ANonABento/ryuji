@@ -1,4 +1,4 @@
-import type { Plugin, PluginContext } from "@choomfie/shared";
+import type { Plugin, PluginContext, AutomodAction } from "@choomfie/shared";
 import {
   MessageFlags,
   SlashCommandBuilder,
@@ -6,8 +6,6 @@ import {
   type GuildMember,
 } from "discord.js";
 import { registerCommand } from "@choomfie/shared";
-
-type AutomodAction = "warn" | "timeout" | "kick";
 
 const WINDOW_MS = 60_000;
 const ACTION_COOLDOWN_MS = 10_000;
@@ -35,6 +33,13 @@ function findBannedWord(content: string, words: string[]): string | null {
   return null;
 }
 
+function parseAutomodAction(raw: string | null): AutomodAction | null {
+  if (raw === "warn" || raw === "timeout" || raw === "kick") {
+    return raw;
+  }
+  return null;
+}
+
 function isOwner(ctx: PluginContext, userId: string): boolean {
   return !!ctx.ownerUserId && ctx.ownerUserId === userId;
 }
@@ -57,7 +62,7 @@ function shouldRateLimit(userId: string, maxPerMinute: number): boolean {
   return bucket.length > maxPerMinute;
 }
 
-function setCooldown(userId: string): boolean {
+function isActionCoolingDown(userId: string): boolean {
   const last = lastActionAt.get(userId) || 0;
   if (Date.now() - last < ACTION_COOLDOWN_MS) return true;
   lastActionAt.set(userId, Date.now());
@@ -130,7 +135,7 @@ const automodPlugin: Plugin = {
           "max_messages_per_minute"
         );
         const bannedWordsRaw = interaction.options.getString("banned_words");
-        const action = interaction.options.getString("action") as AutomodAction | null;
+        const action = parseAutomodAction(interaction.options.getString("action"));
         const cfg = pluginCtx.config.getAutomodConfig();
 
         if (
@@ -192,7 +197,7 @@ const automodPlugin: Plugin = {
       reason = `Rate limit exceeded: ${cfg.maxMessagesPerMinute}/min`;
     }
 
-    if (setCooldown(userId)) return;
+    if (isActionCoolingDown(userId)) return;
     let member: GuildMember | null = message.member ?? null;
     if (!member) {
       member = await message.guild.members.fetch(userId).catch(() => null);

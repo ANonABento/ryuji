@@ -26,8 +26,8 @@ interface FakeMessage {
 }
 
 interface FakeGuildMember {
-  timeout: () => Promise<void>;
-  kick: () => Promise<void>;
+  timeout: (durationMs?: number, reason?: string) => Promise<void>;
+  kick: (reason?: string) => Promise<void>;
 }
 
 interface FakeCommandInteraction {
@@ -41,12 +41,10 @@ interface FakeCommandInteraction {
   reply: (payload: { content: string; flags?: unknown }) => Promise<void>;
 }
 
-interface FakePluginContext
-  extends Pick<PluginContext, "DATA_DIR" | "ownerUserId" | "config"> {
-  ownerUserId?: string;
-}
+type FakePluginContext = Pick<PluginContext, "DATA_DIR" | "ownerUserId" | "config">;
 
 const OWNER_USER_ID = "owner-user";
+const TEST_DATA_DIR = "/tmp/choomfie-automod-test";
 
 function createFakeAutomodConfig(
   seed: Omit<AutomodConfig, "action"> & {
@@ -85,7 +83,7 @@ function fakePluginContext(overrides: {
   ownerUserId?: string;
 }): FakePluginContext {
   return {
-    DATA_DIR: "/tmp/choomfie-automod-test",
+    DATA_DIR: TEST_DATA_DIR,
     ownerUserId: overrides.ownerUserId ?? OWNER_USER_ID,
     config: overrides.config,
   };
@@ -253,11 +251,7 @@ test("rate limit and cooldown apply warn action", async () => {
     action: "warn",
   });
 
-  const ctx: FakePluginContext = {
-    DATA_DIR: "/tmp/choomfie-automod-test",
-    ownerUserId: OWNER_USER_ID,
-    config,
-  };
+  const ctx = fakePluginContext({ config, ownerUserId: OWNER_USER_ID });
   const message = makeMessage(null, "spammer", "hello", () => {
     fetchCalls += 1;
   }, member);
@@ -289,11 +283,7 @@ test("banned words trigger the configured timeout action", async () => {
     action: "timeout",
   });
 
-  const ctx: FakePluginContext = {
-    DATA_DIR: "/tmp/choomfie-automod-test",
-    ownerUserId: OWNER_USER_ID,
-    config,
-  };
+  const ctx = fakePluginContext({ config, ownerUserId: OWNER_USER_ID });
 
   const message = makeMessage(
     member,
@@ -378,11 +368,7 @@ test("destroy clears in-memory automod state", async () => {
     bannedWords: [],
     action: "warn",
   });
-  const ctx: FakePluginContext = {
-    DATA_DIR: "/tmp/choomfie-automod-test",
-    ownerUserId: OWNER_USER_ID,
-    config,
-  };
+  const ctx = fakePluginContext({ config, ownerUserId: OWNER_USER_ID });
 
   const message = makeMessage(member, "spammer-reset", "hello");
   message.reply = async ({ content }) => {
