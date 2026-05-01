@@ -3,25 +3,28 @@
  */
 
 import { z } from "zod";
+import type { AnyObjectSchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import type { AppContext } from "./types.ts";
 import {
   buildPermissionMessage,
   buildPermissionTextFallback,
 } from "./handlers/permission-buttons.ts";
 
+const permissionRequestNotificationSchema = z.object({
+  method: z.literal(
+    "notifications/claude/channel/permission_request"
+  ),
+  params: z.object({
+    request_id: z.string(),
+    tool_name: z.string(),
+    description: z.string(),
+    input_preview: z.string(),
+  }),
+}) as unknown as AnyObjectSchema;
+
 export function registerPermissionRelay(ctx: AppContext) {
   ctx.mcp.setNotificationHandler(
-    z.object({
-      method: z.literal(
-        "notifications/claude/channel/permission_request"
-      ),
-      params: z.object({
-        request_id: z.string(),
-        tool_name: z.string(),
-        description: z.string(),
-        input_preview: z.string(),
-      }),
-    }),
+    permissionRequestNotificationSchema,
     async ({ params }) => {
       const message = buildPermissionMessage(params);
       const textFallback = buildPermissionTextFallback(params);

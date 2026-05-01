@@ -50,6 +50,7 @@ export interface SocialsConfig {
 }
 
 export interface Config {
+  [key: string]: unknown;
   activePersona: string;
   personas: Record<string, Persona>;
   rateLimitMs: number;

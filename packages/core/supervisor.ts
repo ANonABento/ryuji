@@ -10,6 +10,7 @@
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import type { AnyObjectSchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
@@ -39,6 +40,16 @@ let crashCount = 0;
 let lastCrashTime = 0;
 const MAX_CRASHES = 5; // max crashes within the reset window
 const CRASH_WINDOW_MS = 60_000; // reset crash count after 1min of stability
+
+const permissionRequestNotificationSchema = z.object({
+  method: z.literal("notifications/claude/channel/permission_request"),
+  params: z.object({
+    request_id: z.string(),
+    tool_name: z.string(),
+    description: z.string(),
+    input_preview: z.string(),
+  }),
+}) as unknown as AnyObjectSchema;
 
 /** Pending tool calls waiting for worker response */
 const pendingCalls = new Map<
@@ -371,15 +382,7 @@ function createMcp(): Server {
 
   // Forward permission requests from MCP to worker
   server.setNotificationHandler(
-    z.object({
-      method: z.literal("notifications/claude/channel/permission_request"),
-      params: z.object({
-        request_id: z.string(),
-        tool_name: z.string(),
-        description: z.string(),
-        input_preview: z.string(),
-      }),
-    }),
+    permissionRequestNotificationSchema,
     async ({ params }: any) => {
       if (worker && workerReady) {
         try {
