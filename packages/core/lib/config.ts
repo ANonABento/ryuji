@@ -13,6 +13,10 @@ export interface Persona {
   personality: string;
 }
 
+type SocialProviderConfig = {
+  [key: string]: string | number | boolean | undefined;
+};
+
 export interface VoiceConfig {
   stt: string;
   tts: string;
@@ -20,21 +24,29 @@ export interface VoiceConfig {
 }
 
 export interface SocialsConfig {
-  youtube?: {
+  youtube?: SocialProviderConfig & {
     apiKey?: string;       // Optional — for YouTube Data API v3 reads (fallback to yt-dlp)
     clientId?: string;     // Optional — for OAuth (comments)
     clientSecret?: string; // Optional — for OAuth (comments)
   };
-  linkedin?: {
+  linkedin?: SocialProviderConfig & {
     clientId: string;
     clientSecret: string;
   };
-  reddit?: {
+  reddit?: SocialProviderConfig & {
     clientId: string;
     clientSecret: string;
     username: string;
     password: string;
   };
+  twitter?: SocialProviderConfig & {
+    username: string;
+    password: string;
+    email: string;
+  };
+  [key: string]:
+    | SocialProviderConfig
+    | undefined;
 }
 
 export interface Config {

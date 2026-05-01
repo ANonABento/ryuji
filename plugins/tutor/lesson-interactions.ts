@@ -27,13 +27,18 @@ import {
   getProgressData,
 } from "./core/lesson-engine.ts";
 import {
+  type ContentSet,
+  type ExerciseMode,
   type Exercise,
+  type PracticeMode,
   type Lesson,
   isButtonExercise,
   isTypingExercise,
 } from "./core/lesson-types.ts";
+import { generateExercises } from "./core/exercise-generator.ts";
 import { updateFromLessonCompletion } from "./core/learner-profile.ts";
 import { shuffle } from "./core/random.ts";
+import { renderChartPrompt } from "./core/chart.ts";
 
 // --- Active lesson sessions (in-memory, keyed by userId) ---
 
@@ -46,6 +51,9 @@ export interface ActiveLessonSession {
   lessonId: string;
   exerciseIndex: number;
   lesson: Lesson;
+  exercises: Exercise[];
+  selectedMode?: PracticeMode;
+  awaitingModeSelection?: boolean;
   answerOptionsByExercise: AnswerOptionsByExercise;
 }
 
@@ -78,18 +86,22 @@ function buildIntroEmbed(lesson: Lesson): EmbedBuilder {
     embed.addFields({ name: "New Material", value: lines.join("\n") });
   }
 
-  embed.setFooter({ text: `${lesson.exercises.length} exercises · 80% to pass` });
+  const exerciseCount = lessonSupportsModePicker(lesson)
+    ? 0
+    : expandExercisesForSession(lesson.exercises).length;
+  embed.setFooter({ text: `${exerciseCount} exercises · 80% to pass` });
   return embed;
 }
 
 function buildExerciseEmbed(
   lesson: Lesson,
   exerciseIndex: number,
-  exercise: Exercise
+  exercise: Exercise,
+  totalExercises = lesson.exercises.length
 ): EmbedBuilder {
   const embed = new EmbedBuilder()
     .setColor(0xfee75c) // yellow
-    .setTitle(`Exercise ${exerciseIndex + 1}/${lesson.exercises.length}`)
+    .setTitle(`Exercise ${exerciseIndex + 1}/${totalExercises}`)
     .setDescription(exercise.prompt);
 
   if (exercise.hint) {
@@ -105,6 +117,15 @@ export function buildAnswerCustomId(
   optionToken: string
 ): string {
   return `lesson:answer:${lessonId}:${exerciseIndex}:${optionToken}`;
+}
+
+export function buildChartCustomId(
+  lessonId: string,
+  exerciseIndex: number,
+  chartBlankIndex: number,
+  optionToken: string
+): string {
+  return `lesson:chart:${lessonId}:${exerciseIndex}:${chartBlankIndex}:${optionToken}`;
 }
 
 export function buildButtonOptions(exercise: Exercise): string[] {
@@ -133,16 +154,86 @@ function setActiveLessonSession(
   lesson: Lesson,
   exerciseIndex: number
 ): ActiveLessonSession {
+  const supportsModePicker = lessonSupportsModePicker(lesson);
   const session: ActiveLessonSession = {
     userId,
     module,
     lessonId,
-    exerciseIndex,
+    exerciseIndex: supportsModePicker ? 0 : exerciseIndex,
     lesson,
+    exercises: supportsModePicker ? [] : expandExercisesForSession(lesson.exercises),
+    awaitingModeSelection: supportsModePicker,
     answerOptionsByExercise: new Map(),
   };
   activeSessions.set(userId, session);
   return session;
+}
+
+export function expandExercisesForSession(exercises: Exercise[]): Exercise[] {
+  return exercises.flatMap((exercise) => {
+    if (exercise.type !== "chart" || !exercise.chart) return [exercise];
+
+    return exercise.chart.blanks.map((blank, chartBlankIndex) => ({
+      ...exercise,
+      prompt: renderChartPrompt(exercise.chart!, {
+        currentBlankIndex: chartBlankIndex,
+      }),
+      answer: blank.answer,
+      distractors: exercise.distractors?.filter((option) => option !== blank.answer),
+      chartBlankIndex,
+    }));
+  });
+}
+
+export function lessonSupportsModePicker(lesson: Lesson): boolean {
+  return Boolean(
+    lesson.contentSets?.some((set) => set.items.length > 0) &&
+      lesson.selectableModes &&
+      lesson.selectableModes.length > 0
+  );
+}
+
+export function buildModePickerComponents(
+  lesson: Lesson
+): ActionRowBuilder<ButtonBuilder>[] {
+  if (!lessonSupportsModePicker(lesson)) return [];
+
+  const row = new ActionRowBuilder<ButtonBuilder>();
+  for (const mode of (lesson.selectableModes ?? []).slice(0, 5)) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`lesson:mode:${lesson.id}:${mode}`)
+        .setLabel(mode.charAt(0).toUpperCase() + mode.slice(1))
+        .setStyle(ButtonStyle.Secondary)
+    );
+  }
+  return [row];
+}
+
+export function setSessionMode(
+  session: ActiveLessonSession,
+  mode: PracticeMode
+): void {
+  const contentSets = session.lesson.contentSets ?? [];
+
+  session.exercises = contentSets.flatMap((contentSet) =>
+    getExerciseModesForContentSet(contentSet, mode).flatMap((exerciseMode) =>
+      generateExercises(contentSet, exerciseMode)
+    )
+  );
+  session.exerciseIndex = 0;
+  session.selectedMode = mode;
+  session.awaitingModeSelection = false;
+  session.answerOptionsByExercise.clear();
+}
+
+function getExerciseModesForContentSet(
+  contentSet: ContentSet,
+  selectedMode: PracticeMode
+): ExerciseMode[] {
+  const allowedModes = contentSet.modes ?? ["recognition", "production", "matching"];
+  if (selectedMode === "mixed") return [...allowedModes];
+  return allowedModes.includes(selectedMode) ? [selectedMode] : [];
 }
 
 function getOrCreateAnswerOptions(
@@ -171,9 +262,18 @@ export function buildExerciseButtons(
     const answersByToken = getOrCreateAnswerOptions(exercise, exerciseIndex, session);
     const row = new ActionRowBuilder<ButtonBuilder>();
     for (const [token, option] of answersByToken) {
+      const customId =
+        exercise.type === "chart"
+          ? buildChartCustomId(
+              lessonId,
+              exerciseIndex,
+              exercise.chartBlankIndex ?? 0,
+              token
+            )
+          : buildAnswerCustomId(lessonId, exerciseIndex, token);
       row.addComponents(
         new ButtonBuilder()
-          .setCustomId(buildAnswerCustomId(lessonId, exerciseIndex, token))
+          .setCustomId(customId)
           .setLabel(buttonLabel(option))
           .setStyle(ButtonStyle.Secondary)
       );
@@ -262,10 +362,20 @@ async function sendNextExercise(
   if (!db) return;
 
   const { lesson, exerciseIndex, userId, module, lessonId } = session;
+  const exercises = session.exercises ?? expandExercisesForSession(lesson.exercises);
+
+  if (session.awaitingModeSelection) {
+    const intro = buildIntroEmbed(lesson);
+    await interaction.update({
+      embeds: [intro],
+      components: buildModePickerComponents(lesson),
+    });
+    return;
+  }
 
   // All exercises done?
-  if (exerciseIndex >= lesson.exercises.length) {
-    const result = completeLesson(db, userId, module, lessonId);
+  if (exerciseIndex >= exercises.length) {
+    const result = completeLesson(db, userId, module, lessonId, exercises.length);
     clearActiveSession(userId);
 
     // Update learner profile
@@ -282,8 +392,8 @@ async function sendNextExercise(
     return;
   }
 
-  const exercise = lesson.exercises[exerciseIndex];
-  const embed = buildExerciseEmbed(lesson, exerciseIndex, exercise);
+  const exercise = exercises[exerciseIndex];
+  const embed = buildExerciseEmbed(lesson, exerciseIndex, exercise, exercises.length);
   const buttons = buildExerciseButtons(exercise, lessonId, exerciseIndex, session);
 
   const isTypingExercise = buttons.length === 0;
@@ -324,11 +434,16 @@ registerCommand("lesson", {
     const existing = activeSessions.get(userId);
     if (existing) {
       // Resume
-      const exercise = existing.lesson.exercises[existing.exerciseIndex];
+      const exercise = existing.exercises[existing.exerciseIndex];
       if (!exercise) {
         clearActiveSession(userId);
       } else {
-        const embed = buildExerciseEmbed(existing.lesson, existing.exerciseIndex, exercise);
+        const embed = buildExerciseEmbed(
+          existing.lesson,
+          existing.exerciseIndex,
+          exercise,
+          existing.exercises.length
+        );
         const buttons = buildExerciseButtons(
           exercise,
           existing.lessonId,
@@ -442,6 +557,25 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
     return;
   }
 
+  if (action === "mode") {
+    const lessonId = parts[2];
+    const mode = parts[3] as PracticeMode | undefined;
+    const session = activeSessions.get(userId);
+    const allowedModes = session?.lesson.selectableModes ?? [];
+
+    if (!lessonId || !session || session.lessonId !== lessonId || !mode || !allowedModes.includes(mode)) {
+      await interaction.reply({
+        content: "That lesson mode is invalid or expired. Use `/lesson` to continue.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    setSessionMode(session, mode);
+    await sendNextExercise(interaction, session, true);
+    return;
+  }
+
   if (action === "answer") {
     // Button answer for recognition/MC exercises
     const lessonId = parts[2];
@@ -473,7 +607,7 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
       return;
     }
 
-    const exercise = session.lesson.exercises[exerciseIndex];
+    const exercise = session.exercises[exerciseIndex];
     if (!exercise) {
       await interaction.reply({
         content: "That exercise is no longer available. Use `/lesson` to continue.",
@@ -513,9 +647,92 @@ registerButtonHandler("lesson", async (interaction, parts, _ctx) => {
       result.correct,
       result.feedback,
       correctSoFar,
-      session.lesson.exercises.length
+      session.exercises.length
     );
 
+    const continueButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`lesson:continue:${lessonId}`)
+        .setLabel("Continue →")
+        .setStyle(ButtonStyle.Primary)
+    );
+
+    await interaction.update({ embeds: [resultEmbed], components: [continueButton] });
+    return;
+  }
+
+  if (action === "chart") {
+    const lessonId = parts[2];
+    const exerciseIndex = parseExerciseIndex(parts[3]);
+    const chartBlankIndex = parseExerciseIndex(parts[4]);
+    const answerToken = parts[5];
+
+    if (
+      !lessonId ||
+      exerciseIndex === null ||
+      chartBlankIndex === null ||
+      answerToken === undefined
+    ) {
+      await interaction.reply({
+        content: "That chart button is invalid. Use `/lesson` to continue.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const session = activeSessions.get(userId);
+    if (!session || session.lessonId !== lessonId) {
+      await interaction.reply({
+        content: "Session expired. Use `/lesson` to start again.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    if (session.exerciseIndex !== exerciseIndex) {
+      await interaction.reply({
+        content: "That exercise is no longer active. Use `/lesson` to continue.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const exercise = session.exercises[exerciseIndex];
+    if (!exercise || exercise.chartBlankIndex !== chartBlankIndex) {
+      await interaction.reply({
+        content: "That chart exercise is out of sync. Use `/lesson` to continue.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const userAnswer = session.answerOptionsByExercise.get(exerciseIndex)?.get(answerToken);
+    if (userAnswer === undefined) {
+      await interaction.reply({
+        content: "That answer option expired. Use `/lesson` to continue.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const result = scoreExercise(exercise, userAnswer, exerciseIndex);
+    db.saveExerciseResult(userId, session.module, lessonId, exerciseIndex, {
+      index: exerciseIndex,
+      correct: result.correct,
+      userAnswer,
+    });
+
+    const progress = db.getProgress(userId, session.module, lessonId);
+    const correctSoFar = progress?.exerciseResults.filter((r) => r.correct).length ?? 0;
+    session.exerciseIndex = exerciseIndex + 1;
+    session.answerOptionsByExercise.delete(exerciseIndex);
+
+    const resultEmbed = buildResultEmbed(
+      result.correct,
+      result.feedback,
+      correctSoFar,
+      session.exercises.length
+    );
     const continueButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`lesson:continue:${lessonId}`)
@@ -629,7 +846,7 @@ export function handleTypedAnswer(
   const session = activeSessions.get(userId);
   if (!session) return null;
 
-  const exercise = session.lesson.exercises[session.exerciseIndex];
+  const exercise = session.exercises[session.exerciseIndex];
   if (!exercise) return null;
 
   if (!isTypingExercise(exercise.type)) return null;
@@ -653,7 +870,7 @@ export function handleTypedAnswer(
 export function hasActiveTypingExercise(userId: string): boolean {
   const session = activeSessions.get(userId);
   if (!session) return false;
-  const exercise = session.lesson.exercises[session.exerciseIndex];
+  const exercise = session.exercises[session.exerciseIndex];
   if (!exercise) return false;
   return isTypingExercise(exercise.type);
 }

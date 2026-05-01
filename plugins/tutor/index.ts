@@ -121,12 +121,18 @@ const tutorPlugin: Plugin = {
       exerciseResult.correct,
       exerciseResult.feedback,
       correctSoFar,
-      session.lesson.exercises.length
+      session.exercises.length
     );
 
     // Check if lesson is done
-    if (session.exerciseIndex >= session.lesson.exercises.length) {
-      const completion = completeLesson(db, userId, session.module, session.lessonId);
+    if (session.exerciseIndex >= session.exercises.length) {
+      const completion = completeLesson(
+        db,
+        userId,
+        session.module,
+        session.lessonId,
+        session.exercises.length
+      );
 
       // Update learner profile
       updateFromLessonCompletion(db, userId, session.module);
@@ -149,10 +155,10 @@ const tutorPlugin: Plugin = {
     }
 
     // Show next exercise
-    const nextExercise = session.lesson.exercises[session.exerciseIndex];
+    const nextExercise = session.exercises[session.exerciseIndex];
     const exerciseEmbed = new EmbedBuilder()
       .setColor(0xfee75c)
-      .setTitle(`Exercise ${session.exerciseIndex + 1}/${session.lesson.exercises.length}`)
+      .setTitle(`Exercise ${session.exerciseIndex + 1}/${session.exercises.length}`)
       .setDescription(nextExercise.prompt);
 
     const components = buildExerciseButtons(
