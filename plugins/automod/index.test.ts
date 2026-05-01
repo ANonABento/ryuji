@@ -12,6 +12,7 @@ type FakeAutomodConfig = PluginConfig;
 
 interface FakeMessage {
   guild: {
+    id: string;
     members: {
       fetch: (userId: string) => Promise<FakeGuildMember | null>;
     };
@@ -112,10 +113,12 @@ function makeMessage(
   authorId: string,
   content: string,
   onFetch?: (userId: string) => void,
-  fetchResult?: FakeGuildMember | null
+  fetchResult?: FakeGuildMember | null,
+  guildId = "guild-1"
 ): FakeMessage {
   return {
     guild: {
+      id: guildId,
       members: {
         fetch: async (userId) => {
           onFetch?.(userId);
@@ -266,6 +269,63 @@ test("rate limit and cooldown apply warn action", async () => {
   expect(fetchCalls).toBe(1);
   expect(replies).toHaveLength(1);
   expect(replies[0]).toContain("⚠️ Moderation triggered");
+});
+
+test("rate limit buckets are scoped by guild and user", async () => {
+  const replies: string[] = [];
+  const member: FakeGuildMember = {
+    timeout: async () => {},
+    kick: async () => {},
+  };
+  const config = createFakeAutomodConfig({
+    maxMessagesPerMinute: 1,
+    bannedWords: [],
+    action: "warn",
+  });
+  const ctx = fakePluginContext({ config, ownerUserId: OWNER_USER_ID });
+
+  const firstGuildMessage = makeMessage(
+    member,
+    "same-user",
+    "first guild first",
+    undefined,
+    undefined,
+    "guild-a"
+  );
+  firstGuildMessage.reply = async ({ content }) => {
+    replies.push(content);
+  };
+
+  const secondGuildMessage = makeMessage(
+    member,
+    "same-user",
+    "second guild first",
+    undefined,
+    undefined,
+    "guild-b"
+  );
+  secondGuildMessage.reply = async ({ content }) => {
+    replies.push(content);
+  };
+
+  const firstGuildRepeat = makeMessage(
+    member,
+    "same-user",
+    "first guild second",
+    undefined,
+    undefined,
+    "guild-a"
+  );
+  firstGuildRepeat.reply = async ({ content }) => {
+    replies.push(content);
+  };
+
+  await automodPlugin.onMessage!(firstGuildMessage as never, ctx);
+  await automodPlugin.onMessage!(secondGuildMessage as never, ctx);
+  await automodPlugin.onMessage!(firstGuildRepeat as never, ctx);
+
+  expect(replies).toHaveLength(1);
+  expect(replies[0]).toContain("Rate limit exceeded");
 });
 
 test("banned words trigger the configured timeout action", async () => {

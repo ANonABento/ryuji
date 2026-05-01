@@ -51,21 +51,28 @@ function isModerationTarget(
   return !message.author.bot && !isOwner(ctx, message.author.id);
 }
 
-function shouldRateLimit(userId: string, maxPerMinute: number): boolean {
+function moderationKey(message: {
+  guild?: { id: string } | null;
+  author: { id: string };
+}): string {
+  return `${message.guild?.id ?? "dm"}:${message.author.id}`;
+}
+
+function shouldRateLimit(key: string, maxPerMinute: number): boolean {
   const now = Date.now();
-  const bucket = rateBuckets.get(userId) || [];
+  const bucket = rateBuckets.get(key) || [];
   while (bucket.length > 0 && now - bucket[0] > WINDOW_MS) bucket.shift();
 
   bucket.push(now);
-  rateBuckets.set(userId, bucket);
+  rateBuckets.set(key, bucket);
 
   return bucket.length > maxPerMinute;
 }
 
-function isActionCoolingDown(userId: string): boolean {
-  const last = lastActionAt.get(userId) || 0;
+function isActionCoolingDown(key: string): boolean {
+  const last = lastActionAt.get(key) || 0;
   if (Date.now() - last < ACTION_COOLDOWN_MS) return true;
-  lastActionAt.set(userId, Date.now());
+  lastActionAt.set(key, Date.now());
   return false;
 }
 
@@ -183,7 +190,8 @@ const automodPlugin: Plugin = {
 
     const cfg = ctx.config.getAutomodConfig();
     const userId = message.author.id;
-    const shouldAct = shouldRateLimit(userId, cfg.maxMessagesPerMinute);
+    const key = moderationKey(message);
+    const shouldAct = shouldRateLimit(key, cfg.maxMessagesPerMinute);
     const bannedWord = findBannedWord(message.content, cfg.bannedWords);
 
     if (!shouldAct && !bannedWord) return;
@@ -197,7 +205,7 @@ const automodPlugin: Plugin = {
       reason = `Rate limit exceeded: ${cfg.maxMessagesPerMinute}/min`;
     }
 
-    if (isActionCoolingDown(userId)) return;
+    if (isActionCoolingDown(key)) return;
     let member: GuildMember | null = message.member ?? null;
     if (!member) {
       member = await message.guild.members.fetch(userId).catch(() => null);
