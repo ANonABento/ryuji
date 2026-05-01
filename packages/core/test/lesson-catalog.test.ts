@@ -20,6 +20,7 @@ const EXPECTED_JAPANESE_UNIT_NAMES = [
   "Katakana",
   "First Words & Phrases",
   "Basic Grammar",
+  "Basic Kanji",
 ];
 
 const EXPECTED_CHINESE_UNIT_NAMES = ["Tones", "Hanzi", "HSK 1 Vocabulary"];
@@ -142,6 +143,15 @@ describe("Japanese lesson catalog", () => {
       .filter((lessonId) => !reachable.has(lessonId));
 
     expect(unreachable).toEqual([]);
+  });
+
+  test("adds exactly 50 unique basic kanji SRS items", () => {
+    const srsTerms = japaneseLessons
+      .filter((lesson) => lesson.unit === "kanji")
+      .flatMap((lesson) => lesson.srsItems?.map((item) => item.front) ?? []);
+
+    expect(srsTerms).toHaveLength(50);
+    expect(new Set(srsTerms).size).toBe(50);
   });
 });
 
