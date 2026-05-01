@@ -25,7 +25,8 @@ describe("chart exercise runtime expansion", () => {
     ]);
 
     expect(exercise.type).toBe("chart");
-    expect(exercise.chart?.blanks.length).toBeGreaterThan(0);
+    expect(exercise.chart).toBeDefined();
+    expect(exercise.chart!.blanks.length).toBeGreaterThan(0);
     expect(exercise.chart?.blanks[0].answer).toBe(exercise.answer);
     expect(exercise.prompt).toContain("__");
   });
@@ -47,6 +48,7 @@ describe("chart exercise runtime expansion", () => {
       exerciseIndex: 0,
       lesson,
       exercises: expanded,
+      awaitingModeSelection: false,
       answerOptionsByExercise: new Map(),
     };
 

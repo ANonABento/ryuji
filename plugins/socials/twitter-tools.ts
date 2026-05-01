@@ -11,21 +11,23 @@ function getTwitterClient(): TwitterClient {
   return twitterClient;
 }
 
-function getTwitterConfig(ctx: PluginContext): { username: string; password: string; email: string } {
+function getTwitterConfig(ctx: PluginContext): { apiKey: string; username: string } {
   const config = ctx.config.getConfig();
   const socialsConfig = config.socials?.twitter;
 
-  if (!socialsConfig?.username || !socialsConfig?.password || !socialsConfig?.email) {
+  const apiKey = socialsConfig?.apiKey;
+  const username = socialsConfig?.username;
+
+  if (typeof apiKey !== "string" || typeof username !== "string") {
     throw new Error(
       "Twitter not configured. Add to config.json:\n" +
-      '  "socials": { "twitter": { "username": "...", "password": "...", "email": "..." } }',
+      '  "socials": { "twitter": { "apiKey": "...", "username": "..." } }',
     );
   }
 
   return {
-    username: socialsConfig.username,
-    password: socialsConfig.password,
-    email: socialsConfig.email,
+    apiKey,
+    username,
   };
 }
 

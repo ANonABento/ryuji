@@ -36,6 +36,8 @@ function makeSession(): ActiveLessonSession {
     lessonId: lesson.id,
     exerciseIndex: 0,
     lesson,
+    exercises: lesson.exercises,
+    awaitingModeSelection: false,
     answerOptionsByExercise: new Map(),
   };
 }

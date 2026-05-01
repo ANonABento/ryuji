@@ -32,9 +32,10 @@ export const elevenlabsSTT: STTProvider = {
     }
 
     const formData = new FormData();
+    const audioBytes = new Uint8Array(audio);
     formData.append(
       "file",
-      new Blob([audio], { type: "audio/wav" }),
+      new Blob([audioBytes], { type: "audio/wav" }),
       "audio.wav"
     );
     formData.append("model_id", "scribe_v1");

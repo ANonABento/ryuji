@@ -2,7 +2,7 @@
  * Twitter/X provider — posting via rettiwt-api (unofficial, no API key needed).
  *
  * Uses Twitter's internal GraphQL endpoints via session cookies.
- * Auth: constructs Rettiwt with LOGIN authType + username/password/email.
+ * Auth: constructs Rettiwt with an API key cookie.
  * No developer account, no API key, no OAuth flow, $0.
  *
  * Supports: post tweets, post with images, threads.
@@ -13,9 +13,8 @@ import { Rettiwt } from "rettiwt-api";
 // --- Types ---
 
 export interface TwitterConfig {
+  apiKey: string;
   username: string;
-  password: string;
-  email: string;
 }
 
 export interface TweetResult {
@@ -29,21 +28,14 @@ export class TwitterClient {
   private rettiwt: InstanceType<typeof Rettiwt> | null = null;
   private username: string = "";
 
-  constructor() {}
-
   // --- Auth ---
 
   async login(config: TwitterConfig): Promise<string> {
     this.username = config.username;
 
     try {
-      // Rettiwt LOGIN auth — pass credentials to constructor,
-      // authenticates on first API call
       this.rettiwt = new Rettiwt({
-        authType: "LOGIN" as any,
-        email: config.email,
-        userName: config.username,
-        password: config.password,
+        apiKey: config.apiKey,
       });
 
       // Test the session by fetching own profile
@@ -51,9 +43,10 @@ export class TwitterClient {
       if (!me) throw new Error("Could not fetch user profile");
 
       return `Logged in as @${me.userName || config.username}`;
-    } catch (e: any) {
+    } catch (e: unknown) {
       this.rettiwt = null;
-      throw new Error(`Twitter login failed: ${e.message}`);
+      const message = e instanceof Error ? e.message : String(e);
+      throw new Error(`Twitter login failed: ${message}`);
     }
   }
 
@@ -80,25 +73,26 @@ export class TwitterClient {
   async postTweet(tweetText: string): Promise<TweetResult> {
     const client = this.ensureClient();
 
-    const result = await client.tweet.post({ text: tweetText });
+    const tweetId = await client.tweet.post({ text: tweetText });
 
     return {
-      id: result?.id ?? "unknown",
-      url: `https://x.com/${this.username}/status/${result?.id ?? "unknown"}`,
+      id: tweetId ?? "unknown",
+      url: `https://x.com/${this.username}/status/${tweetId ?? "unknown"}`,
     };
   }
 
   async postTweetWithMedia(tweetText: string, mediaPath: string): Promise<TweetResult> {
     const client = this.ensureClient();
+    const mediaId = await client.tweet.upload(mediaPath);
 
-    const result = await client.tweet.post({
+    const tweetId = await client.tweet.post({
       text: tweetText,
-      media: [{ path: mediaPath }],
+      media: [{ id: mediaId }],
     });
 
     return {
-      id: result?.id ?? "unknown",
-      url: `https://x.com/${this.username}/status/${result?.id ?? "unknown"}`,
+      id: tweetId ?? "unknown",
+      url: `https://x.com/${this.username}/status/${tweetId ?? "unknown"}`,
     };
   }
 
@@ -109,10 +103,10 @@ export class TwitterClient {
     const results: TweetResult[] = [];
 
     // First tweet
-    const first = await client.tweet.post({ text: tweets[0] });
+    const firstTweetId = await client.tweet.post({ text: tweets[0] });
     results.push({
-      id: first?.id ?? "unknown",
-      url: `https://x.com/${this.username}/status/${first?.id ?? "unknown"}`,
+      id: firstTweetId ?? "unknown",
+      url: `https://x.com/${this.username}/status/${firstTweetId ?? "unknown"}`,
     });
 
     // Reply chain
@@ -120,14 +114,14 @@ export class TwitterClient {
       // Small delay to avoid rate limiting
       await new Promise((r) => setTimeout(r, 1500));
 
-      const reply = await client.tweet.post({
+      const replyTweetId = await client.tweet.post({
         text: tweets[i],
         replyTo: results[i - 1].id,
       });
 
       results.push({
-        id: reply?.id ?? "unknown",
-        url: `https://x.com/${this.username}/status/${reply?.id ?? "unknown"}`,
+        id: replyTweetId ?? "unknown",
+        url: `https://x.com/${this.username}/status/${replyTweetId ?? "unknown"}`,
       });
     }
 

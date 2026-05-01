@@ -6,6 +6,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
+  type ServerResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import type { AppContext } from "./types.ts";
 import { err } from "./types.ts";
@@ -74,7 +75,7 @@ export function createMcpServer(ctx: AppContext): Server {
     const handler = toolMap.get(req.params.name);
     if (!handler) return err(`Unknown tool: ${req.params.name}`);
 
-    return handler(req.params.arguments ?? {}, ctx);
+    return (await handler(req.params.arguments ?? {}, ctx)) as ServerResult;
   });
 
   // Assign to ctx before registering permission relay (needs ctx.mcp)
