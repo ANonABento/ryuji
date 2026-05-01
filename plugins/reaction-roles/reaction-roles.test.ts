@@ -14,6 +14,12 @@ test("emojiKeyFromInput normalizes custom emoji markup to IDs", () => {
   expect(emojiKeyFromInput("<a:dance:123456789012345678>")).toBe(
     "123456789012345678"
   );
+  expect(emojiKeyFromInput("  <a:party:123456789012345678>  ")).toBe(
+    "123456789012345678"
+  );
+  expect(emojiKeyFromInput("123456789012345678")).toBe(
+    "123456789012345678"
+  );
 });
 
 test("emojiKeyFromReaction matches unicode and custom emoji keys", () => {
