@@ -50,6 +50,10 @@ function isMissingAccessError(error: unknown): boolean {
   return false;
 }
 
+function formatErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unexpected error";
+}
+
 function startOfCurrentDay(): Date {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
@@ -403,9 +407,9 @@ registerCommand("serverstats", {
         .setFooter({ text: `Today since ${since.toISOString()}` });
 
       await interaction.editReply({ embeds: [embed] });
-    } catch (e: any) {
+    } catch (error: unknown) {
       await interaction.editReply({
-        content: `Failed to fetch server stats: ${e.message}`,
+        content: `Failed to fetch server stats: ${formatErrorMessage(error)}`,
       });
     }
   },
