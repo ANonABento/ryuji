@@ -16,24 +16,37 @@ import {
   ButtonStyle,
 } from "discord.js";
 import { VERSION } from "./version.ts";
-import { registerCommand, registerButtonHandler } from "./interactions.ts";
+import { getCommandDefs, registerCommand, registerButtonHandler } from "./interactions.ts";
 import { McpProxy } from "./mcp-proxy.ts";
 import { formatDuration, fromSQLiteDatetime } from "./time.ts";
 import { isOwner, requireOwner } from "./handlers/shared.ts";
 import { buildGhArgs, runGh } from "./handlers/github.ts";
 import { discoverPlugins } from "./plugins.ts";
-import { buildStatsEmbed } from "./stats.ts";
+import { deployCurrentGuildCommands } from "./command-deploy.ts";
+import {
+  isValidCustomCommandName,
+  mergeCommandDefs,
+  normalizeCustomCommandName,
+} from "./custom-commands.ts";
 import {
   buildReminderModal,
   buildPersonaModal,
   buildMemoryModal,
 } from "./handlers/modals.ts";
+import type { AppContext } from "./types.ts";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
 // --- Command definitions ---
+
+async function redeployCommands(ctx: AppContext): Promise<number> {
+  const commands = mergeCommandDefs(getCommandDefs(), ctx.memory.listCustomCommands());
+  const deployed = await deployCurrentGuildCommands(ctx, commands);
+  await Bun.write(`${ctx.DATA_DIR}/.commands-hash`, Bun.hash(JSON.stringify(commands)).toString(36));
+  return deployed;
+}
 
 // /remind — opens a modal form
 registerCommand("remind", {
@@ -242,7 +255,7 @@ registerCommand("help", {
           name: "Other",
           value: [
             "`/github <check>` — PRs, issues, notifications",
-            "`/stats` — uptime, messages, tokens, and tools",
+            "`/customcmd` — manage custom command aliases",
             "`/status` — bot status and stats",
           ].join("\n"),
           inline: false,
@@ -302,18 +315,125 @@ registerCommand("github", {
   },
 });
 
-// /stats
-registerCommand("stats", {
+// /customcmd — owner-defined text aliases
+registerCommand("customcmd", {
   data: new SlashCommandBuilder()
-    .setName("stats")
-    .setDescription("Show runtime stats")
+    .setName("customcmd")
+    .setDescription("Manage custom commands (owner only)")
+    .addSubcommand((sub) =>
+      sub
+        .setName("add")
+        .setDescription("Add or update a custom command")
+        .addStringOption((o) =>
+          o
+            .setName("name")
+            .setDescription("Command name, used as /name")
+            .setRequired(true)
+            .setMinLength(1)
+            .setMaxLength(32)
+        )
+        .addStringOption((o) =>
+          o
+            .setName("response")
+            .setDescription("Text response")
+            .setRequired(true)
+            .setMinLength(1)
+            .setMaxLength(2000)
+        )
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("list")
+        .setDescription("List custom commands")
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("delete")
+        .setDescription("Delete a custom command")
+        .addStringOption((o) =>
+          o
+            .setName("name")
+            .setDescription("Command name")
+            .setRequired(true)
+            .setMinLength(1)
+            .setMaxLength(32)
+        )
+    )
     .toJSON(),
   handler: async (interaction, ctx) => {
-    const embed = await buildStatsEmbed(ctx);
-    await interaction.reply({
-      embeds: [embed],
-      flags: MessageFlags.Ephemeral,
-    });
+    if (await requireOwner(interaction, ctx)) return;
+
+    const action = interaction.options.getSubcommand(true);
+
+    if (action === "list") {
+      const customCommands = ctx.memory.listCustomCommands();
+      if (customCommands.length === 0) {
+        await interaction.reply({
+          content: "No custom commands defined.",
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      const lines = customCommands.map(
+        (command) => `\`/${command.name}\` — ${command.response.slice(0, 80)}`
+      );
+      const embed = new EmbedBuilder()
+        .setColor(0x5865f2)
+        .setTitle("Custom Commands")
+        .setDescription(lines.join("\n").slice(0, 4000))
+        .setFooter({ text: `${customCommands.length} custom command(s)` });
+
+      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    const name = normalizeCustomCommandName(interaction.options.getString("name", true));
+    if (!isValidCustomCommandName(name)) {
+      await interaction.reply({
+        content: "Command names must be 1-32 characters: lowercase letters, numbers, `_`, or `-`.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+    if (action === "add") {
+      const builtInNames = new Set(getCommandDefs().map((command) => command.name));
+      if (builtInNames.has(name)) {
+        await interaction.editReply({
+          content: `\`/${name}\` is a built-in command and cannot be overridden.`,
+        });
+        return;
+      }
+
+      const response = interaction.options.getString("response", true).trim();
+      if (!response) {
+        await interaction.editReply({ content: "Response cannot be empty." });
+        return;
+      }
+
+      ctx.memory.setCustomCommand(name, response, interaction.user.id);
+      const deployed = await redeployCommands(ctx);
+      await interaction.editReply({
+        content: `Added \`/${name}\` and deployed commands to ${deployed} guild(s).`,
+      });
+      return;
+    }
+
+    if (action === "delete") {
+      const deleted = ctx.memory.deleteCustomCommand(name);
+      if (!deleted) {
+        await interaction.editReply({ content: `\`/${name}\` was not found.` });
+        return;
+      }
+
+      const deployed = await redeployCommands(ctx);
+      await interaction.editReply({
+        content: `Deleted \`/${name}\` and deployed commands to ${deployed} guild(s).`,
+      });
+    }
   },
 });
 

@@ -11,6 +11,10 @@
 
 import { Database } from "bun:sqlite";
 import { normalizeTimeZone, toSQLiteDatetime } from "./time.ts";
+import {
+  isValidCustomCommandName,
+  normalizeCustomCommandName,
+} from "./custom-commands.ts";
 
 export interface CoreMemory {
   key: string;
@@ -50,6 +54,14 @@ export interface Birthday {
   createdAt: string;
   updatedAt: string;
   lastRemindedOn: string | null;
+}
+
+export interface CustomCommand {
+  name: string;
+  response: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface MemoryStats {
@@ -122,6 +134,14 @@ export class MemoryStore {
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now')),
         last_reminded_on TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS custom_commands (
+        name TEXT PRIMARY KEY,
+        response TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
       );
     `);
 
@@ -490,6 +510,62 @@ export class MemoryStore {
       .run(reminderDate, id);
   }
 
+  // --- Custom commands ---
+
+  private static readonly CUSTOM_COMMAND_COLS = `name, response, created_by as createdBy,
+    created_at as createdAt, updated_at as updatedAt`;
+
+  setCustomCommand(name: string, response: string, createdBy: string): void {
+    const normalizedName = normalizeCustomCommandName(name);
+    const normalizedResponse = response.trim();
+
+    if (!isValidCustomCommandName(normalizedName)) {
+      throw new Error("Invalid custom command name.");
+    }
+    if (!normalizedResponse) {
+      throw new Error("Response cannot be empty.");
+    }
+
+    this.db
+      .query(
+        `INSERT INTO custom_commands (name, response, created_by, updated_at)
+         VALUES (?1, ?2, ?3, datetime('now'))
+         ON CONFLICT(name) DO UPDATE SET response = ?2, updated_at = datetime('now')`
+      )
+      .run(normalizedName, normalizedResponse, createdBy);
+  }
+
+  getCustomCommand(name: string): CustomCommand | null {
+    const normalizedName = normalizeCustomCommandName(name);
+    return (
+      this.db
+        .query(
+          `SELECT ${MemoryStore.CUSTOM_COMMAND_COLS}
+           FROM custom_commands
+           WHERE name = ?`
+        )
+        .get(normalizedName) as CustomCommand | null
+    );
+  }
+
+  listCustomCommands(): CustomCommand[] {
+    return this.db
+      .query(
+        `SELECT ${MemoryStore.CUSTOM_COMMAND_COLS}
+         FROM custom_commands
+         ORDER BY name COLLATE NOCASE ASC`
+      )
+      .all() as CustomCommand[];
+  }
+
+  deleteCustomCommand(name: string): boolean {
+    const normalizedName = normalizeCustomCommandName(name);
+    const result = this.db
+      .query("DELETE FROM custom_commands WHERE name = ?")
+      .run(normalizedName);
+    return result.changes > 0;
+  }
+
   // --- Stats ---
 
   getStats(): MemoryStats {
@@ -536,7 +612,7 @@ export class MemoryStore {
     return `## Current Memories\n${lines.join("\n")}`;
   }
 
-  close() {
+  close(): void {
     // Checkpoint WAL before closing — ensures all writes are flushed to the main DB file
     // and prevents WAL contention when a new worker opens the same database on restart
     try {

@@ -12,6 +12,8 @@
 import { REST, Routes } from "discord.js";
 import { getCommandDefs } from "../lib/interactions.ts";
 import { deployGuildCommands } from "../lib/command-deploy.ts";
+import { mergeCommandDefs } from "../lib/custom-commands.ts";
+import { MemoryStore } from "../lib/memory.ts";
 import { readFile } from "node:fs/promises";
 import "@choomfie/tutor";
 
@@ -49,37 +51,47 @@ const appInfo = (await rest.get(Routes.currentApplication())) as {
 };
 const applicationId = appInfo.id;
 
-const commands = getCommandDefs();
+const memory = new MemoryStore(`${DATA_DIR}/choomfie.db`);
+const commands = mergeCommandDefs(getCommandDefs(), memory.listCustomCommands());
 
-console.log(`Deploying ${commands.length} commands...`);
+try {
+  console.log(`Deploying ${commands.length} commands...`);
 
-if (isGlobal) {
-  await rest.put(Routes.applicationCommands(applicationId), {
-    body: commands,
-  });
-  console.log(`Deployed ${commands.length} commands globally (may take up to 1hr to propagate).`);
-} else if (guildId) {
-  await rest.put(
-    Routes.applicationGuildCommands(applicationId, guildId),
-    { body: commands }
-  );
-  console.log(`Deployed ${commands.length} commands to guild ${guildId} (instant).`);
-} else {
-  // If no guild specified, deploy to all guilds the bot is in
-  const { Client, GatewayIntentBits } = await import("discord.js");
-  const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-
-  await new Promise<void>((resolve) => {
-    client.once("ready", async (c) => {
-      const guilds = c.guilds.cache;
-      for (const [id, guild] of guilds) {
-        await deployGuildCommands(rest, applicationId, [id], commands);
-        console.log(`  Deployed to: ${guild.name} (${id})`);
-      }
-      console.log(`\nDeployed ${commands.length} commands to ${guilds.size} guild(s) (instant).`);
-      client.destroy();
-      resolve();
+  if (isGlobal) {
+    await rest.put(Routes.applicationCommands(applicationId), {
+      body: commands,
     });
-    client.login(token);
-  });
+    console.log(`Deployed ${commands.length} commands globally (may take up to 1hr to propagate).`);
+  } else if (guildId) {
+    await rest.put(
+      Routes.applicationGuildCommands(applicationId, guildId),
+      { body: commands }
+    );
+    console.log(`Deployed ${commands.length} commands to guild ${guildId} (instant).`);
+  } else {
+    // If no guild specified, deploy to all guilds the bot is in
+    const { Client, GatewayIntentBits } = await import("discord.js");
+    const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+
+    await new Promise<void>((resolve, reject) => {
+      client.once("ready", async (c) => {
+        try {
+          const guilds = c.guilds.cache;
+          for (const [id, guild] of guilds) {
+            await deployGuildCommands(rest, applicationId, [id], commands);
+            console.log(`  Deployed to: ${guild.name} (${id})`);
+          }
+          console.log(`\nDeployed ${commands.length} commands to ${guilds.size} guild(s) (instant).`);
+          resolve();
+        } catch (error) {
+          reject(error);
+        } finally {
+          client.destroy();
+        }
+      });
+      client.login(token).catch(reject);
+    });
+  }
+} finally {
+  memory.close();
 }
