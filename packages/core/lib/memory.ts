@@ -56,12 +56,13 @@ export interface Birthday {
   lastRemindedOn: string | null;
 }
 
-export interface CustomCommand {
-  name: string;
-  response: string;
+export interface IncomingWebhook {
+  token: string;
+  channelId: string;
+  guildId: string | null;
   createdBy: string;
   createdAt: string;
-  updatedAt: string;
+  revokedAt: string | null;
 }
 
 export interface MemoryStats {
@@ -136,12 +137,13 @@ export class MemoryStore {
         last_reminded_on TEXT
       );
 
-      CREATE TABLE IF NOT EXISTS custom_commands (
-        name TEXT PRIMARY KEY,
-        response TEXT NOT NULL,
+      CREATE TABLE IF NOT EXISTS incoming_webhooks (
+        token TEXT PRIMARY KEY,
+        channel_id TEXT NOT NULL,
+        guild_id TEXT,
         created_by TEXT NOT NULL,
         created_at TEXT DEFAULT (datetime('now')),
-        updated_at TEXT DEFAULT (datetime('now'))
+        revoked_at TEXT
       );
     `);
 
@@ -510,59 +512,49 @@ export class MemoryStore {
       .run(reminderDate, id);
   }
 
-  // --- Custom commands ---
+  // --- Incoming webhooks ---
 
-  private static readonly CUSTOM_COMMAND_COLS = `name, response, created_by as createdBy,
-    created_at as createdAt, updated_at as updatedAt`;
+  private static readonly WEBHOOK_COLS = `token, channel_id as channelId, guild_id as guildId,
+    created_by as createdBy, created_at as createdAt, revoked_at as revokedAt`;
 
-  setCustomCommand(name: string, response: string, createdBy: string): void {
-    const normalizedName = normalizeCustomCommandName(name);
-    const normalizedResponse = response.trim();
-
-    if (!isValidCustomCommandName(normalizedName)) {
-      throw new Error("Invalid custom command name.");
-    }
-    if (!normalizedResponse) {
-      throw new Error("Response cannot be empty.");
-    }
-
+  addIncomingWebhook(token: string, channelId: string, createdBy: string, guildId?: string | null) {
     this.db
       .query(
-        `INSERT INTO custom_commands (name, response, created_by, updated_at)
-         VALUES (?1, ?2, ?3, datetime('now'))
-         ON CONFLICT(name) DO UPDATE SET response = ?2, updated_at = datetime('now')`
+        "INSERT INTO incoming_webhooks (token, channel_id, guild_id, created_by) VALUES (?, ?, ?, ?)"
       )
-      .run(normalizedName, normalizedResponse, createdBy);
+      .run(token, channelId, guildId ?? null, createdBy);
   }
 
-  getCustomCommand(name: string): CustomCommand | null {
-    const normalizedName = normalizeCustomCommandName(name);
+  getIncomingWebhook(token: string): IncomingWebhook | null {
     return (
       this.db
         .query(
-          `SELECT ${MemoryStore.CUSTOM_COMMAND_COLS}
-           FROM custom_commands
-           WHERE name = ?`
+          `SELECT ${MemoryStore.WEBHOOK_COLS}
+           FROM incoming_webhooks
+           WHERE token = ? AND revoked_at IS NULL`
         )
-        .get(normalizedName) as CustomCommand | null
+        .get(token) as IncomingWebhook | null
     );
   }
 
-  listCustomCommands(): CustomCommand[] {
+  listIncomingWebhooks(includeRevoked = false): IncomingWebhook[] {
+    const where = includeRevoked ? "" : "WHERE revoked_at IS NULL";
     return this.db
       .query(
-        `SELECT ${MemoryStore.CUSTOM_COMMAND_COLS}
-         FROM custom_commands
-         ORDER BY name COLLATE NOCASE ASC`
+        `SELECT ${MemoryStore.WEBHOOK_COLS}
+         FROM incoming_webhooks
+         ${where}
+         ORDER BY created_at DESC`
       )
-      .all() as CustomCommand[];
+      .all() as IncomingWebhook[];
   }
 
-  deleteCustomCommand(name: string): boolean {
-    const normalizedName = normalizeCustomCommandName(name);
+  revokeIncomingWebhook(token: string): boolean {
     const result = this.db
-      .query("DELETE FROM custom_commands WHERE name = ?")
-      .run(normalizedName);
+      .query(
+        "UPDATE incoming_webhooks SET revoked_at = datetime('now') WHERE token = ? AND revoked_at IS NULL"
+      )
+      .run(token);
     return result.changes > 0;
   }
 
