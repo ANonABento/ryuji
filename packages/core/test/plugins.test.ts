@@ -1,36 +1,30 @@
 import { expect, test } from "bun:test";
 import { loadPlugins } from "../lib/plugins.ts";
 
-test("loadPlugins returns empty array when no plugins enabled", async () => {
-  const config = {
+type PluginConfig = Parameters<typeof loadPlugins>[0];
+
+function pluginConfig(enabledPlugins: string[]): PluginConfig {
+  return {
     getEnabledPlugins() {
-      return [];
+      return enabledPlugins;
     },
   };
+}
 
-  const plugins = await loadPlugins(config as any);
+test("loadPlugins returns empty array when no plugins enabled", async () => {
+  const plugins = await loadPlugins(pluginConfig([]));
   expect(plugins).toEqual([]);
 });
 
 test("loadPlugins skips unknown plugin names", async () => {
-  const config = {
-    getEnabledPlugins() {
-      return ["nonexistent"];
-    },
-  };
-
-  const plugins = await loadPlugins(config as any);
+  const plugins = await loadPlugins(pluginConfig(["nonexistent"]));
   expect(plugins).toEqual([]);
 });
 
 test("loadPlugins loads real workspace plugins", async () => {
-  const config = {
-    getEnabledPlugins() {
-      return ["voice", "browser", "reaction-roles", "socials"];
-    },
-  };
-
-  const plugins = await loadPlugins(config as any);
+  const plugins = await loadPlugins(
+    pluginConfig(["voice", "browser", "reaction-roles", "socials"])
+  );
   expect(plugins.map((p) => p.name)).toEqual([
     "voice",
     "browser",

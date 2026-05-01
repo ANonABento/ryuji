@@ -26,7 +26,7 @@ export class ReactionRoleDB {
     this.migrate();
   }
 
-  private migrate() {
+  private migrate(): void {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS reaction_roles (
         guild_id TEXT NOT NULL,

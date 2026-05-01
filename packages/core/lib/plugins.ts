@@ -3,7 +3,10 @@
  */
 
 import type { Plugin } from "./types.ts";
-import type { ConfigManager } from "./config.ts";
+
+interface PluginLoaderConfig {
+  getEnabledPlugins(): string[];
+}
 
 /** Explicit mapping of plugin names to workspace packages. */
 const PLUGIN_PACKAGES: Record<string, string> = {
@@ -20,7 +23,7 @@ export function discoverPlugins(_projectRoot?: string): string[] {
 }
 
 export async function loadPlugins(
-  config: ConfigManager,
+  config: PluginLoaderConfig,
   _projectRoot?: string
 ): Promise<Plugin[]> {
   const enabled = config.getEnabledPlugins();
