@@ -41,6 +41,14 @@ type FetchableTextChannel = {
 };
 
 const SERVERSTATS_TOP_CHANNEL_LIMIT = 5;
+const MISSING_ACCESS_ERROR_CODE = 50001;
+
+function isMissingAccessError(error: unknown): boolean {
+  if (error && typeof error === "object" && "code" in error) {
+    return (error as { code?: number }).code === MISSING_ACCESS_ERROR_CODE;
+  }
+  return false;
+}
 
 function startOfCurrentDay(): Date {
   const now = new Date();
@@ -343,10 +351,18 @@ registerCommand("serverstats", {
         const fetchManager = (channel as unknown as FetchableTextChannel).messages;
         if (!fetchManager || typeof fetchManager.fetch !== "function") continue;
 
-        const count = await countMessagesToday(
-          channel as unknown as FetchableTextChannel,
-          since
-        );
+        let count = 0;
+        try {
+          count = await countMessagesToday(
+            channel as unknown as FetchableTextChannel,
+            since
+          );
+        } catch (error) {
+          if (isMissingAccessError(error)) {
+            continue;
+          }
+          throw error;
+        }
         if (count > 0) {
           channelStats.push({
             id: channel.id,
