@@ -96,6 +96,9 @@ const tutorPlugin: Plugin = {
     "srs_reminders",
     "lesson_status",
     "convert_kana",
+    "convert_pinyin",
+    "stroke_info",
+    "convert_hanzi",
     "random_word",
   ],
 
