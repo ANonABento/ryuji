@@ -10,19 +10,22 @@
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import type { AnyObjectSchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { readFile, writeFile, unlink } from "node:fs/promises";
-import { z } from "zod";
 import { VERSION } from "./lib/version.ts";
 import type {
   WorkerMessage,
   IpcToolDef,
 } from "./lib/ipc-types.ts";
+import {
+  PERMISSION_REQUEST_NOTIFICATION_METHOD,
+  type PermissionRequestNotification,
+  permissionRequestNotificationSchema,
+} from "./lib/permission-request-schema.ts";
 
 // --- Config ---
 const WORKER_READY_TIMEOUT = 30_000; // 30s for worker to send "ready"
@@ -40,18 +43,6 @@ let crashCount = 0;
 let lastCrashTime = 0;
 const MAX_CRASHES = 5; // max crashes within the reset window
 const CRASH_WINDOW_MS = 60_000; // reset crash count after 1min of stability
-
-const zod = z as any;
-
-const permissionRequestNotificationSchema = zod.object({
-  method: z.literal("notifications/claude/channel/permission_request"),
-  params: zod.object({
-    request_id: z.string(),
-    tool_name: z.string(),
-    description: z.string(),
-    input_preview: z.string(),
-  }),
-}) as unknown as AnyObjectSchema;
 
 /** Pending tool calls waiting for worker response */
 const pendingCalls = new Map<
@@ -385,12 +376,13 @@ function createMcp(): Server {
   // Forward permission requests from MCP to worker
   server.setNotificationHandler(
     permissionRequestNotificationSchema,
-    async ({ params }: any) => {
+    async (notification) => {
+      const { params } = notification as PermissionRequestNotification;
       if (worker && workerReady) {
         try {
           worker.send({
             type: "permission_request",
-            method: "notifications/claude/channel/permission_request",
+            method: PERMISSION_REQUEST_NOTIFICATION_METHOD,
             params,
           });
         } catch {}
