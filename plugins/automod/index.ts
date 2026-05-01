@@ -26,9 +26,13 @@ function parseBannedWords(raw: string | null): string[] {
 }
 
 function findBannedWord(content: string, words: string[]): string | null {
-  const normalized = content.toLowerCase();
   for (const word of words) {
-    if (word && normalized.includes(word)) return word;
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(
+      `(^|[^\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`,
+      "iu"
+    );
+    if (word && pattern.test(content)) return word;
   }
   return null;
 }
@@ -71,9 +75,11 @@ function shouldRateLimit(key: string, maxPerMinute: number): boolean {
 
 function isActionCoolingDown(key: string): boolean {
   const last = lastActionAt.get(key) || 0;
-  if (Date.now() - last < ACTION_COOLDOWN_MS) return true;
+  return Date.now() - last < ACTION_COOLDOWN_MS;
+}
+
+function markActionCoolingDown(key: string): void {
   lastActionAt.set(key, Date.now());
-  return false;
 }
 
 function buildConfigSummary(config: {
@@ -205,20 +211,23 @@ const automodPlugin: Plugin = {
       reason = `Rate limit exceeded: ${cfg.maxMessagesPerMinute}/min`;
     }
 
-    if (isActionCoolingDown(key)) return;
-    let member: GuildMember | null = message.member ?? null;
-    if (!member) {
-      member = await message.guild.members.fetch(userId).catch(() => null);
-    }
-    if (!member) return;
-
     try {
       if (action === "warn") {
+        if (isActionCoolingDown(key)) return;
+        markActionCoolingDown(key);
         await message.reply({
           content: `⚠️ Moderation triggered: ${reason}.`,
         });
         return;
       }
+
+      let member: GuildMember | null = message.member ?? null;
+      if (!member) {
+        member = await message.guild.members.fetch(userId).catch(() => null);
+      }
+      if (!member) return;
+      if (isActionCoolingDown(key)) return;
+      markActionCoolingDown(key);
 
       if (action === "timeout") {
         await member.timeout(TIMEOUT_MS, `Automod action: ${reason}`);

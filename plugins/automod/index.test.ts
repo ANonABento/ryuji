@@ -5,7 +5,7 @@ import {
   type PluginConfig,
   type PluginContext,
 } from "@choomfie/shared";
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import automodPlugin from ".";
 
 type FakeAutomodConfig = PluginConfig;
@@ -46,6 +46,10 @@ type FakePluginContext = Pick<PluginContext, "DATA_DIR" | "ownerUserId" | "confi
 
 const OWNER_USER_ID = "owner-user";
 const TEST_DATA_DIR = "/tmp/choomfie-automod-test";
+
+afterEach(async () => {
+  await automodPlugin.destroy?.();
+});
 
 function createFakeAutomodConfig(
   seed: Omit<AutomodConfig, "action"> & {
@@ -266,7 +270,7 @@ test("rate limit and cooldown apply warn action", async () => {
   await automodPlugin.onMessage!(message as never, ctx);
   await automodPlugin.onMessage!(message as never, ctx);
 
-  expect(fetchCalls).toBe(1);
+  expect(fetchCalls).toBe(0);
   expect(replies).toHaveLength(1);
   expect(replies[0]).toContain("⚠️ Moderation triggered");
 });
@@ -363,6 +367,80 @@ test("banned words trigger the configured timeout action", async () => {
   expect(timeoutCalls).toHaveLength(1);
   expect(timeoutCalls).toEqual(["timeout"]);
   expect(replies.join("")).toContain("User timed out for 1 minute");
+});
+
+test("banned words match whole words only", async () => {
+  const replies: string[] = [];
+  const member: FakeGuildMember = {
+    timeout: async () => {},
+    kick: async () => {},
+  };
+  const config = createFakeAutomodConfig({
+    maxMessagesPerMinute: 100,
+    bannedWords: ["ass"],
+    action: "warn",
+  });
+
+  const classMessage = makeMessage(member, "word-boundary-user", "classic");
+  classMessage.reply = async ({ content }) => {
+    replies.push(content);
+  };
+
+  await automodPlugin.onMessage!(
+    classMessage as never,
+    fakePluginContext({ config })
+  );
+
+  expect(replies).toHaveLength(0);
+
+  const bannedMessage = makeMessage(member, "word-boundary-user", "bad ass.");
+  bannedMessage.reply = async ({ content }) => {
+    replies.push(content);
+  };
+
+  await automodPlugin.onMessage!(
+    bannedMessage as never,
+    fakePluginContext({ config })
+  );
+
+  expect(replies).toHaveLength(1);
+  expect(replies[0]).toContain("Banned word detected");
+});
+
+test("missing member does not consume action cooldown", async () => {
+  const timeoutCalls: string[] = [];
+  const member: FakeGuildMember = {
+    timeout: async () => {
+      timeoutCalls.push("timeout");
+    },
+    kick: async () => {},
+  };
+  const config = createFakeAutomodConfig({
+    maxMessagesPerMinute: 100,
+    bannedWords: ["blocked"],
+    action: "timeout",
+  });
+  const ctx = fakePluginContext({ config, ownerUserId: OWNER_USER_ID });
+
+  const missingMemberMessage = makeMessage(
+    null,
+    "lookup-flake-user",
+    "blocked",
+    undefined,
+    null
+  );
+  await automodPlugin.onMessage!(missingMemberMessage as never, ctx);
+
+  const foundMemberMessage = makeMessage(
+    null,
+    "lookup-flake-user",
+    "blocked",
+    undefined,
+    member
+  );
+  await automodPlugin.onMessage!(foundMemberMessage as never, ctx);
+
+  expect(timeoutCalls).toEqual(["timeout"]);
 });
 
 test("banned words trigger the configured kick action", async () => {
