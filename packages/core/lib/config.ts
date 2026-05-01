@@ -57,11 +57,8 @@ export interface LlmConfig {
 }
 
 export interface Config {
-  localFirst: boolean;
-  provider: LlmProvider;
-  localModel: string;
-  ollamaUrl: string;
-  embeddings: EmbeddingsProvider;
+  provider: "claude" | "ollama";
+  ollama_model: string;
   activePersona: string;
   personas: Record<string, Persona>;
   rateLimitMs: number;
@@ -76,12 +73,11 @@ export interface Config {
   [key: string]: unknown;
 }
 
+export const DEFAULT_OLLAMA_MODEL = "llama3.1:8b";
+
 const DEFAULT_CONFIG: Config = {
-  localFirst: false,
   provider: "claude",
-  localModel: "llama3.2",
-  ollamaUrl: "http://127.0.0.1:11434",
-  embeddings: "none",
+  ollama_model: DEFAULT_OLLAMA_MODEL,
   activePersona: "choomfie",
   personas: {
     choomfie: {
@@ -124,6 +120,11 @@ function mergeConfig(saved: Partial<Config>): Config {
   return {
     ...DEFAULT_CONFIG,
     ...saved,
+    provider: saved.provider === "ollama" ? "ollama" : DEFAULT_CONFIG.provider,
+    ollama_model:
+      typeof saved.ollama_model === "string" && saved.ollama_model.trim()
+        ? saved.ollama_model.trim()
+        : DEFAULT_CONFIG.ollama_model,
     personas: {
       ...DEFAULT_CONFIG.personas,
       ...savedPersonas,
@@ -250,30 +251,25 @@ export class ConfigManager {
     this.save();
   }
 
-  // --- Local-first ---
+  // --- Chat provider ---
 
-  isLocalFirst(): boolean {
-    return this.config.localFirst === true;
+  getProvider(): Config["provider"] {
+    return this.config.provider === "ollama" ? "ollama" : "claude";
   }
 
-  getProvider(): LlmProvider {
-    return applyLocalFirst(this.config).provider;
+  setProvider(provider: Config["provider"]) {
+    this.config.provider = provider;
+    this.save();
   }
 
-  getLocalModel(): string {
-    return process.env.OLLAMA_MODEL || this.config.localModel;
+  getOllamaModel(): string {
+    return this.config.ollama_model || DEFAULT_CONFIG.ollama_model;
   }
 
-  getOllamaUrl(): string {
-    return process.env.OLLAMA_URL || this.config.ollamaUrl;
-  }
-
-  getEmbeddingsProvider(): EmbeddingsProvider {
-    return applyLocalFirst(this.config).embeddings;
-  }
-
-  setLocalFirst(enabled: boolean) {
-    this.config.localFirst = enabled;
+  setOllamaModel(model: string) {
+    const trimmed = model.trim();
+    if (!trimmed) return;
+    this.config.ollama_model = trimmed;
     this.save();
   }
 
