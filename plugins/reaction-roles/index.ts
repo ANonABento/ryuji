@@ -89,7 +89,7 @@ registerCommand("reactionrole", {
     if (subcommand !== "add") return;
 
     const messageId = interaction.options.getString("message_id", true);
-    const emojiInput = interaction.options.getString("emoji", true);
+    const emojiInput = interaction.options.getString("emoji", true).trim();
     const role = interaction.options.getRole("role", true) as Role;
     const emojiKey = emojiKeyFromInput(emojiInput);
 
@@ -98,10 +98,25 @@ registerCommand("reactionrole", {
       return;
     }
 
-    const botMember = interaction.guild.members.me;
+    let botMember = interaction.guild.members.me;
+    if (!botMember) {
+      try {
+        botMember = await interaction.guild.members.fetchMe();
+      } catch {
+        botMember = null;
+      }
+    }
+
     if (!botMember?.permissions.has(PermissionFlagsBits.ManageRoles)) {
       await replyEphemeral(
         "I need the Manage Roles permission before I can assign reaction roles."
+      );
+      return;
+    }
+
+    if (!botMember.permissions.has(PermissionFlagsBits.AddReactions)) {
+      await replyEphemeral(
+        "I need the Add Reactions permission before I can validate emoji setup."
       );
       return;
     }
@@ -124,20 +139,19 @@ registerCommand("reactionrole", {
     try {
       const message = await channel.messages.fetch(messageId);
       await message.react(emojiInput);
+      db.upsert({
+        guildId: interaction.guild.id,
+        channelId: interaction.channelId,
+        messageId,
+        emojiKey,
+        roleId: role.id,
+      });
     } catch {
       await replyEphemeral(
         "I could not find that message in this channel or react with that emoji."
       );
       return;
     }
-
-    db.upsert({
-      guildId: interaction.guild.id,
-      channelId: interaction.channelId,
-      messageId,
-      emojiKey,
-      roleId: role.id,
-    });
 
     await replyEphemeral(
       `Reaction role configured: ${emojiInput} on message \`${messageId}\` assigns ${role}.`
