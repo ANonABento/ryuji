@@ -9,6 +9,8 @@ import {
 import { ModelRegistry } from "../lib/orchestrator/model-registry.ts";
 import { ModelRouter } from "../lib/orchestrator/model-router.ts";
 import { IdleMonitor } from "../lib/orchestrator/idle-monitor.ts";
+import { isUsableApiUrl } from "../lib/orchestrator/background-worker.ts";
+import { LocalRuntime } from "../lib/orchestrator/local-runtime.ts";
 import type { ChatProvider, ModelInfo } from "../lib/orchestrator/chat-provider.ts";
 
 describe("model-registry helpers", () => {
@@ -119,5 +121,77 @@ describe("IdleMonitor", () => {
     monitor.noteActivity();
     const fresh = await monitor.snapshot();
     expect(fresh.isIdle).toBe(false);
+  });
+});
+
+describe("isUsableApiUrl", () => {
+  test("rejects placeholder and malformed URLs", () => {
+    expect(isUsableApiUrl(undefined)).toBe(false);
+    expect(isUsableApiUrl("")).toBe(false);
+    expect(isUsableApiUrl("not a url")).toBe(false);
+    expect(isUsableApiUrl("http://localhost:0/api")).toBe(false);
+  });
+  test("accepts realistic endpoints", () => {
+    expect(isUsableApiUrl("http://localhost:3000/api")).toBe(true);
+    expect(isUsableApiUrl("https://bentoya.example.com/api")).toBe(true);
+  });
+});
+
+describe("LocalRuntime.start()", () => {
+  test("downgrades when configured pick exceeds VRAM budget", async () => {
+    const provider = new StubProvider([
+      { name: "qwen2.5-coder:7b", size: 1, digest: "1", paramSize: "7B", quant: "Q4_0" },
+      { name: "qwen2.5-coder:32b", size: 1, digest: "2", paramSize: "32B", quant: "Q4_0" },
+    ]);
+    const runtime = new LocalRuntime({
+      ollamaUrl: "http://stub",
+      chatModel: "qwen2.5-coder:7b",
+      codingModel: "qwen2.5-coder:32b",
+      backgroundTasks: {
+        enabled: false,
+        idleThresholdMs: 60_000,
+        bentoyaApiUrl: "http://localhost:0/api",
+      },
+      resourceManagement: { vramBudgetGB: 10, pauseWhenGpuBusy: false },
+    });
+    // Swap in our stub provider + registry pointing at it.
+    (runtime as unknown as { provider: ChatProvider }).provider = provider;
+    (runtime as unknown as { registry: ModelRegistry }).registry = new ModelRegistry(
+      provider,
+      { chat: "qwen2.5-coder:7b", coding: "qwen2.5-coder:32b" },
+    );
+    await runtime.start();
+    const sel = runtime.getSelection();
+    // 32b would not fit a 10GB budget; 7b should.
+    expect(sel.coding).toBe("qwen2.5-coder:7b");
+  });
+
+  test("falls back to a capability-matched model when configured pick is missing", async () => {
+    const provider = new StubProvider([
+      // chat-only and coding-only — both pulled, but neither is the configured pick.
+      { name: "llama3.1:8b", size: 1, digest: "1", paramSize: "8B", quant: "Q4_0" },
+      { name: "qwen2.5-coder:7b", size: 1, digest: "2", paramSize: "7B", quant: "Q4_0" },
+    ]);
+    const runtime = new LocalRuntime({
+      ollamaUrl: "http://stub",
+      chatModel: "mistral:7b",
+      codingModel: "deepseek-coder:33b",
+      backgroundTasks: {
+        enabled: false,
+        idleThresholdMs: 60_000,
+        bentoyaApiUrl: "http://localhost:0/api",
+      },
+      resourceManagement: { vramBudgetGB: 0, pauseWhenGpuBusy: false },
+    });
+    (runtime as unknown as { provider: ChatProvider }).provider = provider;
+    (runtime as unknown as { registry: ModelRegistry }).registry = new ModelRegistry(
+      provider,
+      { chat: "mistral:7b", coding: "deepseek-coder:33b" },
+    );
+    await runtime.start();
+    const sel = runtime.getSelection();
+    expect(sel.coding).toBe("qwen2.5-coder:7b"); // capability-matched
+    // chat slot prefers chat-capable; both qualify but llama3.1 has no "coding" tag.
+    expect(["llama3.1:8b", "qwen2.5-coder:7b"]).toContain(sel.chat);
   });
 });

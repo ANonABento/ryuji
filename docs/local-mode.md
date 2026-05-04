@@ -110,6 +110,8 @@ POST /tasks/<id>/result     { "status": "ok|error", "output": "..." }
 - `ctx.mcp` is a no-op stub (`LocalMcpStub`) — anything that `notification(...)`s nobody just drops the message.
 - Discord `MessageCreate` flows through `orchestrator/discord-handler.ts` instead of `ctx.mcp.notification(...)`.
 - Tool calls are not yet round-tripped through Ollama. Slash commands and built-in interactions still work; chat replies are LLM text only. Tool-augmented chat is a future task.
+- Voice plugin: STT/TTS still run locally and `/voice`/`speak` work, but transcribed user speech is not currently routed back through the LLM (the voice plugin pushes to `ctx.mcp.notification` which is a no-op in local mode). Wiring transcripts into `LocalRuntime.reply` is a follow-up.
+- Background worker only polls when `bentoyaApiUrl` is a real endpoint. The shipped default `http://localhost:0/api` is a placeholder — the worker logs once and stays idle until you point it at a running bento-ya server.
 
 ## Files
 

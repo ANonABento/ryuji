@@ -111,22 +111,13 @@ export class LocalRuntime {
 
     // Resource manager: if the configured pick exceeds the VRAM budget,
     // downgrade to the largest model that fits. This prevents OOM.
-    this.applyVramBudget(available);
+    await this.applyVramBudget(available);
 
-    // Validate selection — fall back to anything if pick is missing.
-    const sel = this.registry.getSelection();
-    if (!this.registry.has(sel.chat) && available[0]) {
-      console.error(
-        `[local] chat model '${sel.chat}' not pulled — falling back to '${available[0].name}'`,
-      );
-      await this.registry.swap("chat", available[0].name);
-    }
-    if (!this.registry.has(sel.coding) && available[0]) {
-      console.error(
-        `[local] coding model '${sel.coding}' not pulled — falling back to '${available[0].name}'`,
-      );
-      await this.registry.swap("coding", available[0].name);
-    }
+    // Validate selection — fall back to a capability-matched model if pick
+    // is missing locally. We prefer a model whose inferred capability matches
+    // the role (chat-only for chat, coding for coding); otherwise any model.
+    await this.applyMissingFallback(available, "chat");
+    await this.applyMissingFallback(available, "coding");
 
     await this.registry.prewarm();
     this.background.start();
@@ -204,7 +195,7 @@ export class LocalRuntime {
     return this.registry.getSelection();
   }
 
-  private applyVramBudget(available: ModelMetadata[]) {
+  private async applyVramBudget(available: ModelMetadata[]): Promise<void> {
     const budget = this.config.resourceManagement.vramBudgetGB;
     if (!budget || budget <= 0) return;
 
@@ -218,10 +209,24 @@ export class LocalRuntime {
         console.error(
           `[local] ${role} model '${sel[role]}' (~${picked.vramGB}GB) exceeds VRAM budget ${budget}GB — swapping to '${fallback}'`,
         );
-        // Synchronous selection update — registry.swap is async only because of refresh().
-        // We've already refreshed above, so this is safe.
-        void this.registry.swap(role, fallback);
+        await this.registry.swap(role, fallback);
       }
     }
+  }
+
+  private async applyMissingFallback(
+    available: ModelMetadata[],
+    role: "chat" | "coding",
+  ): Promise<void> {
+    const sel = this.registry.getSelection();
+    if (this.registry.has(sel[role])) return;
+    if (available.length === 0) return;
+    // Prefer a model whose capabilities match the role.
+    const matched = available.find((m) => m.capabilities.includes(role));
+    const fallback = matched ?? available[0];
+    console.error(
+      `[local] ${role} model '${sel[role]}' not pulled — falling back to '${fallback.name}'`,
+    );
+    await this.registry.swap(role, fallback.name);
   }
 }

@@ -46,6 +46,13 @@ export class BackgroundWorker {
 
   start(): void {
     if (!this.options.enabled || !this.stopped) return;
+    if (!isUsableApiUrl(this.options.apiUrl)) {
+      this.log(
+        `background worker disabled: bentoyaApiUrl='${this.options.apiUrl}' is a placeholder. ` +
+          `Set local.backgroundTasks.bentoyaApiUrl to your bento-ya endpoint to enable.`,
+      );
+      return;
+    }
     this.stopped = false;
     this.scheduleNext(1000);
     this.log("background worker started");
@@ -196,4 +203,22 @@ export class BackgroundWorker {
 
 function joinUrl(base: string, path: string): string {
   return base.replace(/\/+$/, "") + (path.startsWith("/") ? path : `/${path}`);
+}
+
+/**
+ * The default config ships `http://localhost:0/api` as a placeholder so the
+ * user can see how to wire bento-ya. Port 0 is not a valid client port — if
+ * we leave the worker enabled with that URL we spam errors every 30s. Detect
+ * obvious placeholders (port 0, missing host) and skip polling instead.
+ */
+export function isUsableApiUrl(url: string | undefined | null): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    if (!parsed.hostname) return false;
+    if (parsed.port === "0") return false;
+    return true;
+  } catch {
+    return false;
+  }
 }
