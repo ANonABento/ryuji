@@ -138,10 +138,8 @@ flowchart TD
   FailureCount --> FailureLimit{3 failures?}
   FailureLimit -- yes --> Cycle
 
-  AgentErrors[Anthropic provider errors] --> ErrorCount[provider failure count]
-  ErrorCount --> Ollama{threshold reached?}
-  Ollama -- yes --> Fallback[Ollama-compatible Anthropic endpoint]
-  Fallback --> AgentSDK
+  AgentErrors[session stream errors] --> Retry[restart session with exponential backoff]
+  Retry --> AgentSDK
 ```
 
 Daemon state files:
@@ -150,6 +148,8 @@ Daemon state files:
 - `choomfie.pid` tracks the supervisor process used by worker health checks.
 - `meta/handoffs.json` stores recent handoff summaries.
 - `meta/daemon-state.json` records turns, tokens, cycles, provider, and worker health for status reporting.
+
+Provider note: daemon state includes Anthropic/Ollama fallback fields and helpers, but the current runtime starts sessions through the default Anthropic provider path.
 
 ## Voice Pipeline
 

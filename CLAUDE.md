@@ -98,7 +98,7 @@ daemon.ts (always running)
 - New session gets handoff context injected into system prompt
 - Worker health monitored via `choomfie.pid` checks every 30s; 3 consecutive failures trigger a full session cycle
 - Daemon state written to `meta/daemon-state.json` for `/status` integration
-- Anthropic API failures can fall back to an Ollama-compatible Anthropic endpoint after repeated provider errors
+- Provider fallback state exists in the daemon helpers, but the current runtime starts sessions with the default Anthropic provider path
 - Crash recovery with exponential backoff (2s → 60s max)
 
 ### Plugin System
@@ -181,9 +181,9 @@ Modal forms triggered from slash commands, defined in `packages/core/lib/handler
 - `packages/core/lib/handlers/github.ts` — `buildGhArgs()` + `runGh()` (used by MCP tool + slash command)
 - `packages/shared/version.ts` — `VERSION` constant from package.json (used by mcp-server, commands, status-tools)
 
-## Tools (95 max)
+## Tools (96 max)
 
-Tool lists are dynamic: the supervisor always exposes `restart`, the worker exposes 34 core tools, and enabled plugins add their own tools. With all shipped plugins enabled, Choomfie exposes 95 tools total.
+Tool lists are dynamic: the supervisor always exposes `restart`, the worker exposes 34 core tools, and enabled plugins add their own tools. With all shipped plugins enabled, Choomfie exposes 96 MCP tools total: 95 worker tools plus the supervisor-owned `restart` tool.
 
 Core Discord: reply (with embeds), react, edit_message, fetch_messages, search_messages, create_thread, create_poll, pin_message, unpin_message
 Core Memory: save_memory, search_memory, list_memories, delete_memory, save_conversation_summary, memory_stats
