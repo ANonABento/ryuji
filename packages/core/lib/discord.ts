@@ -24,11 +24,20 @@ import {
 import { deployGuildCommands } from "./command-deploy.ts";
 import { isAllowed, isOwner } from "./access.ts";
 import {
+  errorMessage,
+  type McpTransport,
+  type NotificationMessage,
+} from "@choomfie/shared";
+import {
   dispatchPluginMessage,
   initializePlugins,
 } from "./plugin-lifecycle.ts";
 
 const PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i;
+
+function notifyMcp(ctx: AppContext, message: NotificationMessage): void {
+  (ctx.mcp as McpTransport).notification?.(message);
+}
 
 function sanitizeAttachmentName(name?: string | null): string {
   const safeBase = basename(name || "attachment");
@@ -66,7 +75,7 @@ export function createDiscordClient(ctx: AppContext): Client {
   discord.once(Events.ClientReady, async (c) => {
     console.error(`Choomfie Discord: logged in as ${c.user.tag}`);
     ctx.startedAt = Date.now();
-    const initDone = () => { (ctx as any)._discordReadyResolve?.(); };
+    const initDone = () => { ctx._discordReadyResolve?.(); };
 
     // Fallback: auto-detect owner if not set during setup
     if (!ctx.ownerUserId) {
@@ -110,8 +119,8 @@ export function createDiscordClient(ctx: AppContext): Client {
       }
     };
     // Clear previous interval if restarting, then start fresh
-    if ((ctx as any)._inboxInterval) clearInterval((ctx as any)._inboxInterval);
-    (ctx as any)._inboxInterval = setInterval(cleanInbox, 60 * 60 * 1000);
+    if (ctx._inboxInterval) clearInterval(ctx._inboxInterval);
+    ctx._inboxInterval = setInterval(cleanInbox, 60 * 60 * 1000);
     cleanInbox(); // Run on startup
 
     // Initialize plugins
@@ -134,7 +143,7 @@ export function createDiscordClient(ctx: AppContext): Client {
         console.error(`Slash commands deployed (${commands.length} commands to ${c.guilds.cache.size} guild(s))`);
       }
     } catch (e) {
-      console.error(`Slash command auto-deploy failed: ${e}`);
+      console.error(`Slash command auto-deploy failed: ${errorMessage(e)}`);
     }
 
     initDone();
@@ -162,8 +171,8 @@ export function createDiscordClient(ctx: AppContext): Client {
       : ctx.allowedUsers.has(userId);
     const permMatch = PERMISSION_REPLY_RE.exec(message.content);
     if (permMatch && canApprovePermissions) {
-      ctx.mcp.notification({
-        method: "notifications/claude/channel/permission" as any,
+      notifyMcp(ctx, {
+        method: "notifications/claude/channel/permission",
         params: {
           request_id: permMatch[2].toLowerCase(),
           behavior: permMatch[1].toLowerCase().startsWith("y")
@@ -297,7 +306,7 @@ export function createDiscordClient(ctx: AppContext): Client {
 
     // Show typing indicator while Claude processes (state machine in lib/typing.ts)
     const isConversationMode = meta.conversation_mode === "true";
-    onMessageReceived(message.channelId, message.channel as any, isConversationMode);
+    onMessageReceived(message.channelId, message.channel, isConversationMode);
 
     // Strip bot @mention from the message so Claude sees clean text
     const cleanContent = message.content
@@ -305,8 +314,8 @@ export function createDiscordClient(ctx: AppContext): Client {
       .trim();
 
     // Forward to Claude Code
-    ctx.mcp.notification({
-      method: "notifications/claude/channel" as any,
+    notifyMcp(ctx, {
+      method: "notifications/claude/channel",
       params: {
         content:
           cleanContent ||

@@ -113,7 +113,7 @@ if (discordToken) {
   // (owner detection, plugin init, reminder scheduling, slash command deploy)
   const discordReady = Promise.race([
     new Promise<void>((resolve) => {
-      (ctx as any)._discordReadyResolve = resolve;
+      ctx._discordReadyResolve = resolve;
     }),
     new Promise<void>((_, reject) =>
       setTimeout(() => reject(new Error("Discord ready timeout (15s)")), 15_000)
@@ -125,7 +125,7 @@ if (discordToken) {
   } catch (e) {
     // Don't crash — send ready anyway so non-Discord tools (memory, status) still work.
     // Discord tools will error individually when called.
-    console.error(`Choomfie Worker: Discord init failed: ${e}`);
+    console.error(`Choomfie Worker: Discord init failed: ${errorMessage(e)}`);
   }
 } else {
   console.error(

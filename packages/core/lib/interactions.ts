@@ -15,7 +15,7 @@ import {
   type RESTPostAPIChatInputApplicationCommandsJSONBody,
 } from "discord.js";
 import type { AppContext } from "./types.ts";
-import type { PluginContext } from "@choomfie/shared";
+import { errorMessage, type PluginContext } from "@choomfie/shared";
 import { dispatchPluginInteraction } from "./plugin-lifecycle.ts";
 
 // Re-export shared registries so existing core imports keep working
@@ -96,7 +96,7 @@ async function safeHandle(
   try {
     await fn();
   } catch (e) {
-    console.error(`${label}: ${e}`);
+    console.error(`${label}: ${errorMessage(e)}`);
     if (interaction.deferred && interaction.editReply) {
       await interaction.editReply({ content: "Something went wrong." });
     } else if (!interaction.replied) {

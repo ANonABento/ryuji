@@ -204,7 +204,9 @@ function handleWorkerMessage(msg: WorkerMessage) {
               }, 1000);
             }
           } catch (e) {
-            console.error(`Supervisor: worker-requested restart failed: ${e}`);
+            console.error(
+              `Supervisor: worker-requested restart failed: ${errorMessage(e)}`
+            );
           }
         }, 100);
         break;
@@ -214,7 +216,7 @@ function handleWorkerMessage(msg: WorkerMessage) {
         break;
     }
   } catch (e) {
-    console.error(`Supervisor: IPC message handler error: ${e}`);
+    console.error(`Supervisor: IPC message handler error: ${errorMessage(e)}`);
   }
 }
 
@@ -240,7 +242,7 @@ function callWorkerTool(
     } catch (e) {
       clearTimeout(timer);
       pendingCalls.delete(id);
-      reject(new Error(`Failed to send tool call to worker: ${e}`));
+      reject(new Error(`Failed to send tool call to worker: ${errorMessage(e)}`));
     }
   });
 }
