@@ -52,6 +52,26 @@ export interface SocialsConfig {
   [key: string]: SocialsPlatformConfig | undefined;
 }
 
+export interface LocalBackgroundTasksConfig {
+  enabled: boolean;
+  idleThresholdMs: number;
+  bentoyaApiUrl: string;
+}
+
+export interface LocalResourceConfig {
+  vramBudgetGB: number;
+  pauseWhenGpuBusy: boolean;
+}
+
+export interface LocalConfig {
+  enabled: boolean;
+  chatModel: string;
+  codingModel: string;
+  ollamaUrl: string;
+  backgroundTasks: LocalBackgroundTasksConfig;
+  resourceManagement: LocalResourceConfig;
+}
+
 export interface Config {
   activePersona: string;
   personas: Record<string, Persona>;
@@ -61,8 +81,25 @@ export interface Config {
   plugins: string[];
   voice: VoiceConfig;
   socials?: SocialsConfig;
+  local?: LocalConfig;
   [key: string]: unknown;
 }
+
+export const DEFAULT_LOCAL_CONFIG: LocalConfig = {
+  enabled: false,
+  chatModel: "llama3.1:8b",
+  codingModel: "qwen2.5-coder:32b",
+  ollamaUrl: "http://localhost:11434",
+  backgroundTasks: {
+    enabled: true,
+    idleThresholdMs: 5 * 60 * 1000,
+    bentoyaApiUrl: "http://localhost:0/api",
+  },
+  resourceManagement: {
+    vramBudgetGB: 24,
+    pauseWhenGpuBusy: true,
+  },
+};
 
 const DEFAULT_CONFIG: Config = {
   activePersona: "choomfie",
@@ -89,6 +126,8 @@ function mergeConfig(saved: Partial<Config>): Config {
     saved.voice && typeof saved.voice === "object" ? saved.voice : {};
   const savedSocials =
     saved.socials && typeof saved.socials === "object" ? saved.socials : undefined;
+  const savedLocal =
+    saved.local && typeof saved.local === "object" ? saved.local : undefined;
 
   return {
     ...DEFAULT_CONFIG,
@@ -102,6 +141,22 @@ function mergeConfig(saved: Partial<Config>): Config {
       ...savedVoice,
     },
     ...(savedSocials ? { socials: savedSocials } : {}),
+    ...(savedLocal
+      ? {
+          local: {
+            ...DEFAULT_LOCAL_CONFIG,
+            ...savedLocal,
+            backgroundTasks: {
+              ...DEFAULT_LOCAL_CONFIG.backgroundTasks,
+              ...(savedLocal.backgroundTasks ?? {}),
+            },
+            resourceManagement: {
+              ...DEFAULT_LOCAL_CONFIG.resourceManagement,
+              ...(savedLocal.resourceManagement ?? {}),
+            },
+          },
+        }
+      : {}),
   };
 }
 
@@ -230,6 +285,45 @@ export class ConfigManager {
 
   getSocialsConfig(): SocialsConfig | undefined {
     return this.config.socials;
+  }
+
+  // --- Local mode ---
+
+  getLocalConfig(): LocalConfig {
+    if (!this.config.local) return { ...DEFAULT_LOCAL_CONFIG };
+    return {
+      ...DEFAULT_LOCAL_CONFIG,
+      ...this.config.local,
+      backgroundTasks: {
+        ...DEFAULT_LOCAL_CONFIG.backgroundTasks,
+        ...this.config.local.backgroundTasks,
+      },
+      resourceManagement: {
+        ...DEFAULT_LOCAL_CONFIG.resourceManagement,
+        ...this.config.local.resourceManagement,
+      },
+    };
+  }
+
+  setLocalConfig(local: Partial<LocalConfig>) {
+    const current = this.getLocalConfig();
+    this.config.local = {
+      ...current,
+      ...local,
+      backgroundTasks: {
+        ...current.backgroundTasks,
+        ...(local.backgroundTasks ?? {}),
+      },
+      resourceManagement: {
+        ...current.resourceManagement,
+        ...(local.resourceManagement ?? {}),
+      },
+    };
+    this.save();
+  }
+
+  isLocalEnabled(): boolean {
+    return this.getLocalConfig().enabled;
   }
 
   // --- Full config ---

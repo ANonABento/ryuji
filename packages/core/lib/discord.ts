@@ -317,6 +317,19 @@ export function createDiscordClient(ctx: AppContext): Client {
       .replace(new RegExp(`<@!?${discord.user!.id}>`, "g"), "")
       .trim();
 
+    if (ctx.localRuntime) {
+      // Local mode: route through Ollama instead of Claude.
+      const { handleLocalMessage } = await import("./orchestrator/discord-handler.ts");
+      await handleLocalMessage(ctx, {
+        message,
+        content:
+          cleanContent ||
+          "(empty message — user may have just mentioned you)",
+        meta,
+      });
+      return;
+    }
+
     // Forward to Claude Code
     ctx.mcp.notification({
       method: "notifications/claude/channel" as any,
