@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Plugin } from "@choomfie/shared";
+import type { Message } from "discord.js";
 import {
   destroyPlugins,
   dispatchPluginMessage,
@@ -26,11 +27,13 @@ describe("plugin lifecycle", () => {
       },
     };
 
-    await initializePlugins([plugin], testPluginContext as any);
+    const message = { content: "synthetic message" } as unknown as Message;
+
+    await initializePlugins([plugin], testPluginContext);
     await dispatchPluginMessage(
       [plugin],
-      { content: "synthetic message" } as any,
-      testPluginContext as any,
+      message,
+      testPluginContext,
     );
     await destroyPlugins([plugin]);
 
@@ -58,8 +61,8 @@ describe("plugin lifecycle", () => {
 
     await dispatchPluginMessage(
       plugins,
-      { content: "synthetic message" } as any,
-      testPluginContext as any,
+      { content: "synthetic message" } as unknown as Message,
+      testPluginContext,
     );
 
     expect(calls).toEqual(["survives"]);

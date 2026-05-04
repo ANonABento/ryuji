@@ -1,15 +1,20 @@
 import { afterEach, expect, test } from "bun:test";
 import { McpProxy } from "../lib/mcp-proxy.ts";
 
-const originalSend = (process as any).send;
+type ProcessWithSend = typeof process & {
+  send?: (msg: unknown) => boolean;
+};
+
+const processWithSend = process as ProcessWithSend;
+const originalSend = processWithSend.send;
 
 afterEach(() => {
-  (process as any).send = originalSend;
+  processWithSend.send = originalSend;
 });
 
 test("McpProxy forwards worker notifications without modifying method or params", () => {
   const sent: unknown[] = [];
-  (process as any).send = (msg: unknown) => {
+  processWithSend.send = (msg: unknown) => {
     sent.push(msg);
     return true;
   };

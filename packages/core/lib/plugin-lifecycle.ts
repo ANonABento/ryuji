@@ -1,10 +1,9 @@
 import type { Interaction, Message } from "discord.js";
-import type { Plugin } from "@choomfie/shared";
-import type { AppContext } from "./types.ts";
+import type { Plugin, PluginContext } from "@choomfie/shared";
 
 export async function initializePlugins(
   plugins: Plugin[],
-  ctx: AppContext,
+  ctx: PluginContext,
 ): Promise<void> {
   for (const plugin of plugins) {
     if (!plugin.init) continue;
@@ -20,7 +19,7 @@ export async function initializePlugins(
 export async function dispatchPluginMessage(
   plugins: Plugin[],
   message: Message,
-  ctx: AppContext,
+  ctx: PluginContext,
 ): Promise<void> {
   for (const plugin of plugins) {
     if (!plugin.onMessage) continue;
@@ -35,7 +34,7 @@ export async function dispatchPluginMessage(
 export async function dispatchPluginInteraction(
   plugins: Plugin[],
   interaction: Interaction,
-  ctx: AppContext,
+  ctx: PluginContext,
 ): Promise<void> {
   for (const plugin of plugins) {
     if (!plugin.onInteraction) continue;

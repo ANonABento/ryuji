@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import type { Plugin, PluginContext } from "@choomfie/shared";
+import type { Message } from "discord.js";
 import { mkdir } from "node:fs/promises";
 
 const PLUGINS = ["voice", "browser", "tutor", "socials"] as const;
@@ -22,7 +23,7 @@ const message = {
   author: { bot: false, id: "smoke-user", username: "smoke" },
   content: "plugin smoke test",
   reply: async () => {},
-} as any;
+} as unknown as Message;
 
 await mkdir(DATA_DIR, { recursive: true });
 

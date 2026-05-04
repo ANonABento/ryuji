@@ -18,6 +18,22 @@ import { McpProxy } from "./lib/mcp-proxy.ts";
 import { destroyPlugins } from "./lib/plugin-lifecycle.ts";
 import type { SupervisorMessage, IpcToolDef } from "./lib/ipc-types.ts";
 import type { ToolResult } from "./lib/types.ts";
+import { errorMessage } from "@choomfie/shared";
+
+type SendableTextChannel = {
+  isTextBased(): boolean;
+  send(message: string): Promise<unknown>;
+};
+
+function isSendableTextChannel(channel: unknown): channel is SendableTextChannel {
+  if (!channel || typeof channel !== "object") return false;
+  const candidate = channel as Record<string, unknown>;
+  return (
+    typeof candidate.isTextBased === "function" &&
+    candidate.isTextBased() === true &&
+    typeof candidate.send === "function"
+  );
+}
 
 // Initialize context (loads env, config, memory, access list)
 const { ctx, discordToken } = await createContext();
@@ -68,9 +84,9 @@ process.on("message", async (msg: SupervisorMessage) => {
     } else {
       try {
         result = await handler(msg.args, ctx);
-      } catch (e: any) {
+      } catch (e) {
         result = {
-          content: [{ type: "text", text: `Tool error: ${e.message}` }],
+          content: [{ type: "text", text: `Tool error: ${errorMessage(e)}` }],
           isError: true,
         };
       }
@@ -80,8 +96,8 @@ process.on("message", async (msg: SupervisorMessage) => {
     // Send confirmation to Discord after a worker-requested restart completed
     try {
       const ch = await ctx.discord.channels.fetch(msg.chat_id);
-      if (ch?.isTextBased() && "send" in ch) {
-        await (ch as any).send(`✓ Restarted (${msg.reason})`);
+      if (isSendableTextChannel(ch)) {
+        await ch.send(`✓ Restarted (${msg.reason})`);
       }
     } catch {}
   } else if (msg.type === "permission_request") {
