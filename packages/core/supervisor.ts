@@ -26,10 +26,15 @@ import type {
   WorkerMessage,
   IpcToolDef,
 } from "./lib/ipc-types.ts";
+import {
+  waitForPendingToolCalls,
+  type PendingToolCallMap,
+} from "./lib/supervisor-boundary.ts";
 
 // --- Config ---
 const WORKER_READY_TIMEOUT = 30_000; // 30s for worker to send "ready"
 const TOOL_CALL_TIMEOUT = 120_000; // 2min per tool call
+const RESTART_PENDING_DRAIN_TIMEOUT = 5_000; // planned restarts wait for active calls to finish
 const WORKER_PATH = `${import.meta.dir}/worker.ts`;
 
 // --- State ---
@@ -50,7 +55,7 @@ type McpNotification = Parameters<Server["notification"]>[0];
 const pendingCalls = new Map<
   string,
   { resolve: (result: any) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout> }
->();
+>() as PendingToolCallMap;
 
 /** MCP server — created once, lives forever */
 let mcp: Server;
@@ -265,6 +270,16 @@ const SUPERVISOR_TOOLS: IpcToolDef[] = [
 async function restartWorker(reason: string): Promise<{ timedOut: boolean }> {
   console.error(`Supervisor: restarting worker — ${reason}`);
   intentionalRestart = true;
+
+  const drainStatus = await waitForPendingToolCalls(
+    pendingCalls,
+    RESTART_PENDING_DRAIN_TIMEOUT,
+  );
+  if (drainStatus === "timed_out") {
+    console.error(
+      `Supervisor: restarting with ${pendingCalls.size} pending tool call(s) after drain timeout`,
+    );
+  }
 
   // Graceful shutdown (even if not ready yet — worker may be mid-startup)
   if (worker) {

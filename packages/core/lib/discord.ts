@@ -23,6 +23,10 @@ import {
 } from "./conversation.ts";
 import { deployGuildCommands } from "./command-deploy.ts";
 import { isAllowed, isOwner } from "./access.ts";
+import {
+  dispatchPluginMessage,
+  initializePlugins,
+} from "./plugin-lifecycle.ts";
 
 const PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i;
 
@@ -111,16 +115,7 @@ export function createDiscordClient(ctx: AppContext): Client {
     cleanInbox(); // Run on startup
 
     // Initialize plugins
-    for (const plugin of ctx.plugins) {
-      if (plugin.init) {
-        try {
-          await plugin.init(ctx);
-          console.error(`Plugin initialized: ${plugin.name}`);
-        } catch (e) {
-          console.error(`Plugin ${plugin.name} init failed: ${e}`);
-        }
-      }
-    }
+    await initializePlugins(ctx.plugins, ctx);
 
     // Auto-deploy slash commands if they've changed
     try {
@@ -149,15 +144,7 @@ export function createDiscordClient(ctx: AppContext): Client {
     if (message.author.bot) return;
 
     // Plugin message hooks (run before default handler)
-    for (const plugin of ctx.plugins) {
-      if (plugin.onMessage) {
-        try {
-          await plugin.onMessage(message, ctx);
-        } catch (e) {
-          console.error(`Plugin ${plugin.name} onMessage error: ${e}`);
-        }
-      }
-    }
+    await dispatchPluginMessage(ctx.plugins, message, ctx);
 
     const userId = message.author.id;
     const isDM = !message.guild;
