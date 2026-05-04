@@ -98,7 +98,7 @@ daemon.ts (always running)
 - New session gets handoff context injected into system prompt
 - Worker health monitored via `choomfie.pid` checks every 30s; 3 consecutive failures trigger a full session cycle
 - Daemon state written to `meta/daemon-state.json` for `/status` integration
-- Provider fallback state exists in the daemon helpers, but the current runtime starts sessions with the default Anthropic provider path
+- Repeated Anthropic API failures switch new sessions to the Ollama-compatible fallback provider
 - Crash recovery with exponential backoff (2s → 60s max)
 
 ### Plugin System

@@ -149,7 +149,7 @@ Daemon state files:
 - `meta/handoffs.json` stores recent handoff summaries.
 - `meta/daemon-state.json` records turns, tokens, cycles, provider, and worker health for status reporting.
 
-Provider note: daemon state includes Anthropic/Ollama fallback fields and helpers, but the current runtime starts sessions through the default Anthropic provider path.
+Provider note: daemon sessions start on Anthropic. Repeated Anthropic API failures switch subsequent session starts to the Ollama-compatible fallback provider.
 
 ## Voice Pipeline
 
