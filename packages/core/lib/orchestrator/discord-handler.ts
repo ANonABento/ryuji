@@ -15,6 +15,15 @@ import type { RoutingHints } from "./model-router.ts";
 const HISTORY_PER_CHANNEL = 12;
 const MAX_REPLY_CHARS = 1900;
 
+type SendableChannel = TextBasedChannel & {
+  send: (content: string) => Promise<unknown>;
+};
+
+function asSendable(channel: Message["channel"]): SendableChannel | null {
+  if (!channel.isTextBased() || !("send" in channel)) return null;
+  return channel as SendableChannel;
+}
+
 type HistoryEntry = { role: "user" | "assistant"; content: string; at: number };
 const channelHistory = new Map<string, HistoryEntry[]>();
 
@@ -103,11 +112,9 @@ export async function handleLocalMessage(
     onReplySent(channelId);
     const reason = e instanceof Error ? e.message : String(e);
     console.error(`[local] reply failed: ${reason}`);
-    if (message.channel.isTextBased() && "send" in message.channel) {
-      await (message.channel as TextBasedChannel & { send: (content: string) => Promise<unknown> })
-        .send(`Local model error: ${reason}`)
-        .catch(() => {});
-    }
+    await asSendable(message.channel)
+      ?.send(`Local model error: ${reason}`)
+      .catch(() => {});
     return;
   }
 
@@ -118,10 +125,9 @@ export async function handleLocalMessage(
 
   ctx.messageStats.sent++;
 
-  const chunks = chunkMessage(text);
-  if (!message.channel.isTextBased() || !("send" in message.channel)) return;
-  const sender = message.channel as TextBasedChannel & { send: (content: string) => Promise<unknown> };
-  for (const chunk of chunks) {
+  const sender = asSendable(message.channel);
+  if (!sender) return;
+  for (const chunk of chunkMessage(text)) {
     await sender.send(chunk).catch((e: unknown) => {
       console.error(`[local] send failed: ${e}`);
     });

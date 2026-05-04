@@ -8,6 +8,10 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 import type { SocialsPlatformConfig } from "@choomfie/shared";
+import {
+  DEFAULT_LOCAL_CONFIG as DEFAULT_LOCAL_RUNTIME_CONFIG,
+  type LocalRuntimeConfig,
+} from "./orchestrator/local-runtime.ts";
 
 export interface Persona {
   name: string;
@@ -52,24 +56,12 @@ export interface SocialsConfig {
   [key: string]: SocialsPlatformConfig | undefined;
 }
 
-export interface LocalBackgroundTasksConfig {
-  enabled: boolean;
-  idleThresholdMs: number;
-  bentoyaApiUrl: string;
-}
+export type LocalBackgroundTasksConfig = LocalRuntimeConfig["backgroundTasks"];
+export type LocalResourceConfig = LocalRuntimeConfig["resourceManagement"];
 
-export interface LocalResourceConfig {
-  vramBudgetGB: number;
-  pauseWhenGpuBusy: boolean;
-}
-
-export interface LocalConfig {
+export interface LocalConfig extends LocalRuntimeConfig {
+  /** Persistence flag — only the user-facing wrapper sees this; runtime ignores. */
   enabled: boolean;
-  chatModel: string;
-  codingModel: string;
-  ollamaUrl: string;
-  backgroundTasks: LocalBackgroundTasksConfig;
-  resourceManagement: LocalResourceConfig;
 }
 
 export interface Config {
@@ -87,18 +79,7 @@ export interface Config {
 
 export const DEFAULT_LOCAL_CONFIG: LocalConfig = {
   enabled: false,
-  chatModel: "llama3.1:8b",
-  codingModel: "qwen2.5-coder:32b",
-  ollamaUrl: "http://localhost:11434",
-  backgroundTasks: {
-    enabled: true,
-    idleThresholdMs: 5 * 60 * 1000,
-    bentoyaApiUrl: "http://localhost:0/api",
-  },
-  resourceManagement: {
-    vramBudgetGB: 24,
-    pauseWhenGpuBusy: true,
-  },
+  ...DEFAULT_LOCAL_RUNTIME_CONFIG,
 };
 
 const DEFAULT_CONFIG: Config = {

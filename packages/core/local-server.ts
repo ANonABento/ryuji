@@ -19,7 +19,7 @@ import { createContext } from "./lib/context.ts";
 import { loadPlugins } from "./lib/plugins.ts";
 import { createDiscordClient } from "./lib/discord.ts";
 import { destroyAll as destroyTyping } from "./lib/typing.ts";
-import { LocalRuntime, DEFAULT_LOCAL_CONFIG } from "./lib/orchestrator/index.ts";
+import { LocalRuntime } from "./lib/orchestrator/index.ts";
 import { LocalMcpStub } from "./lib/orchestrator/mcp-stub.ts";
 
 const DATA_DIR =
@@ -55,22 +55,9 @@ async function main() {
 
   const { ctx, discordToken } = await createContext();
 
-  // Resolve runtime config: file config wins, default fills the gaps.
-  const cfgFromFile = ctx.config.getLocalConfig();
-  const runtimeConfig = {
-    ...DEFAULT_LOCAL_CONFIG,
-    ...cfgFromFile,
-    backgroundTasks: {
-      ...DEFAULT_LOCAL_CONFIG.backgroundTasks,
-      ...cfgFromFile.backgroundTasks,
-    },
-    resourceManagement: {
-      ...DEFAULT_LOCAL_CONFIG.resourceManagement,
-      ...cfgFromFile.resourceManagement,
-    },
-  };
-
-  const runtime = new LocalRuntime(runtimeConfig);
+  // ConfigManager.getLocalConfig() already merges defaults; LocalConfig is
+  // a superset of LocalRuntimeConfig (it adds `enabled`), so it's directly usable.
+  const runtime = new LocalRuntime(ctx.config.getLocalConfig());
   try {
     await runtime.start();
   } catch (e: unknown) {
