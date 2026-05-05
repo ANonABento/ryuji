@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { getAllModuleTools, getModule, listModules } from "../../../plugins/tutor/modules/index.ts";
 import { koreanModule } from "../../../plugins/tutor/modules/korean/index.ts";
-import { koreanLessons, koreanUnits, koreanA1VocabularyItems } from "../../../plugins/tutor/modules/korean/lessons/index.ts";
+import { koreanLessons, koreanUnits } from "../../../plugins/tutor/modules/korean/lessons/index.ts";
+import { koreanA1Vocab } from "../../../plugins/tutor/modules/korean/data/a1-vocab.ts";
 import { getModuleLevel, setModule } from "../../../plugins/tutor/core/session.ts";
 import { tutorTools } from "../../../plugins/tutor/tools/tutor-tools.ts";
 import { isButtonExercise } from "../../../plugins/tutor/core/lesson-types.ts";
@@ -201,11 +202,11 @@ describe("Korean lesson catalog", () => {
 
 describe("Korean vocab coverage", () => {
   test("has at least 60 A1 vocab items", () => {
-    expect(koreanA1VocabularyItems.length).toBeGreaterThanOrEqual(60);
+    expect(koreanA1Vocab.length).toBeGreaterThanOrEqual(60);
   });
 
   test("all vocab items have Hangul term, romanization, and English meaning", () => {
-    for (const item of koreanA1VocabularyItems) {
+    for (const item of koreanA1Vocab) {
       expect(item.term.length).toBeGreaterThan(0);
       expect(item.reading.length).toBeGreaterThan(0);
       expect(item.meaning.length).toBeGreaterThan(0);
