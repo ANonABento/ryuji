@@ -71,7 +71,7 @@ export class RedditClient implements RedditWriteProvider {
 
   private saveTokens(): void {
     if (!this.tokens) return;
-    writeFileSync(this.tokensPath, JSON.stringify(this.tokens, null, 2));
+    writeFileSync(this.tokensPath, JSON.stringify(this.tokens, null, 2), { mode: 0o600 });
   }
 
   private async authenticate(): Promise<void> {

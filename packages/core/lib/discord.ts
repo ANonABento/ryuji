@@ -165,10 +165,11 @@ export function createDiscordClient(ctx: AppContext): Client {
       (ctx.messageStats.byUser.get(userId) || 0) + 1
     );
 
-    // Handle permission replies before anything else (no rate limit)
-    const canApprovePermissions = ctx.ownerUserId
-      ? userId === ctx.ownerUserId
-      : ctx.allowedUsers.has(userId);
+    // Handle permission replies before anything else (no rate limit).
+    // Fail closed when no owner is configured — bootstrap mode must not let
+    // any allowlisted user approve tool calls (Bash, Write, etc.).
+    const canApprovePermissions =
+      ctx.ownerUserId !== null && userId === ctx.ownerUserId;
     const permMatch = PERMISSION_REPLY_RE.exec(message.content);
     if (permMatch && canApprovePermissions) {
       notifyMcp(ctx, {
