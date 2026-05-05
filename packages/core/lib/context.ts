@@ -2,32 +2,15 @@
  * Context factory — loads env/config and creates the AppContext object.
  */
 
-import { chmod } from "node:fs/promises";
+import { SECRET_FILE_MODE, writeSecretFile } from "@choomfie/shared";
 import { MemoryStore } from "./memory.ts";
 import { ConfigManager } from "./config.ts";
 import { ReminderScheduler } from "./reminders.ts";
 import { BirthdayScheduler } from "./birthdays.ts";
 import type { AppContext } from "./types.ts";
 
-/** File mode for any file that contains a secret or owner identity (0600). */
-export const SECRET_FILE_MODE = 0o600;
-
-/**
- * Write a file containing secrets or identity data. install.sh sets these to
- * 0600, but Bun.write respects umask only — every subsequent write would silently
- * widen perms back to 0644 without this helper.
- */
-export async function writeSecretFile(
-  path: string,
-  contents: string | Uint8Array
-): Promise<void> {
-  await Bun.write(path, contents);
-  try {
-    await chmod(path, SECRET_FILE_MODE);
-  } catch {
-    // Filesystem may not support chmod (e.g. some Windows mounts). Best effort.
-  }
-}
+// Re-exported for tests + existing callers.
+export { SECRET_FILE_MODE, writeSecretFile };
 
 /** Write current access state to disk with secret-file perms. */
 export async function saveAccess(ctx: AppContext) {

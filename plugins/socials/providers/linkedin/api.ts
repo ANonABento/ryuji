@@ -9,8 +9,9 @@
  * Uses raw fetch against LinkedIn REST API (no library needed).
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync } from "node:fs";
+import { readFileSync, mkdirSync, existsSync } from "node:fs";
 import { randomBytes } from "node:crypto";
+import { writeSecretFileSync } from "@choomfie/shared";
 import type { LinkedInProfile, LinkedInPostResult } from "../types.ts";
 
 // --- Constants ---
@@ -76,10 +77,7 @@ export class LinkedInClient {
 
   private saveTokens(): void {
     if (!this.tokens) return;
-    // mode option only applies on file creation; chmod ensures perms tighten on
-    // overwrite too (e.g. token files left at 0o644 by older versions).
-    writeFileSync(this.tokensPath, JSON.stringify(this.tokens, null, 2), { mode: 0o600 });
-    try { chmodSync(this.tokensPath, 0o600); } catch {}
+    writeSecretFileSync(this.tokensPath, JSON.stringify(this.tokens, null, 2));
   }
 
   isAuthenticated(): boolean {
