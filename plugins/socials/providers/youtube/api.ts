@@ -8,7 +8,7 @@
 
 import type { PluginContext } from "@choomfie/shared";
 import type { YouTubeProvider, VideoResult, TranscriptSegment } from "../types.ts";
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync } from "node:fs";
 import { randomBytes, createHash } from "node:crypto";
 
 // --- Constants ---
@@ -145,7 +145,10 @@ export class YouTubeCommentClient {
 
   private saveTokens(): void {
     if (!this.tokens) return;
+    // mode option only applies on file creation; chmod ensures perms tighten on
+    // overwrite too (e.g. token files left at 0o644 by older versions).
     writeFileSync(this.tokensPath, JSON.stringify(this.tokens, null, 2), { mode: 0o600 });
+    try { chmodSync(this.tokensPath, 0o600); } catch {}
   }
 
   isAuthenticated(): boolean {

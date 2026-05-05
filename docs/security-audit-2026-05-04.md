@@ -102,6 +102,13 @@ Confirmed against the live state on the audit machine:
 `0600`. Apply the same to webhook / OAuth token files via a shared helper
 (`writeSecretFile`).
 
+> Implementation note: `writeFileSync(path, data, { mode })` is **not**
+> equivalent to chmod. Node only applies the `mode` arg when *creating* the
+> file; on overwrite the existing perms are kept. So OAuth token files
+> (LinkedIn / Reddit / YouTube) need an explicit `chmodSync` after every
+> write to tighten files left at `0o644` by older versions. See
+> `F-TOKEN-1 (extension)` regression test in `packages/core/test/security-audit.test.ts`.
+
 ### F-PERM-4 — MEDIUM — `userTools` is documented but not enforced
 
 **File:** `packages/shared/types.ts:21`, `packages/core/lib/mcp-server.ts:38-40`
@@ -293,27 +300,39 @@ Choomfie's codepaths (no archive extraction, no direct `ws` use).
 
 ## Test coverage added in this PR
 
-- `packages/core/test/permission-buttons.test.ts` — added two cases:
-  - rejects when `ownerUserId` is `null` even though `userId` matches
-    historical "non-owner" semantics (no bootstrap-mode bypass).
-  - rejects an allowlisted-non-owner click while owner is null.
-- `packages/core/test/permission-reply.test.ts` (new) — covers the
-  `PERMISSION_REPLY_RE` path in `discord.ts`:
-  - bootstrap-mode allowlisted user is rejected (regression for F-PERM-2).
-  - non-owner allowlisted user is rejected when owner is set (already true
-    pre-fix; pinning the behaviour).
-- `packages/core/test/modal-handlers.test.ts` (new) — covers the modal
-  defense-in-depth:
-  - non-owner submitting `modal-persona` is rejected.
-  - non-owner submitting `modal-memory` is rejected.
-- `packages/core/test/secret-perms.test.ts` (new) — writes via `saveAccess`
-  and asserts the resulting file mode is `0o600`.
-- `plugins/browser/test/url-validation.test.ts` (new) — `browse('file:///…')`
-  / `browse('http://169.254.169.254/…')` are rejected; `browse('https://…')`
-  passes.
-- `packages/core/test/discord-tools-files.test.ts` (new) — `reply({ files: ['/etc/passwd'] })`
-  is rejected; allow-listed paths under `DATA_DIR/inbox` and the screenshots
-  dir are accepted.
+Coverage is consolidated into two files:
+
+- `packages/core/test/security-audit.test.ts` (new) — covers F-PERM-1,
+  F-PERM-2, F-PERM-3, F-TOKEN-1 (and the writeFileSync-mode footgun
+  extension), and F-PATH-1:
+  - **F-PERM-1** — permission button handler:
+    - bootstrap mode (`ownerUserId=null`): any click rejected, no
+      `mcp.notification` fired.
+    - non-owner click while owner is set: rejected.
+    - owner click: notification fires (regression).
+  - **F-PERM-2** — `discord.ts` permission-reply path now calls `isOwner`;
+    pin the bootstrap and non-owner cases by asserting `isOwner` returns
+    false in those states (so a refactor can't reintroduce the bypass).
+  - **F-PERM-3** — modal handlers:
+    - `modal-persona` non-owner / bootstrap: rejected, `savePersona` never
+      called.
+    - `modal-memory` non-owner: rejected, `setCoreMemory` never called.
+    - `modal-persona` owner: succeeds (regression).
+  - **F-TOKEN-1** — `saveAccess` writes `access.json` with mode `0o600`
+    (verified by pre-creating the file at `0o644` and asserting tightening).
+  - **F-TOKEN-1 (extension)** — pins the documented Node behaviour that
+    `writeFileSync(path, data, { mode })` does *not* tighten an existing
+    file; verifies that an explicit `chmodSync` after the write does.
+  - **F-PATH-1** — `validateAttachmentPath` rejects `/etc/passwd`, SSH
+    keys, `..` traversal, nonexistent paths, and empty strings; accepts
+    files inside `DATA_DIR/inbox` and `DATA_DIR/browser/screenshots`.
+- `packages/core/test/browser-url-validation.test.ts` (new) — F-SSRF-1:
+  rejects `file://`, `javascript:`, `chrome://`, `data:`, malformed URLs,
+  loopback (`127.x`, `localhost`, `app.localhost`), link-local
+  (`169.254.x` cloud metadata), RFC 1918 ranges, IPv6 loopback /
+  link-local / ULA. Accepts public http/https. Verifies that
+  `CHOOMFIE_BROWSER_ALLOW_PRIVATE=1` reopens private hosts but still
+  blocks non-http(s) schemes.
 
 ## How to reproduce findings
 

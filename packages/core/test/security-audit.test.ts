@@ -4,13 +4,14 @@
  */
 
 import { describe, expect, test, beforeAll } from "bun:test";
-import { mkdtempSync, statSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, statSync, rmSync, mkdirSync, writeFileSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MessageFlags } from "discord.js";
 import { buttonHandlers, modalHandlers } from "@choomfie/shared";
 import { saveAccess, SECRET_FILE_MODE } from "../lib/context.ts";
 import { validateAttachmentPath } from "../lib/tools/discord-tools.ts";
+import { isOwner } from "../lib/access.ts";
 import type { AppContext } from "../lib/types.ts";
 
 beforeAll(async () => {
@@ -70,6 +71,47 @@ describe("F-PERM-1: permission button rejects in bootstrap mode", () => {
 
     expect(ctx.mcp.notification.calls).toHaveLength(1);
     expect(interaction.reply.calls).toHaveLength(0);
+  });
+});
+
+// --- F-PERM-2: permission reply (discord.ts) gating uses isOwner ---
+//
+// discord.ts now calls isOwner(ctx, userId) directly to gate the
+// `yes <code>` / `no <code>` permission reply path. Pin the bootstrap-mode
+// and non-owner cases so a future refactor can't reintroduce the
+// "any allowlisted user can approve" bypass.
+
+describe("F-PERM-2: isOwner gates permission replies (discord.ts)", () => {
+  test("bootstrap mode (ownerUserId=null): allowlisted user is rejected", () => {
+    const ctx = {
+      ownerUserId: null,
+      allowedUsers: new Set(["buddy"]),
+    } as unknown as AppContext;
+    expect(isOwner(ctx, "buddy")).toBe(false);
+  });
+
+  test("bootstrap mode: any user is rejected", () => {
+    const ctx = {
+      ownerUserId: null,
+      allowedUsers: new Set<string>(),
+    } as unknown as AppContext;
+    expect(isOwner(ctx, "anyone")).toBe(false);
+  });
+
+  test("owner set: non-owner allowlisted user is rejected", () => {
+    const ctx = {
+      ownerUserId: "owner",
+      allowedUsers: new Set(["owner", "buddy"]),
+    } as unknown as AppContext;
+    expect(isOwner(ctx, "buddy")).toBe(false);
+  });
+
+  test("owner set: matching userId returns true", () => {
+    const ctx = {
+      ownerUserId: "owner",
+      allowedUsers: new Set(["owner"]),
+    } as unknown as AppContext;
+    expect(isOwner(ctx, "owner")).toBe(true);
   });
 });
 
@@ -174,6 +216,42 @@ describe("F-TOKEN-1: saveAccess writes 0600", () => {
       const mode = statSync(accessPath).mode & 0o777;
       expect(mode).toBe(SECRET_FILE_MODE);
       expect(SECRET_FILE_MODE).toBe(0o600);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// --- F-TOKEN-1 (extension): writeFileSync({ mode }) is incomplete ---
+//
+// Node's `writeFileSync(path, data, { mode })` only applies the mode on file
+// *creation*. When overwriting an existing file the mode arg is ignored, so
+// pre-existing 0o644 token files never get tightened. Pin this behaviour
+// (so the assumption stays documented) and verify that an explicit chmodSync
+// after the write is what actually closes the gap.
+describe("F-TOKEN-1 (extension): writeFileSync mode option does not tighten existing files", () => {
+  test("writeFileSync({ mode: 0o600 }) leaves an existing 0o644 file at 0o644", () => {
+    const dir = mkdtempSync(join(tmpdir(), "choomfie-tok-"));
+    const file = join(dir, "tokens.json");
+    try {
+      writeFileSync(file, "a", { mode: 0o644 });
+      expect(statSync(file).mode & 0o777).toBe(0o644);
+      writeFileSync(file, "b", { mode: 0o600 });
+      // Documented Node behaviour — proves why a chmodSync follow-up is needed.
+      expect(statSync(file).mode & 0o777).toBe(0o644);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("explicit chmodSync after writeFileSync tightens to 0o600", () => {
+    const dir = mkdtempSync(join(tmpdir(), "choomfie-tok-"));
+    const file = join(dir, "tokens.json");
+    try {
+      writeFileSync(file, "a", { mode: 0o644 });
+      writeFileSync(file, "b", { mode: 0o600 });
+      chmodSync(file, 0o600);
+      expect(statSync(file).mode & 0o777).toBe(0o600);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
