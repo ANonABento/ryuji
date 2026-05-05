@@ -74,6 +74,14 @@ export const koreanA1Vocab: ContentItem[] = [
   { term: "지금", reading: "jigeum", meaning: "now" },
   { term: "시간", reading: "sigan", meaning: "time; hour" },
 
+  // Weather
+  { term: "날씨", reading: "nalssi", meaning: "weather" },
+  { term: "비", reading: "bi", meaning: "rain" },
+  { term: "눈", reading: "nun", meaning: "snow" },
+  { term: "바람", reading: "baram", meaning: "wind" },
+  { term: "덥다", reading: "deopda", meaning: "to be hot" },
+  { term: "춥다", reading: "chupda", meaning: "to be cold" },
+
   // Common verbs and adjectives
   { term: "이다", reading: "ida", meaning: "to be (copula)" },
   { term: "있다", reading: "itda", meaning: "to have; to exist" },

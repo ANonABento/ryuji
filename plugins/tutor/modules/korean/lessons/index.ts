@@ -291,10 +291,10 @@ export const koreanLessons: Lesson[] = [
   ),
   vocabLesson(
     "3.3",
-    "Family, Food, Places, and Time",
+    "Family, Food, Places, Time, and Weather",
     ["3.2"],
-    ["가족", "아버지", "어머니", "동생", "밥", "물", "커피", "식당", "학교", "한국", "오늘", "내일", "어제", "지금", "시간"],
-    "This set covers the core nouns you need for daily life: family members, food and drink, common places, and time words. Combine with the particles and verb forms from Unit 2.",
+    ["가족", "아버지", "어머니", "동생", "밥", "물", "커피", "식당", "학교", "한국", "오늘", "내일", "어제", "지금", "시간", "날씨", "비", "눈", "덥다", "춥다"],
+    "This set covers daily-life nouns: family, food and drink, common places, time words, and basic weather. Combine with the particles and verb forms from Unit 2: 오늘 날씨가 어때요? (How's the weather today?)",
     "daily_life",
   ),
   {
