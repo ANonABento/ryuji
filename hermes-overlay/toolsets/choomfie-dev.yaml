@@ -1,0 +1,15 @@
+name: choomfie-dev
+description: Development toolset for local overlay experiments.
+
+extends: choomfie-safe
+
+defaults:
+  shell: ask_or_local_only
+  filesystem: workspace_and_profile_home
+  global_config_writes: false
+
+tools:
+  shell: true
+  git: true
+  local_server: true
+

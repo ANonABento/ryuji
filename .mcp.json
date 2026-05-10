@@ -2,7 +2,7 @@
   "mcpServers": {
     "choomfie": {
       "command": "bun",
-      "args": ["run", "--silent", "start"]
+      "args": ["run", "--silent", "legacy:start"]
     }
   }
 }

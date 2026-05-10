@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+# Launch Choomfie — Hermes distribution overlay.
+#
+# Usage:
+#   choomfie             # Hermes gateway/API foreground
+#   choomfie chat        # Hermes terminal chat with Choomfie profile
+#   choomfie doctor      # Check Choomfie-Hermes setup
+#   choomfie update      # Update Hermes checkout and sync overlay
+#   choomfie legacy      # Old Claude Code/Bun Choomfie
+
+set -euo pipefail
+
+CHOOMFIE_DIR="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || realpath "$0")")/.." && pwd)"
+OVERLAY_DIR="${CHOOMFIE_DIR}/hermes-overlay"
+BIN_DIR="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || realpath "$0")")" && pwd)"
+LOCAL_HERMES="${OVERLAY_DIR}/scripts/hermes-local.sh"
+RUNNER="${OVERLAY_DIR}/scripts/run-choomfie.sh"
+SYNC="${OVERLAY_DIR}/scripts/sync-overlay.sh"
+DOCTOR="${OVERLAY_DIR}/scripts/doctor.sh"
+UPDATE="${OVERLAY_DIR}/scripts/update-hermes.sh"
+INSTALL="${OVERLAY_DIR}/scripts/install-hermes.sh"
+LEGACY="${BIN_DIR}/choomfie-legacy"
+CHOOMFIE_HERMES_HOME="${CHOOMFIE_HERMES_HOME:-${HOME}/.choomfie-hermes}"
+
+usage() {
+  cat <<EOF
+Usage:
+  choomfie                  Start Choomfie-Hermes gateway/API
+  choomfie gateway          Start Choomfie-Hermes gateway/API
+  choomfie chat [args...]   Start Hermes terminal chat with Choomfie home
+  choomfie hermes [args...] Pass arguments directly to Hermes
+  choomfie setup            Install/update local Hermes and sync overlay
+  choomfie sync             Sync overlay files into ~/.choomfie-hermes
+  choomfie doctor           Check setup
+  choomfie update           Update local Hermes checkout and sync overlay
+  choomfie legacy [args...] Run old Claude Code/Bun Choomfie
+
+Common:
+  choomfie --tmux           Run gateway in tmux session "choomfie"
+  choomfie --help           Show this help
+EOF
+}
+
+USE_TMUX=false
+ARGS=()
+
+for arg in "$@"; do
+  case "$arg" in
+    --tmux) USE_TMUX=true ;;
+    -h|--help) usage; exit 0 ;;
+    *) ARGS+=("$arg") ;;
+  esac
+done
+
+cmd="${ARGS[0]:-gateway}"
+if [ ${#ARGS[@]} -gt 0 ]; then
+  ARGS=("${ARGS[@]:1}")
+fi
+
+ensure_hermes() {
+  if ! command -v hermes >/dev/null 2>&1 && [ ! -f "${HOME}/.local/share/choomfie/hermes/pyproject.toml" ]; then
+    "${INSTALL}" --local
+  fi
+  "${SYNC}" >/dev/null
+}
+
+run_gateway() {
+  ensure_hermes
+  if [ "$USE_TMUX" = true ]; then
+    if ! command -v tmux &>/dev/null; then
+      echo "Error: tmux not found. Install with: brew install tmux"
+      exit 1
+    fi
+
+    SESSION_NAME="choomfie"
+    INNER_CMD="cd $(printf %q "$CHOOMFIE_DIR") && exec $(printf %q "$RUNNER")"
+    if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+      echo "Choomfie-Hermes session already running. Attaching..."
+      tmux attach -t "$SESSION_NAME"
+    else
+      tmux new-session -d -s "$SESSION_NAME" "$INNER_CMD"
+      echo "Choomfie-Hermes started in tmux session. Attaching..."
+      tmux attach -t "$SESSION_NAME"
+    fi
+  else
+    exec "${RUNNER}"
+  fi
+}
+
+case "$cmd" in
+  gateway|run|start)
+    run_gateway
+    ;;
+  chat)
+    ensure_hermes
+    export HERMES_HOME="${CHOOMFIE_HERMES_HOME}"
+    export CHOOMFIE_HERMES_HOME
+    exec "${LOCAL_HERMES}" chat "${ARGS[@]+"${ARGS[@]}"}"
+    ;;
+  hermes)
+    ensure_hermes
+    export HERMES_HOME="${CHOOMFIE_HERMES_HOME}"
+    export CHOOMFIE_HERMES_HOME
+    exec "${LOCAL_HERMES}" "${ARGS[@]+"${ARGS[@]}"}"
+    ;;
+  setup|install)
+    "${INSTALL}" --local
+    "${SYNC}"
+    "${DOCTOR}"
+    ;;
+  sync)
+    "${SYNC}"
+    ;;
+  doctor)
+    "${DOCTOR}"
+    ;;
+  update)
+    "${UPDATE}"
+    "${SYNC}"
+    ;;
+  legacy)
+    exec "${LEGACY}" "${ARGS[@]+"${ARGS[@]}"}"
+    ;;
+  legacy-tmux)
+    exec "${LEGACY}" --tmux "${ARGS[@]+"${ARGS[@]}"}"
+    ;;
+  *)
+    echo "Unknown command: $cmd"
+    echo ""
+    usage
+    exit 2
+    ;;
+esac

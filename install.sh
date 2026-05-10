@@ -5,25 +5,26 @@
 set -euo pipefail
 
 CHOOMFIE_DIR="$(cd "$(dirname "$0")" && pwd)"
-DATA_DIR="$HOME/.claude/plugins/data/choomfie-inline"
 BIN_DIR="${HOME}/.local/bin"
+CHOOMFIE_HERMES_HOME="${CHOOMFIE_HERMES_HOME:-${HOME}/.choomfie-hermes}"
+LEGACY_DATA_DIR="$HOME/.claude/plugins/data/choomfie-inline"
 
 echo "=== Choomfie Installer ==="
 echo ""
+echo "This installs Choomfie as a Hermes-based personal agent distribution."
+echo "The old Claude Code/Bun runtime stays available as: choomfie legacy"
+echo ""
 
-# --- Check prerequisites ---
 missing=()
 
-if ! command -v claude &>/dev/null; then
-  missing+=("claude (Claude Code CLI — https://code.claude.com)")
-fi
+for bin in git curl; do
+  if ! command -v "$bin" &>/dev/null; then
+    missing+=("$bin")
+  fi
+done
 
-if ! command -v bun &>/dev/null; then
-  missing+=("bun (https://bun.sh — brew install oven-sh/bun/bun)")
-fi
-
-if ! command -v curl &>/dev/null; then
-  missing+=("curl (used for Discord owner auto-detection)")
+if ! command -v uv &>/dev/null; then
+  missing+=("uv (https://docs.astral.sh/uv/)")
 fi
 
 if [ ${#missing[@]} -gt 0 ]; then
@@ -36,71 +37,51 @@ if [ ${#missing[@]} -gt 0 ]; then
   exit 1
 fi
 
-echo "[1/5] Prerequisites OK (claude, bun)"
+echo "[1/6] Prerequisites OK (git, curl, uv)"
 
-# --- Install dependencies ---
-echo "[2/5] Installing dependencies..."
-(cd "$CHOOMFIE_DIR" && bun install --no-summary)
+echo "[2/6] Installing/updating local Hermes checkout..."
+"$CHOOMFIE_DIR/hermes-overlay/scripts/install-hermes.sh" --local
 
-# --- Discord token ---
-mkdir -p "$DATA_DIR"
-ENV_FILE="$DATA_DIR/.env"
+echo "[3/6] Creating Choomfie-Hermes home..."
+CHOOMFIE_HERMES_HOME="$CHOOMFIE_HERMES_HOME" "$CHOOMFIE_DIR/hermes-overlay/scripts/sync-overlay.sh"
 
-if [ -f "$ENV_FILE" ] && grep -q "DISCORD_TOKEN=" "$ENV_FILE"; then
-  echo "[3/5] Discord token already configured"
+ENV_FILE="$CHOOMFIE_HERMES_HOME/.env"
+
+echo "[4/6] Checking model/API configuration..."
+if grep -Eq '^(OPENROUTER_API_KEY|ANTHROPIC_API_KEY|OPENAI_API_KEY|GOOGLE_API_KEY|GEMINI_API_KEY|OLLAMA_API_KEY)=' "$ENV_FILE" 2>/dev/null; then
+  echo "  Model provider key appears configured in $ENV_FILE"
 else
-  echo ""
-  echo "You need a Discord bot token. If you don't have one yet:"
-  echo "  1. Go to https://discord.com/developers/applications"
-  echo "  2. Create New Application > Bot > Reset Token > Copy"
-  echo "  3. Enable MESSAGE CONTENT INTENT under Bot > Privileged Intents"
-  echo "  4. Invite bot: OAuth2 > URL Generator > bot scope > Send Messages + Read Message History"
-  echo ""
-  read -rp "Paste your Discord bot token (or press Enter to skip): " token
-  if [ -n "$token" ]; then
-    echo "DISCORD_TOKEN=$token" > "$ENV_FILE"
-    chmod 600 "$ENV_FILE"
-    echo "[3/5] Token saved"
-  else
-    echo "[3/5] Skipped — run '/choomfie:configure <token>' later in Claude Code"
-  fi
+  echo "  No model provider key found yet."
+  echo "  Edit: $ENV_FILE"
+  echo "  Common choices: OPENROUTER_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY"
 fi
 
-# --- Detect owner ---
-echo "[4/5] Detecting bot owner..."
-
-if [ -f "$DATA_DIR/access.json" ] && grep -q '"owner"' "$DATA_DIR/access.json"; then
-  EXISTING_OWNER=$(grep -o '"owner"[[:space:]]*:[[:space:]]*"[^"]*"' "$DATA_DIR/access.json" | cut -d'"' -f4)
-  echo "  Owner already set: $EXISTING_OWNER"
-elif [ -f "$ENV_FILE" ] && grep -q "DISCORD_TOKEN=" "$ENV_FILE"; then
-  TOKEN=$(grep "DISCORD_TOKEN=" "$ENV_FILE" | cut -d'=' -f2-)
-  APP_JSON=$(curl -s -H "Authorization: Bot $TOKEN" https://discord.com/api/v10/oauth2/applications/@me 2>/dev/null || true)
-  OWNER_ID=$(echo "$APP_JSON" | grep -o '"owner"[^}]*"id"[^"]*"[^"]*"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
-
-  if [ -n "$OWNER_ID" ]; then
-    cat > "$DATA_DIR/access.json" <<EOJSON
-{
-  "policy": "allowlist",
-  "owner": "$OWNER_ID",
-  "allowed": ["$OWNER_ID"]
-}
-EOJSON
-    chmod 600 "$DATA_DIR/access.json"
-    echo "  Owner auto-detected: $OWNER_ID"
-  else
-    echo "  Could not detect owner — set manually with '/choomfie:access owner <USER_ID>'"
-  fi
+echo "[5/6] Checking Discord gateway configuration..."
+if grep -Eq '^(DISCORD_TOKEN|DISCORD_BOT_TOKEN)=' "$ENV_FILE" 2>/dev/null; then
+  echo "  Discord token appears configured in $ENV_FILE"
+elif [ -f "$LEGACY_DATA_DIR/.env" ] && grep -q "DISCORD_TOKEN=" "$LEGACY_DATA_DIR/.env"; then
+  TOKEN=$(grep "DISCORD_TOKEN=" "$LEGACY_DATA_DIR/.env" | head -1 | cut -d'=' -f2-)
+  {
+    echo ""
+    echo "# Imported from legacy Choomfie installer."
+    echo "DISCORD_TOKEN=$TOKEN"
+  } >> "$ENV_FILE"
+  chmod 600 "$ENV_FILE"
+  echo "  Imported legacy Discord token into $ENV_FILE"
 else
-  echo "  No token configured — skipping owner detection"
+  echo "  No Discord token found yet."
+  echo "  Edit: $ENV_FILE"
+  echo "  Set DISCORD_TOKEN or run Hermes gateway setup after install."
 fi
 
-# --- Install choomfie command ---
-echo "[5/5] Installing 'choomfie' command..."
+echo "[6/6] Installing commands..."
 mkdir -p "$BIN_DIR"
-chmod +x "$CHOOMFIE_DIR/packages/core/bin/choomfie"
-ln -sf "$CHOOMFIE_DIR/packages/core/bin/choomfie" "$BIN_DIR/choomfie"
+chmod +x "$CHOOMFIE_DIR/bin/choomfie" \
+  "$CHOOMFIE_DIR/bin/choomfie-legacy" \
+  "$CHOOMFIE_DIR/hermes-overlay/scripts/"*.sh
+ln -sf "$CHOOMFIE_DIR/bin/choomfie" "$BIN_DIR/choomfie"
+ln -sf "$CHOOMFIE_DIR/bin/choomfie-legacy" "$BIN_DIR/choomfie-legacy"
 
-# Check if BIN_DIR is in PATH
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
   SHELL_RC=""
   if [ -f "$HOME/.zshrc" ]; then
@@ -123,9 +104,16 @@ if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
 fi
 
 echo ""
-echo "=== Done! ==="
+echo "=== Done ==="
 echo ""
-echo "Start Choomfie:"
-echo "  choomfie            # interactive — you + Discord, Claude Code terminal"
-echo "  choomfie --tmux     # background — same as above, survives terminal close"
-echo "  choomfie --daemon   # autonomous — Discord-only, Claude sessions auto-cycle"
+echo "New default:"
+echo "  choomfie              # start Choomfie-Hermes gateway/API"
+echo "  choomfie chat         # terminal chat with Choomfie-Hermes"
+echo "  choomfie doctor       # check setup"
+echo ""
+echo "Legacy escape hatch:"
+echo "  choomfie legacy       # old Claude Code/Bun runtime"
+echo "  choomfie-legacy       # same as above"
+echo ""
+echo "Before first real run, edit:"
+echo "  $ENV_FILE"

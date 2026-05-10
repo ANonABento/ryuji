@@ -36,7 +36,7 @@
         "typescript-eslint": "^8.59.2",
       },
     },
-    "packages/core": {
+    "legacy/bun/packages/core": {
       "name": "@choomfie/core",
       "version": "0.4.0",
       "bin": "./server.ts",
@@ -48,14 +48,14 @@
         "zod": "^3.23.0",
       },
     },
-    "packages/shared": {
+    "legacy/bun/packages/shared": {
       "name": "@choomfie/shared",
       "version": "0.4.0",
       "dependencies": {
         "discord.js": "^14.16.0",
       },
     },
-    "plugins/browser": {
+    "legacy/bun/plugins/browser": {
       "name": "@choomfie/browser",
       "version": "0.4.0",
       "dependencies": {
@@ -63,7 +63,7 @@
         "playwright": "^1.58.2",
       },
     },
-    "plugins/socials": {
+    "legacy/bun/plugins/socials": {
       "name": "@choomfie/socials",
       "version": "0.4.0",
       "dependencies": {
@@ -71,7 +71,7 @@
         "snoowrap": "^1.23.0",
       },
     },
-    "plugins/tutor": {
+    "legacy/bun/plugins/tutor": {
       "name": "@choomfie/tutor",
       "version": "0.4.0",
       "dependencies": {
@@ -83,7 +83,7 @@
         "wanakana": "^5.3.1",
       },
     },
-    "plugins/voice": {
+    "legacy/bun/plugins/voice": {
       "name": "@choomfie/voice",
       "version": "0.4.0",
       "dependencies": {
@@ -117,17 +117,17 @@
 
     "@babel/runtime": ["@babel/runtime@7.29.2", "", {}, "sha512-JiDShH45zKHWyGe4ZNVRrCjBz8Nh9TMmZG1kh4QTK8hCBTWBi8Da+i7s1fJw7/lYpM4ccepSNfqzZ/QvABBi5g=="],
 
-    "@choomfie/browser": ["@choomfie/browser@workspace:plugins/browser"],
+    "@choomfie/browser": ["@choomfie/browser@workspace:legacy/bun/plugins/browser"],
 
-    "@choomfie/core": ["@choomfie/core@workspace:packages/core"],
+    "@choomfie/core": ["@choomfie/core@workspace:legacy/bun/packages/core"],
 
-    "@choomfie/shared": ["@choomfie/shared@workspace:packages/shared"],
+    "@choomfie/shared": ["@choomfie/shared@workspace:legacy/bun/packages/shared"],
 
-    "@choomfie/socials": ["@choomfie/socials@workspace:plugins/socials"],
+    "@choomfie/socials": ["@choomfie/socials@workspace:legacy/bun/plugins/socials"],
 
-    "@choomfie/tutor": ["@choomfie/tutor@workspace:plugins/tutor"],
+    "@choomfie/tutor": ["@choomfie/tutor@workspace:legacy/bun/plugins/tutor"],
 
-    "@choomfie/voice": ["@choomfie/voice@workspace:plugins/voice"],
+    "@choomfie/voice": ["@choomfie/voice@workspace:legacy/bun/plugins/voice"],
 
     "@csstools/color-helpers": ["@csstools/color-helpers@6.0.2", "", {}, "sha512-LMGQLS9EuADloEFkcTBR3BwV/CGHV7zyDxVRtVDTwdI2Ca4it0CCVTT9wCkxSgokjE5Ho41hEPgb8OEUwoXr6Q=="],
 

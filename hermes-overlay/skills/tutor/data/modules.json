@@ -1,0 +1,27 @@
+{
+  "spanish": {
+    "displayName": "Spanish",
+    "defaultLevel": "beginner",
+    "levels": ["beginner", "intermediate"],
+    "starterPrompt": "Start with practical present-tense phrases, pronunciation nudges, and short recall drills."
+  },
+  "japanese": {
+    "displayName": "Japanese",
+    "defaultLevel": "beginner",
+    "levels": ["beginner", "kana", "N5"],
+    "starterPrompt": "Start with kana awareness, survival phrases, and tiny recognition drills."
+  },
+  "french": {
+    "displayName": "French",
+    "defaultLevel": "beginner",
+    "levels": ["beginner", "intermediate"],
+    "starterPrompt": "Start with pronunciation, core verbs, and useful everyday sentences."
+  },
+  "chinese": {
+    "displayName": "Chinese",
+    "defaultLevel": "beginner",
+    "levels": ["beginner", "HSK1"],
+    "starterPrompt": "Start with tones, pinyin, core greetings, and short recognition drills."
+  }
+}
+

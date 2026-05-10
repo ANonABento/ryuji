@@ -14,18 +14,18 @@
     "baseUrl": ".",
     "types": ["bun"],
     "paths": {
-      "@choomfie/shared": ["packages/shared/index.ts"],
-      "@choomfie/voice": ["plugins/voice/index.ts"],
-      "@choomfie/browser": ["plugins/browser/index.ts"],
-      "@choomfie/socials": ["plugins/socials/index.ts"],
-      "@choomfie/tutor": ["plugins/tutor/index.ts"]
+      "@choomfie/shared": ["legacy/bun/packages/shared/index.ts"],
+      "@choomfie/voice": ["legacy/bun/plugins/voice/index.ts"],
+      "@choomfie/browser": ["legacy/bun/plugins/browser/index.ts"],
+      "@choomfie/socials": ["legacy/bun/plugins/socials/index.ts"],
+      "@choomfie/tutor": ["legacy/bun/plugins/tutor/index.ts"]
     }
   },
-  "include": ["packages/**/*.ts", "plugins/**/*.ts"],
+  "include": ["legacy/bun/packages/**/*.ts", "legacy/bun/plugins/**/*.ts"],
   "exclude": [
     "node_modules",
-    "packages/core/daemon-*.ts",
-    "packages/core/test/lesson-mode-picker.test.ts",
-    "packages/core/test/chart-exercise.test.ts"
+    "legacy/bun/packages/core/daemon-*.ts",
+    "legacy/bun/packages/core/test/lesson-mode-picker.test.ts",
+    "legacy/bun/packages/core/test/chart-exercise.test.ts"
   ]
 }

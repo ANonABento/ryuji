@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Launch legacy Choomfie — Claude Code plugin/Bun runtime.
+
+set -euo pipefail
+
+CHOOMFIE_DIR="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || realpath "$0")")/.." && pwd)"
+LEGACY_DIR="${CHOOMFIE_DIR}/legacy/bun"
+
+if [ ! -d "$CHOOMFIE_DIR/node_modules" ]; then
+  echo "Installing Bun dependencies for legacy Choomfie..."
+  (cd "$CHOOMFIE_DIR" && bun install --no-summary) || { echo "Error: bun install failed"; exit 1; }
+fi
+
+USE_TMUX=false
+USE_DAEMON=false
+ALWAYS_ON=false
+EXTRA_ARGS=()
+
+for arg in "$@"; do
+  case "$arg" in
+    --tmux) USE_TMUX=true ;;
+    --daemon) USE_DAEMON=true ;;
+    --always-on) ALWAYS_ON=true; USE_TMUX=true ;;
+    *) EXTRA_ARGS+=("$arg") ;;
+  esac
+done
+
+if [ "$USE_DAEMON" = true ]; then
+  QUOTED_ARGS=""
+  for a in "${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}"; do
+    QUOTED_ARGS="$QUOTED_ARGS $(printf %q "$a")"
+  done
+  INNER_CMD="cd $(printf %q "$CHOOMFIE_DIR") && exec bun legacy/bun/packages/core/daemon.ts$QUOTED_ARGS"
+else
+  INNER_CMD="cd $(printf %q "$CHOOMFIE_DIR") && exec claude --plugin-dir $(printf %q "$CHOOMFIE_DIR") --dangerously-load-development-channels server:choomfie"
+fi
+
+if [ "$USE_TMUX" = true ]; then
+  if ! command -v tmux &>/dev/null; then
+    echo "Error: tmux not found. Install with: brew install tmux"
+    exit 1
+  fi
+
+  if [ "$ALWAYS_ON" = true ]; then
+    if command -v caffeinate &>/dev/null; then
+      pkill -f "caffeinate.*choomfie" 2>/dev/null || true
+      caffeinate -dims &
+      CAFFEINATE_PID=$!
+      echo "Sleep prevention enabled (caffeinate PID: $CAFFEINATE_PID)"
+      trap "kill $CAFFEINATE_PID 2>/dev/null" EXIT
+    else
+      echo "Warning: caffeinate not found. Skipping sleep prevention."
+    fi
+  fi
+
+  SESSION_NAME="choomfie-legacy"
+  if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+    echo "Legacy Choomfie session already running. Attaching..."
+    tmux attach -t "$SESSION_NAME"
+  else
+    tmux new-session -d -s "$SESSION_NAME" "$INNER_CMD"
+    echo "Legacy Choomfie started in tmux session. Attaching..."
+    tmux attach -t "$SESSION_NAME"
+  fi
+else
+  cd "$CHOOMFIE_DIR"
+  if [ "$USE_DAEMON" = true ]; then
+    exec bun legacy/bun/packages/core/daemon.ts "${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}"
+  else
+    exec claude --plugin-dir "$CHOOMFIE_DIR" --dangerously-load-development-channels server:choomfie
+  fi
+fi

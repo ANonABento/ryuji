@@ -1,0 +1,28 @@
+name: choomfie
+display_name: Choomfie
+description: Choomfie personal Hermes distribution profile.
+profile_document: ./SOUL.md
+
+defaults:
+  mode: personal_agent
+  memory: enabled
+  skills:
+    - tutor
+  toolset: choomfie-safe
+  api_server: enabled
+  gateway: enabled
+
+paths:
+  home: ${CHOOMFIE_HERMES_HOME}
+  skills:
+    - ../skills
+  plugins:
+    - ../plugins
+  toolsets:
+    - ../toolsets
+
+behavior:
+  preserve_legacy_choomfie: true
+  prefer_overlay_over_core_patch: true
+  discord_strategy: hybrid
+

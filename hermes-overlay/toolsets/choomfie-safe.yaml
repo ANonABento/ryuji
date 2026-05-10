@@ -1,0 +1,17 @@
+name: choomfie-safe
+description: Safe default toolset for the Choomfie Hermes overlay.
+
+defaults:
+  network: limited
+  filesystem: profile_home
+  shell: disabled_by_default
+  global_config_writes: false
+
+tools:
+  memory: true
+  search: true
+  skills: true
+  cron: true
+  gateway: true
+  subagents: true
+

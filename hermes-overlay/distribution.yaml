@@ -1,0 +1,42 @@
+name: choomfie
+version: 0.1.0
+description: "Choomfie personal agent distribution layered on Hermes."
+hermes_requires: ">=0.13.0"
+author: "Bento"
+license: "MIT"
+
+env_requires:
+  - name: API_SERVER_KEY
+    description: "Bearer token for the Choomfie-Hermes API server."
+    required: false
+    default: ""
+  - name: DISCORD_TOKEN
+    description: "Discord bot token for Hermes gateway Discord access."
+    required: false
+    default: ""
+  - name: OPENROUTER_API_KEY
+    description: "Optional OpenRouter model provider key."
+    required: false
+    default: ""
+  - name: ANTHROPIC_API_KEY
+    description: "Optional Anthropic model provider key."
+    required: false
+    default: ""
+  - name: OPENAI_API_KEY
+    description: "Optional OpenAI model provider key."
+    required: false
+    default: ""
+  - name: GOOGLE_API_KEY
+    description: "Optional Google/Gemini model provider key."
+    required: false
+    default: ""
+
+distribution_owned:
+  - SOUL.md
+  - config.yaml
+  - skills/
+  - plugins/
+  - toolsets/
+  - docs/
+  - distribution.yaml
+

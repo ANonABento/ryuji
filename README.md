@@ -1,16 +1,27 @@
 # Choomfie
 
-A personal AI agent that lives in Discord, powered by [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Persistent memory, switchable personas, voice chat, web browsing, language tutoring, social media integration, and more.
+A personal AI agent distribution layered on Hermes, with Choomfie-specific personality, skills, plugins, tutor behavior, Discord preferences, and local setup.
 
 ## What is this?
 
-Choomfie is a Claude Code plugin that bridges Discord to Claude. It runs as an MCP server inside Claude Code, giving Claude full access to Discord with tools for memory, reminders, personas, and four optional plugins.
+Choomfie is becoming a Hermes-based personal agent distribution. The new default launcher runs Hermes with the Choomfie overlay: personality/profile, skills, plugins, toolsets, Discord preferences, tutor behavior, and local setup.
 
-**Requirements:** [Bun](https://bun.sh), [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI (Max or Pro plan). No API key needed -- runs on your Claude subscription.
+The previous Claude Code/Bun runtime is still available as `choomfie legacy` while the migration is in progress.
+
+**New default requirements:** `git`, `curl`, and [`uv`](https://docs.astral.sh/uv/), plus a Hermes-supported model provider key.
+
+**Legacy requirements:** [Bun](https://bun.sh), [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI (Max or Pro plan).
 
 ## Features
 
-**Core**
+**Hermes-first Core**
+- Hermes gateway/API server for Discord and other platforms
+- Hermes model/provider routing
+- Choomfie profile/SOUL defaults
+- Choomfie overlay skills/plugins/toolsets
+- Hermes memory, cron, skills, subagents, and API server
+
+**Legacy Bun Core** (`choomfie legacy`)
 - Discord channels, DMs, threads, embeds, polls, buttons
 - Two-tier memory: core (always in context) + archival (searchable), auto-compaction
 - Reminders with recurring (cron), nag mode, snooze, interactive buttons
@@ -19,7 +30,7 @@ Choomfie is a Claude Code plugin that bridges Discord to Claude. It runs as an M
 - Permission relay -- approve tool use from Discord DMs
 - Owner auto-detected, allowlist for other users
 
-**Plugins** (enable/disable from Discord with `/plugins`)
+**Legacy Plugins** (`choomfie legacy`, enable/disable from Discord with `/plugins`)
 
 | Plugin | Description |
 |--------|-------------|
@@ -30,10 +41,28 @@ Choomfie is a Claude Code plugin that bridges Discord to Claude. It runs as an M
 
 ## Quick Start
 
-### 1. Prerequisites
+### 1. Linux Laptop Prerequisites
 
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) with a Max plan
-- [Bun](https://bun.sh) (`brew install oven-sh/bun/bun`)
+On Debian/Ubuntu:
+
+```bash
+sudo apt update
+sudo apt install -y git curl ca-certificates
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source ~/.bashrc
+```
+
+On Fedora:
+
+```bash
+sudo dnf install -y git curl ca-certificates
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source ~/.bashrc
+```
+
+You also need:
+
+- A Hermes-supported model provider key, such as OpenRouter, Anthropic API, OpenAI, Google, or Ollama
 - A Discord bot token ([setup guide](docs/discord-setup.md))
 
 ### 2. Install & Run
@@ -41,19 +70,52 @@ Choomfie is a Claude Code plugin that bridges Discord to Claude. It runs as an M
 ```bash
 git clone https://github.com/ANonABento/choomfie.git
 cd choomfie
-./install.sh    # installs deps, prompts for Discord token, adds 'choomfie' command
-choomfie        # start!
+./install.sh    # installs local Hermes checkout, syncs overlay, adds 'choomfie' command
+```
+
+Edit:
+
+```bash
+nano ~/.choomfie-hermes/.env
+```
+
+Set:
+
+```bash
+API_SERVER_KEY=change-this-to-a-long-random-secret
+DISCORD_TOKEN=your-discord-bot-token
+OPENROUTER_API_KEY=your-provider-key
+```
+
+Then:
+
+```bash
+choomfie doctor
+choomfie
 ```
 
 Modes:
 
 ```bash
-choomfie            # interactive — you + Discord, Claude Code terminal
-choomfie --tmux     # background — same as above, survives terminal close
-choomfie --daemon   # autonomous — Discord-only, Claude sessions auto-cycle
+choomfie              # Hermes gateway/API foreground
+choomfie --tmux       # Hermes gateway/API in tmux
+choomfie chat         # terminal chat with Choomfie-Hermes
+choomfie doctor       # setup check
+choomfie legacy       # old Claude Code/Bun runtime
 ```
 
-### 3. Manual Setup
+See [Hermes Setup](docs/hermes-setup.md) for the new launcher, filesystem layout, and config flow.
+
+### Platform Support
+
+| Platform | Status |
+| --- | --- |
+| Linux | First-class target. |
+| macOS | Supported. |
+| Windows via WSL | Supported like Linux. |
+| Native Windows | Not yet; use WSL for now. |
+
+### 3. Legacy Manual Setup
 
 ```bash
 bun install
@@ -126,7 +188,7 @@ daemon.ts (immortal, Agent SDK)
 - **Interactive**: you get a Claude Code terminal + Discord. Supervisor keeps MCP alive through worker restarts.
 - **Daemon**: Discord-only, no terminal. Sessions auto-cycle at ~120K tokens with handoff summaries.
 
-See [docs/supervisor-architecture.md](docs/supervisor-architecture.md) and [docs/architecture-v2.md](docs/architecture-v2.md) for details.
+Legacy architecture details live under [docs/legacy/bun](docs/legacy/bun/).
 
 ## Plugin Setup
 
@@ -174,35 +236,37 @@ Configure via `/voice` slash command in Discord.
 
 ## Project Structure
 
-Choomfie is a Bun monorepo with workspace packages:
+Choomfie is now organized around a Hermes overlay, with the previous Bun runtime isolated under `legacy/bun/`:
 
 ```
-package.json                       # Root: bun workspaces, scripts, dev deps
-install.sh                         # Installer (deps, Discord token, choomfie command)
-packages/                          # Core infrastructure
-  shared/                          # @choomfie/shared — types, utils, time, paths
-  core/                            # @choomfie/core — MCP server, Discord bridge, memory
-    server.ts, supervisor.ts, worker.ts, daemon.ts
-    lib/                           # Discord, memory, reminders, tools, config, permissions
-    skills/                        # Claude Code slash command skills
-    scripts/                       # deploy-commands.ts
-    test/                          # boot, plugin, regression tests
-    bin/                           # choomfie launcher
-plugins/                           # Optional, enable/disable from Discord
-  voice/                           # @choomfie/voice — STT/TTS/VAD
-  browser/                         # @choomfie/browser — Playwright browsing
-  tutor/                           # @choomfie/tutor — language learning (FSRS, lessons)
-  socials/                         # @choomfie/socials — YouTube, Reddit, LinkedIn
-docs/                              # Setup guides, architecture, roadmap
+bin/                               # Choomfie launchers
+  choomfie                         # Hermes-first launcher
+  choomfie-legacy                  # Old Claude Code/Bun launcher
+hermes-overlay/                    # Choomfie distribution layer for Hermes
+  profiles/
+  skills/
+  plugins/
+  toolsets/
+  scripts/
+legacy/bun/                        # Previous Choomfie runtime
+  packages/
+    shared/                        # @choomfie/shared — types, utils, time, paths
+    core/                          # @choomfie/core — MCP server, Discord bridge, memory
+  plugins/
+    voice/                         # @choomfie/voice — STT/TTS/VAD
+    browser/                       # @choomfie/browser — Playwright browsing
+    tutor/                         # @choomfie/tutor — language learning
+    socials/                       # @choomfie/socials — YouTube, Reddit, LinkedIn
+docs/                              # Setup guides, architecture, migration docs
 ```
 
 ## Docs
 
 - [Discord Setup](docs/discord-setup.md) -- creating a Discord bot
-- [Supervisor Architecture](docs/supervisor-architecture.md) -- system design
-- [Voice Plugin](docs/voice-plugin.md) -- voice setup and optimization
-- [Tutor Plugin](docs/tutor-plugin-spec.md) -- language learning system
-- [Roadmap](docs/roadmap.md) -- planned features
+- [Hermes Setup](docs/hermes-setup.md) -- new default setup and launcher flow
+- [Hermes Migration Plan](docs/hermes-migration-plan.md) -- phased migration plan
+- [Hermes Tutor Port](docs/hermes-tutor-port.md) -- tutor vertical-slice plan
+- [Legacy Bun Docs](docs/legacy/bun/README.md) -- previous Claude Code/Bun runtime docs
 
 ## License
 

@@ -1,0 +1,48 @@
+[
+  {
+    "id": "spanish-beginner-001",
+    "module": "spanish",
+    "level": "beginner",
+    "prompt": "Translate: I want water.",
+    "answer": "quiero agua",
+    "accepted": ["quiero agua", "yo quiero agua"],
+    "explanation": "Quiero means I want, and agua means water."
+  },
+  {
+    "id": "japanese-beginner-001",
+    "module": "japanese",
+    "level": "beginner",
+    "prompt": "What does こんにちは mean?",
+    "answer": "hello",
+    "accepted": ["hello", "hi", "good afternoon"],
+    "explanation": "こんにちは is a standard greeting, usually hello or good afternoon."
+  },
+  {
+    "id": "japanese-kana-001",
+    "module": "japanese",
+    "level": "kana",
+    "prompt": "What sound does あ make?",
+    "answer": "a",
+    "accepted": ["a", "ah"],
+    "explanation": "あ is the hiragana vowel sound a, like ah."
+  },
+  {
+    "id": "french-beginner-001",
+    "module": "french",
+    "level": "beginner",
+    "prompt": "Translate: I am tired.",
+    "answer": "je suis fatigue",
+    "accepted": ["je suis fatigue", "je suis fatigué", "je suis fatiguee", "je suis fatiguée"],
+    "explanation": "Je suis means I am. Fatigue/fatigué changes spelling with gender in writing."
+  },
+  {
+    "id": "chinese-beginner-001",
+    "module": "chinese",
+    "level": "beginner",
+    "prompt": "What does ni hao mean?",
+    "answer": "hello",
+    "accepted": ["hello", "hi"],
+    "explanation": "Ni hao is the common Mandarin greeting written pinyin-style as ni hao."
+  }
+]
+

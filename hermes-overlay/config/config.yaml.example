@@ -1,0 +1,42 @@
+profile: choomfie
+profile_document: SOUL.md
+
+home: ${CHOOMFIE_HERMES_HOME}
+
+server:
+  api:
+    # Hermes API server settings are currently environment variables.
+    # Keep these mirrored here as Choomfie overlay documentation.
+    enabled: ${API_SERVER_ENABLED:-true}
+    host: ${API_SERVER_HOST:-127.0.0.1}
+    port: ${API_SERVER_PORT:-8642}
+    require_key: true
+  gateway:
+    enabled: true
+
+providers:
+  default: ${HERMES_PROVIDER:-ollama}
+  model: ${HERMES_MODEL:-hermes-agent}
+
+overlay:
+  skills:
+    - ../skills
+  plugins:
+    - ../plugins
+  toolsets:
+    - ../toolsets/choomfie-safe.yaml
+
+memory:
+  enabled: true
+  import_mode: curated
+  categories:
+    - profile_facts
+    - long_term_memories
+    - preferences
+    - recurring_workflows
+    - relationship_context
+
+safety:
+  allow_global_config_write: false
+  allow_unsafe_tools: false
+  preserve_legacy_choomfie: true
