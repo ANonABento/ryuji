@@ -17,3 +17,4 @@ voices-*.bin
 .claude/worktrees/
 .worktrees/
 .claude/
+.overnight-audit/

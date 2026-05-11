@@ -6,13 +6,15 @@ We evaluated Hermes Agent, OpenClaw, Max plan proxies, standalone bots, and the 
 
 ## Options Evaluated
 
-### 1. Hermes Agent (NousResearch) — Rejected
+### 1. Hermes Agent (NousResearch) — Re-evaluated
 
 [github.com/NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) — 11k+ stars
 
 Self-improving AI agent with Discord, Telegram, Slack, skills, cron, MCP. Very feature-rich.
 
-**Why rejected:** Requires API key. Max plan not supported.
+**Original decision:** Rejected because it required API-key style model access and did not fit the original Max-plan/plugin-system strategy.
+
+**2026-05 update:** Hermes now has a mature OpenAI-compatible API server and local/custom provider story. Choomfie is testing it as an optional peer brain, not a full replacement. See `docs/hermes-decision.md`.
 
 **Borrowed:** Skills system concept, self-improving memory idea.
 
