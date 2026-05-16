@@ -130,6 +130,27 @@ journalctl --user -u hermes-gateway-choomfie -f
 
 `choomfie stop` targets the Choomfie profile gateway. Hermes flags such as `--all` or `--system` can broaden stop scope, so check the target before confirming them.
 
+## OpenAI-Compatible Endpoint
+
+Choomfie can expose a local OpenAI-compatible API for clients such as Slothing:
+
+```bash
+choomfie api-key issue slothing --scopes chat,models,memory,notify
+```
+
+Point OpenAI SDK clients at:
+
+```env
+OPENAI_API_KEY=sk-choomfie-slothing-...
+OPENAI_BASE_URL=http://127.0.0.1:4141/v1
+OPENAI_MODEL=choomfie-claude-sonnet
+```
+
+See [docs/openai-endpoint.md](docs/openai-endpoint.md) for endpoint setup,
+supported routes, Hermes routing behavior, and Choomfie extension endpoints.
+Verification notes live in
+[docs/openai-endpoint-verification.md](docs/openai-endpoint-verification.md).
+
 Update flow:
 
 ```bash
